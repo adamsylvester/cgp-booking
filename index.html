@@ -76,42 +76,24 @@
       border-left: 1px solid var(--border);
     }
 
-    .brand-lockup {
-      display: flex;
-      align-items: center;
-      gap: 14px;
+    .brand-hero {
+      text-align: center;
       margin-bottom: 18px;
     }
 
-    .brand-mark {
-      flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 58px;
-      height: 58px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, var(--primary) 0%, #1639a5 100%);
-      color: #fff;
-      font-size: 20px;
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      box-shadow: 0 10px 24px rgba(29, 78, 216, 0.25);
+    .brand-logo {
+      display: block;
+      width: 100%;
+      max-width: 260px;
+      height: auto;
+      margin: 0 auto 8px;
     }
 
-    .brand-name,
     .brand-subtitle,
     .form-title,
     .reviews-heading,
     .price {
       letter-spacing: -0.02em;
-    }
-
-    .brand-name {
-      margin: 0;
-      font-size: 36px;
-      line-height: 1.02;
-      white-space: nowrap;
     }
 
     .brand-subtitle {
@@ -414,6 +396,51 @@
       font-size: 13px;
     }
 
+    .payment-breakdown {
+      margin: 14px 0 0;
+      padding-top: 12px;
+      border-top: 1px dashed var(--border-strong);
+      display: grid;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 14px;
+    }
+
+    .breakdown-label {
+      color: var(--text-muted);
+    }
+
+    .breakdown-value {
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .breakdown-row.deposit .breakdown-label {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .breakdown-row.deposit .breakdown-value {
+      color: var(--primary);
+      font-size: 18px;
+    }
+
+    .breakdown-row.addon-confirm .breakdown-label {
+      color: var(--success);
+      font-weight: 700;
+    }
+
+    .breakdown-row.addon-confirm .breakdown-label::before {
+      content: "✓ ";
+      margin-right: 2px;
+    }
+
     .contact-panel {
       margin-bottom: 14px;
     }
@@ -611,12 +638,12 @@
         padding: 26px;
       }
 
-      .brand-name {
-        font-size: 34px;
-      }
-
       .brand-subtitle {
         font-size: 24px;
+      }
+
+      .brand-logo {
+        max-width: 220px;
       }
     }
 
@@ -635,23 +662,12 @@
         padding: 20px;
       }
 
-      .brand-lockup {
-        align-items: flex-start;
-      }
-
-      .brand-mark {
-        width: 52px;
-        height: 52px;
-        font-size: 18px;
-      }
-
-      .brand-name {
-        font-size: 30px;
-        white-space: normal;
-      }
-
       .brand-subtitle {
         font-size: 22px;
+      }
+
+      .brand-logo {
+        max-width: 200px;
       }
 
       .form-title {
@@ -680,15 +696,13 @@
   <div class="wrap">
     <div class="card">
       <div class="left">
-        <div class="brand-lockup">
-          <div class="brand-mark">CGP</div>
-          <div class="brand-text">
-            <h1 class="brand-name">Charlottesville Gutter Pros</h1>
-            <h2 class="brand-subtitle">Book Your Gutter Cleaning in Minutes, Any Time</h2>
-          </div>
+        <div class="brand-hero">
+          <img class="brand-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+          <h2 class="brand-subtitle">Book Your Gutter Cleaning in Minutes</h2>
         </div>
 
-        <div class="promo">$25 SAVINGS ONLINE</div>
+        <!-- promo-only: $25 online-savings badge. Hidden by JS when PRICING.promoEnabled is false. -->
+        <div class="promo promo-only">$25 SAVINGS ONLINE</div>
 
         <div class="feature-heading" style="margin-top:16px;">Quote ➡ Pay ➡ Schedule</div>
         <div class="feature-list" style="margin-bottom:20px;">
@@ -714,7 +728,8 @@
           </div>
         </div>
 
-        <p class="intro">Get your price instantly, claim your $25 savings, and book in minutes.</p>
+        <!-- Promo-on version of this line: "Get your price instantly, claim your $25 savings, and book in minutes." -->
+        <p class="intro">Get your price instantly and book in minutes.</p>
 
         <div class="feature-heading">What’s included</div>
         <div class="feature-list">
@@ -816,9 +831,23 @@
 
           <div class="price-wrap">
             <div id="savingsTop" style="display:none; font-weight:700; color:var(--success); margin-bottom:6px;">You’re saving $25 today 🎉</div>
-            <div class="price-label">Your Price</div>
+            <div class="price-label">Your Total Price</div>
             <div class="price" id="price">$0</div>
             <div class="price-note">No hidden fees.</div>
+            <div id="paymentBreakdown" class="payment-breakdown" style="display:none;">
+              <div class="breakdown-row addon-confirm" id="addonConfirmRow" style="display:none;">
+                <span class="breakdown-label">Includes seasonal touch-ups add-on</span>
+                <span class="breakdown-value" id="addonConfirmValue">+$0</span>
+              </div>
+              <div class="breakdown-row deposit">
+                <span class="breakdown-label">Pay today (deposit)</span>
+                <span class="breakdown-value" id="depositDisplay">$25</span>
+              </div>
+              <div class="breakdown-row">
+                <span class="breakdown-label">Balance on completion</span>
+                <span class="breakdown-value" id="balanceDisplay">$0</span>
+              </div>
+            </div>
           </div>
 
           <div class="contact-panel">
@@ -848,7 +877,7 @@
           </button>
           <div id="formError" class="form-error" style="display:none;"></div>
 
-          <p class="microcopy">Next you'll pay your $25 deposit, then schedule your service.</p>
+          <p class="microcopy">After payment, you'll pick your service date on the next screen.</p>
           <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
           <p class="microcopy" id="urgency" style="display:none; font-weight:600; color:var(--success);">Only 1–2 spots left tomorrow 🔥</p>
           <p class="microcopy">
@@ -897,7 +926,16 @@
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA0aq7m2hgsKfhAvq0cEEp3SE_HkanBOcMvB-oYKB6Pt-3obxlkEgChTO_h16wpOPphw/exec';
 
     const PRICING = {
+      // ===== $25 ONLINE-SAVINGS PROMO =====
+      // Flip promoEnabled to true to re-enable the entire promo:
+      //   - the red "$25 SAVINGS ONLINE" badge on the left panel
+      //   - the "You're saving $25 today" banner above the price
+      //   - the strikethrough on the original price
+      //   - subtracting $25 from the final total
+      // promoDiscount stays at 25 so you can tweak the amount without rewiring.
+      promoEnabled: false,
       promoDiscount: 25,
+      depositAmount: 25,
       oneStoryBase: 100,
       oneStoryRate: 0.05,
       twoStoryBase: 105,
@@ -919,6 +957,11 @@
       price: document.getElementById('price'),
       urgency: document.getElementById('urgency'),
       addonRow: document.querySelector('.addon-row'),
+      paymentBreakdown: document.getElementById('paymentBreakdown'),
+      addonConfirmRow: document.getElementById('addonConfirmRow'),
+      addonConfirmValue: document.getElementById('addonConfirmValue'),
+      depositDisplay: document.getElementById('depositDisplay'),
+      balanceDisplay: document.getElementById('balanceDisplay'),
       custName: document.getElementById('custName'),
       custPhone: document.getElementById('custPhone'),
       custEmail: document.getElementById('custEmail'),
@@ -978,6 +1021,9 @@
       elements.addonPrice.textContent = '+$0';
       updateAddonSubtext(0);
       setAddonActive(elements.addonInput.checked);
+      elements.paymentBreakdown.style.display = 'none';
+      elements.addonConfirmRow.style.display = 'none';
+      elements.bookBtn.textContent = 'Next';
       currentQuote = { basePrice: 0, addonCost: 0, finalPrice: 0 };
       updateBookBtnState();
     }
@@ -985,19 +1031,31 @@
     function renderPrice(originalPrice, discountedPrice, addonCost, hasAddon) {
       const originalDisplayPrice = hasAddon ? originalPrice + addonCost : originalPrice;
 
-      let html = `
-        <span class="price-original">$${originalDisplayPrice}</span>
-        <span class="price-current">$${discountedPrice}</span>
-      `;
-
-      if (hasAddon) {
-        html += '<div class="price-note">Includes seasonal touch-ups add-on.</div>';
+      let html = '';
+      if (PRICING.promoEnabled) {
+        html += `<span class="price-original">$${originalDisplayPrice}</span>`;
       }
+      html += `<span class="price-current">$${discountedPrice}</span>`;
 
       elements.price.innerHTML = html;
-      elements.savingsTop.style.display = 'block';
+      elements.savingsTop.style.display = PRICING.promoEnabled ? 'block' : 'none';
+
+      if (hasAddon) {
+        elements.addonConfirmValue.textContent = `+$${addonCost}`;
+        elements.addonConfirmRow.style.display = 'flex';
+      } else {
+        elements.addonConfirmRow.style.display = 'none';
+      }
       elements.addonPrice.textContent = `+$${addonCost}`;
       updateAddonSubtext(originalPrice);
+
+      const deposit = PRICING.depositAmount;
+      const balance = Math.max(0, discountedPrice - deposit);
+      elements.depositDisplay.textContent = `$${deposit}`;
+      elements.balanceDisplay.textContent = `$${balance}`;
+      elements.paymentBreakdown.style.display = 'grid';
+      elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
+
       currentQuote = {
         basePrice: originalPrice,
         addonCost: hasAddon ? addonCost : 0,
@@ -1026,7 +1084,8 @@
       calculationTimer = setTimeout(() => {
         const basePrice = roundWhole(getBasePrice(squareFootage, stories));
         const addonCost = getAddonCost(basePrice);
-        let finalPrice = Math.max(0, basePrice - PRICING.promoDiscount);
+        const activePromo = PRICING.promoEnabled ? PRICING.promoDiscount : 0;
+        let finalPrice = Math.max(0, basePrice - activePromo);
 
         if (hasAddon) {
           finalPrice += addonCost;
@@ -1110,7 +1169,7 @@
         basePrice: currentQuote.basePrice,
         addonCost: currentQuote.addonCost,
         finalPrice: currentQuote.finalPrice,
-        promoDiscount: PRICING.promoDiscount,
+        promoDiscount: PRICING.promoEnabled ? PRICING.promoDiscount : 0,
         userAgent: navigator.userAgent,
         page: location.href,
       };
@@ -1167,6 +1226,14 @@
     }
 
     function init() {
+      // Hide promo-only elements when the $25-online-savings promo is off.
+      // Re-enable by flipping PRICING.promoEnabled at the top of this script.
+      if (!PRICING.promoEnabled) {
+        document.querySelectorAll('.promo-only').forEach((el) => {
+          el.style.display = 'none';
+        });
+      }
+
       elements.sqftInput.addEventListener('input', calculatePrice);
       elements.storiesSelect.addEventListener('change', calculatePrice);
       elements.addonInput.addEventListener('change', calculatePrice);
