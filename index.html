@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gutter Cleaning Booking Form</title>
+  <style>
+    :root {
+      --bg-start: #f3f7fc;
+      --bg-end: #eef4fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fbff;
+      --surface-muted: #f8fafc;
+      --text: #101828;
+      --text-muted: #475467;
+      --text-subtle: #667085;
+      --border: #e4e7ec;
+      --border-strong: #d0d5dd;
+      --primary: #1d4ed8;
+      --primary-dark: #1e40af;
+      --success: #16a34a;
+      --warning: #f59e0b;
+      --danger: #dc2626;
+      --shadow-lg: 0 18px 50px rgba(16, 24, 40, 0.1);
+      --shadow-md: 0 10px 24px rgba(16, 24, 40, 0.06);
+      --shadow-sm: 0 8px 20px rgba(16, 24, 40, 0.05);
+      --radius-xl: 24px;
+      --radius-lg: 20px;
+      --radius-md: 16px;
+      --radius-sm: 12px;
+      --radius-pill: 999px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 32px 16px;
+      font-family: Arial, sans-serif;
+      color: var(--text);
+      background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .card {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .left,
+    .right {
+      padding: 40px;
+    }
+
+    .left {
+      background: linear-gradient(135deg, #ffffff 0%, #f9fbff 100%);
+    }
+
+    .right {
+      background: var(--surface-soft);
+      border-left: 1px solid var(--border);
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .brand-mark {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 58px;
+      height: 58px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--primary) 0%, #1639a5 100%);
+      color: #fff;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      box-shadow: 0 10px 24px rgba(29, 78, 216, 0.25);
+    }
+
+    .brand-name,
+    .brand-subtitle,
+    .form-title,
+    .reviews-heading,
+    .price {
+      letter-spacing: -0.02em;
+    }
+
+    .brand-name {
+      margin: 0;
+      font-size: 36px;
+      line-height: 1.02;
+      white-space: nowrap;
+    }
+
+    .brand-subtitle {
+      margin: 6px 0 0;
+      font-size: 26px;
+      line-height: 1.15;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .promo {
+      display: inline-block;
+      margin-bottom: 18px;
+      padding: 10px 14px;
+      border-radius: var(--radius-pill);
+      background: #dc2626;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .intro {
+      max-width: 560px;
+      margin: 0 0 18px;
+      font-size: 17px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .feature-heading {
+      margin: 0 0 14px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    .feature-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .feature {
+      display: grid;
+      grid-template-columns: 44px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .feature-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 999px;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      box-shadow: 0 6px 14px rgba(29, 78, 216, 0.25);
+    }
+
+    .feature strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .feature span {
+      color: var(--text-subtle);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .rating-note {
+      margin-top: 24px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    .form-card {
+      position: relative;
+      padding: 28px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+    }
+
+    .form-title {
+      margin: 0 0 8px;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    .form-subtext {
+      margin: 0 0 20px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-subtle);
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    input,
+    select,
+    button {
+      font: inherit;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 14px 15px;
+      font-size: 15px;
+      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      transition: box-shadow 0.3s ease, border-color 0.3s ease;
+    }
+
+    input:focus,
+    select:focus,
+    button:focus,
+    .cta:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+    }
+
+    input.invalid {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
+    }
+
+    .arrow-wrap {
+      position: absolute;
+      top: 105px;
+      left: 50%;
+      width: 150px;
+      height: 78px;
+      pointer-events: none;
+      transform: translateX(-16%);
+    }
+
+    .loopy-arrow {
+      width: 100%;
+      height: 100%;
+      opacity: 0.95;
+      overflow: visible;
+      animation: arrowBounce 1.8s ease-in-out infinite;
+      transform-origin: 72% 88%;
+    }
+
+    .addon-heading {
+      margin: 6px 0 4px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-subtle);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .addon-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      margin-bottom: 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .addon-row.active {
+      border-color: var(--success);
+      background: #f0fdf4;
+    }
+
+    .addon-left {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .addon-checkbox {
+      width: 16px;
+      height: 16px;
+      margin: 2px 0 0;
+      flex: 0 0 auto;
+    }
+
+    .addon-copy {
+      min-width: 0;
+    }
+
+    .addon-title {
+      display: block;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 1.15;
+      margin-bottom: 2px;
+    }
+
+    .addon-subtext {
+      display: block;
+      font-size: 12px;
+      line-height: 1.2;
+      color: var(--text-subtle);
+    }
+
+    .addon-price-pill {
+      white-space: nowrap;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid #d9e2ff;
+      background: #eef2ff;
+      font-size: 12px;
+      font-weight: 700;
+      color: #111827;
+      margin-top: 1px;
+      flex: 0 0 auto;
+    }
+
+    .price-wrap {
+      margin: 18px 0 14px;
+      padding: 20px;
+      text-align: center;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+    }
+
+    .price-label {
+      margin-bottom: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-subtle);
+    }
+
+    .price {
+      margin: 0;
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 1.05;
+    }
+
+    .price-original {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #98a2b3;
+      text-decoration: line-through;
+    }
+
+    .price-current {
+      display: block;
+    }
+
+    .calculating {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--primary);
+      animation: pulseText 1s ease-in-out infinite;
+    }
+
+    .price-note,
+    .microcopy {
+      text-align: center;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-subtle);
+    }
+
+    .price-note {
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
+    .contact-panel {
+      margin-bottom: 14px;
+    }
+
+    .contact-heading {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--primary);
+    }
+
+    .contact-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .contact-grid .field {
+      margin-bottom: 0;
+    }
+
+    .contact-grid .field-full {
+      grid-column: 1 / -1;
+    }
+
+    .contact-grid label {
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+
+    .contact-grid input {
+      padding: 12px 13px;
+      font-size: 14px;
+    }
+
+    .cta {
+      position: relative;
+      display: block;
+      width: 100%;
+      overflow: hidden;
+      padding: 16px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--primary);
+      color: #fff;
+      text-align: center;
+      text-decoration: none;
+      font-size: 17px;
+      font-weight: 800;
+      line-height: 1.2;
+      cursor: pointer;
+    }
+
+    .cta:hover {
+      background: var(--primary-dark);
+    }
+
+    .cta:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .cta::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+      transition: left 0.6s ease;
+    }
+
+    .cta:hover:not(:disabled)::after {
+      left: 100%;
+    }
+
+    .form-error {
+      margin: 10px 0 0;
+      padding: 10px 12px;
+      border: 1px solid #fecaca;
+      background: #fef2f2;
+      border-radius: 10px;
+      color: var(--danger);
+      font-size: 13px;
+      line-height: 1.4;
+      text-align: center;
+    }
+
+    .microcopy {
+      margin: 12px 0 6px;
+    }
+
+    .contact-link {
+      color: var(--primary);
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .reviews-section {
+      max-width: 1100px;
+      margin: 30px auto 0;
+    }
+
+    .reviews-heading {
+      margin: 0 0 20px;
+      text-align: center;
+      font-size: 28px;
+    }
+
+    .reviews-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .review-card {
+      padding: 18px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .review-stars {
+      margin-bottom: 8px;
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      color: var(--warning);
+    }
+
+    .review-text {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-muted);
+    }
+
+    .review-name {
+      display: block;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    .pulse {
+      animation: pulseGlow 1.2s ease-in-out 2;
+    }
+
+    @keyframes pulseText {
+      0%,
+      100% {
+        opacity: 0.5;
+      }
+      50% {
+        opacity: 1;
+      }
+    }
+
+    @keyframes pulseGlow {
+      0% {
+        box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.2);
+      }
+      50% {
+        box-shadow: 0 0 0 6px rgba(29, 78, 216, 0.15);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.2);
+      }
+    }
+
+    @keyframes arrowBounce {
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(6px) rotate(2deg);
+      }
+    }
+
+    @media (max-width: 900px) {
+      .card {
+        grid-template-columns: 1fr;
+      }
+
+      .right {
+        border-top: 1px solid var(--border);
+        border-left: 0;
+      }
+
+      .left,
+      .right {
+        padding: 26px;
+      }
+
+      .brand-name {
+        font-size: 34px;
+      }
+
+      .brand-subtitle {
+        font-size: 24px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 16px 12px;
+      }
+
+      .arrow-wrap {
+        display: none;
+      }
+
+      .left,
+      .right,
+      .form-card {
+        padding: 20px;
+      }
+
+      .brand-lockup {
+        align-items: flex-start;
+      }
+
+      .brand-mark {
+        width: 52px;
+        height: 52px;
+        font-size: 18px;
+      }
+
+      .brand-name {
+        font-size: 30px;
+        white-space: normal;
+      }
+
+      .brand-subtitle {
+        font-size: 22px;
+      }
+
+      .form-title {
+        font-size: 24px;
+      }
+
+      .price {
+        font-size: 34px;
+      }
+
+      .addon-row {
+        gap: 8px;
+      }
+
+      .addon-title {
+        font-size: 13px;
+      }
+
+      .contact-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="left">
+        <div class="brand-lockup">
+          <div class="brand-mark">CGP</div>
+          <div class="brand-text">
+            <h1 class="brand-name">Charlottesville Gutter Pros</h1>
+            <h2 class="brand-subtitle">Book Your Gutter Cleaning in Minutes, Any Time</h2>
+          </div>
+        </div>
+
+        <div class="promo">$25 SAVINGS ONLINE</div>
+
+        <div class="feature-heading" style="margin-top:16px;">Quote ➡ Pay ➡ Schedule</div>
+        <div class="feature-list" style="margin-bottom:20px;">
+          <div class="feature">
+            <div class="feature-icon">1</div>
+            <div>
+              <strong>Enter your home's square footage and number of stories</strong>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">2</div>
+            <div>
+              <strong>See your price instantly and pay a $25 deposit</strong>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">3</div>
+            <div>
+              <strong>Schedule your service onto our calendar</strong>
+            </div>
+          </div>
+        </div>
+
+        <p class="intro">Get your price instantly, claim your $25 savings, and book in minutes.</p>
+
+        <div class="feature-heading">What’s included</div>
+        <div class="feature-list">
+          <div class="feature">
+            <div class="feature-icon">✓</div>
+            <div>
+              <strong>Full gutter and downspout cleaning</strong>
+              <span>We remove all debris from gutters and downspouts.</span>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">✓</div>
+            <div>
+              <strong>Downspout flow check</strong>
+              <span>We make sure every downspout is clear and draining correctly.</span>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">✓</div>
+            <div>
+              <strong>Minor adjustments &amp; resecuring</strong>
+              <span>If we see loose hangers or braces we'll tighten them.</span>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">✓</div>
+            <div>
+              <strong>Thorough clean-up</strong>
+              <span>We won't make a mess, but if we do, we'll clean it up!</span>
+            </div>
+          </div>
+
+          <div class="feature">
+            <div class="feature-icon">✓</div>
+            <div>
+              <strong>Gutter system inspection</strong>
+              <span>We spot issues early and recommend cost-saving fixes.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="rating-note">★ 4.9 Rated with 800+ Google Reviews</div>
+      </div>
+
+      <div class="right">
+        <div class="form-card">
+          <h2 class="form-title">Instant Booking</h2>
+          <p class="form-subtext">Get your gutter cleaning price instantly with Charlottesville Gutter Pros and book your service without waiting for a callback.</p>
+
+          <div class="field">
+            <div class="arrow-wrap" aria-hidden="true">
+              <svg viewBox="0 0 150 78" class="loopy-arrow" xmlns="http://www.w3.org/2000/svg">
+                <path
+                  d="M78 8 C82 20, 82 34, 76 44 C68 56, 54 62, 34 64"
+                  fill="none"
+                  stroke="#1d4ed8"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M34 64 L44 56 M34 64 L46 67"
+                  fill="none"
+                  stroke="#1d4ed8"
+                  stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+
+            <label for="sqft">Home's Square Footage</label>
+            <input id="sqft" type="number" placeholder="" />
+          </div>
+
+          <div class="field">
+            <label for="stories">Stories</label>
+            <select id="stories">
+              <option value="1">1 Story</option>
+              <option value="2">2 Stories</option>
+              <option value="3" selected>3 Stories</option>
+            </select>
+          </div>
+
+          <div class="addon-heading">Optional Add-On</div>
+          <label class="addon-row" for="addon">
+            <span class="addon-left">
+              <input class="addon-checkbox" type="checkbox" id="addon" checked />
+              <span class="addon-copy">
+                <span class="addon-title">Keep Your Gutters Clean All Season</span>
+                <span id="addonSubtext" class="addon-subtext">Free touchups thru Oct. 31st · Normally $0 per visit</span>
+              </span>
+            </span>
+            <span id="addonPrice" class="addon-price-pill">+$0</span>
+          </label>
+
+          <div class="price-wrap">
+            <div id="savingsTop" style="display:none; font-weight:700; color:var(--success); margin-bottom:6px;">You’re saving $25 today 🎉</div>
+            <div class="price-label">Your Price</div>
+            <div class="price" id="price">$0</div>
+            <div class="price-note">No hidden fees.</div>
+          </div>
+
+          <div class="contact-panel">
+            <div class="contact-heading">Your Info</div>
+            <div class="contact-grid">
+              <div class="field">
+                <label for="custName">Full Name</label>
+                <input id="custName" type="text" autocomplete="name" />
+              </div>
+              <div class="field">
+                <label for="custPhone">Phone</label>
+                <input id="custPhone" type="tel" autocomplete="tel" />
+              </div>
+              <div class="field field-full">
+                <label for="custEmail">Email</label>
+                <input id="custEmail" type="email" autocomplete="email" />
+              </div>
+              <div class="field field-full">
+                <label for="custAddress">Service Address</label>
+                <input id="custAddress" type="text" autocomplete="street-address" />
+              </div>
+            </div>
+          </div>
+
+          <button class="cta" id="bookBtn" type="button" disabled>
+            Next
+          </button>
+          <div id="formError" class="form-error" style="display:none;"></div>
+
+          <p class="microcopy">Next you'll pay your $25 deposit, then schedule your service.</p>
+          <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
+          <p class="microcopy" id="urgency" style="display:none; font-weight:600; color:var(--success);">Only 1–2 spots left tomorrow 🔥</p>
+          <p class="microcopy">
+            Need something else?
+            <a class="contact-link" href="https://cvillegutterpros.com/contact/">Contact us</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="reviews-section">
+      <h2 class="reviews-heading">What Homeowners Are Saying</h2>
+      <div class="reviews-grid">
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">
+            Really appreciate the great work! Have used Charlottesville Gutter Pros for estimates and work several times. Always very happy! Thank you!
+          </p>
+          <strong class="review-name">Frank Snyder</strong>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">
+            Fast, thorough and pleasant service! Thanks, Gutter Pros, for new gutters, leaf guards and downspouts.
+          </p>
+          <strong class="review-name">Andrea Cauble</strong>
+        </div>
+
+        <div class="review-card">
+          <div class="review-stars">★★★★★</div>
+          <p class="review-text">
+            We had an excellent experience with Charlottesville Gutter Pros for gutter cleaning, downspout extensions, and leaf guards. The service was timely and the price seemed fair.
+          </p>
+          <strong class="review-name">Meg Sewell</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    // Replace SQUARE_DEPOSIT_URL with your Square link.
+    // Replace APPS_SCRIPT_URL once you've deployed the Google Apps Script as a Web App.
+    const SQUARE_DEPOSIT_URL = 'https://square.link/u/1CK0Bclg';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwA0aq7m2hgsKfhAvq0cEEp3SE_HkanBOcMvB-oYKB6Pt-3obxlkEgChTO_h16wpOPphw/exec';
+
+    const PRICING = {
+      promoDiscount: 25,
+      oneStoryBase: 100,
+      oneStoryRate: 0.05,
+      twoStoryBase: 105,
+      twoStoryRate: 0.075,
+      twoStoryLargeHomeThreshold: 2800,
+      twoStoryLargeHomeFee: 20,
+      threeStoryBase: 235,
+      threeStoryRate: 0.075,
+      addonMultiplier: 0.5,
+    };
+
+    const elements = {
+      savingsTop: document.getElementById('savingsTop'),
+      sqftInput: document.getElementById('sqft'),
+      storiesSelect: document.getElementById('stories'),
+      addonInput: document.getElementById('addon'),
+      addonPrice: document.getElementById('addonPrice'),
+      addonSubtext: document.getElementById('addonSubtext'),
+      price: document.getElementById('price'),
+      urgency: document.getElementById('urgency'),
+      addonRow: document.querySelector('.addon-row'),
+      custName: document.getElementById('custName'),
+      custPhone: document.getElementById('custPhone'),
+      custEmail: document.getElementById('custEmail'),
+      custAddress: document.getElementById('custAddress'),
+      bookBtn: document.getElementById('bookBtn'),
+      formError: document.getElementById('formError'),
+    };
+
+    // Latest calculated price + breakdown — kept in module state so the submit
+    // handler can capture them without re-running the pricing math.
+    let currentQuote = {
+      basePrice: 0,
+      addonCost: 0,
+      finalPrice: 0,
+    };
+
+    function roundWhole(number) {
+      return Math.round(number);
+    }
+
+    function getBasePrice(squareFootage, stories) {
+      if (stories === '1') {
+        return PRICING.oneStoryBase + PRICING.oneStoryRate * squareFootage;
+      }
+
+      if (stories === '2') {
+        let total = PRICING.twoStoryBase + PRICING.twoStoryRate * squareFootage;
+        if (squareFootage > PRICING.twoStoryLargeHomeThreshold) {
+          total += PRICING.twoStoryLargeHomeFee;
+        }
+        return total;
+      }
+
+      return PRICING.threeStoryBase + PRICING.threeStoryRate * squareFootage;
+    }
+
+    function getAddonCost(basePrice) {
+      return roundWhole(basePrice * PRICING.addonMultiplier);
+    }
+
+    function isWeekdayEligible(dayIndex = new Date().getDay()) {
+      return dayIndex >= 0 && dayIndex <= 4;
+    }
+
+    function setAddonActive(isActive) {
+      elements.addonRow.classList.toggle('active', isActive);
+    }
+
+    function updateAddonSubtext(basePrice) {
+      const visitPrice = basePrice > 0 ? basePrice : 0;
+      elements.addonSubtext.textContent = `Free touchups thru Oct. 31st · Normally $${visitPrice} per visit`;
+    }
+
+    function renderEmptyPrice() {
+      elements.price.textContent = '$0';
+      elements.savingsTop.style.display = 'none';
+      elements.addonPrice.textContent = '+$0';
+      updateAddonSubtext(0);
+      setAddonActive(elements.addonInput.checked);
+      currentQuote = { basePrice: 0, addonCost: 0, finalPrice: 0 };
+      updateBookBtnState();
+    }
+
+    function renderPrice(originalPrice, discountedPrice, addonCost, hasAddon) {
+      const originalDisplayPrice = hasAddon ? originalPrice + addonCost : originalPrice;
+
+      let html = `
+        <span class="price-original">$${originalDisplayPrice}</span>
+        <span class="price-current">$${discountedPrice}</span>
+      `;
+
+      if (hasAddon) {
+        html += '<div class="price-note">Includes seasonal touch-ups add-on.</div>';
+      }
+
+      elements.price.innerHTML = html;
+      elements.savingsTop.style.display = 'block';
+      elements.addonPrice.textContent = `+$${addonCost}`;
+      updateAddonSubtext(originalPrice);
+      currentQuote = {
+        basePrice: originalPrice,
+        addonCost: hasAddon ? addonCost : 0,
+        finalPrice: discountedPrice,
+      };
+      updateBookBtnState();
+    }
+
+    let calculationTimer;
+
+    function calculatePrice() {
+      const squareFootage = Number(elements.sqftInput.value);
+      const stories = elements.storiesSelect.value;
+      const hasAddon = elements.addonInput.checked;
+
+      setAddonActive(hasAddon);
+      clearTimeout(calculationTimer);
+
+      if (!squareFootage || squareFootage <= 0) {
+        renderEmptyPrice();
+        return;
+      }
+
+      elements.price.innerHTML = '<span class="calculating">Calculating...</span>';
+
+      calculationTimer = setTimeout(() => {
+        const basePrice = roundWhole(getBasePrice(squareFootage, stories));
+        const addonCost = getAddonCost(basePrice);
+        let finalPrice = Math.max(0, basePrice - PRICING.promoDiscount);
+
+        if (hasAddon) {
+          finalPrice += addonCost;
+        }
+
+        renderPrice(basePrice, finalPrice, addonCost, hasAddon);
+      }, 650);
+    }
+
+    // ===== Contact + submit =====
+
+    function isValidEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+    }
+
+    function isValidPhone(value) {
+      // Strip non-digits, require 10+ digits (US format friendly, doesn't reject intl)
+      return value.replace(/\D/g, '').length >= 10;
+    }
+
+    function getContactValues() {
+      return {
+        name: elements.custName.value.trim(),
+        phone: elements.custPhone.value.trim(),
+        email: elements.custEmail.value.trim(),
+        address: elements.custAddress.value.trim(),
+      };
+    }
+
+    function contactIsComplete() {
+      const c = getContactValues();
+      return c.name && c.phone && c.email && c.address;
+    }
+
+    function updateBookBtnState() {
+      const hasQuote = currentQuote.finalPrice > 0;
+      const hasContact = contactIsComplete();
+      elements.bookBtn.disabled = !(hasQuote && hasContact);
+    }
+
+    function validateAndMark() {
+      const c = getContactValues();
+      const checks = [
+        { el: elements.custName,    ok: !!c.name },
+        { el: elements.custPhone,   ok: isValidPhone(c.phone) },
+        { el: elements.custEmail,   ok: isValidEmail(c.email) },
+        { el: elements.custAddress, ok: !!c.address },
+      ];
+      let firstBad = null;
+      for (const check of checks) {
+        if (!check.ok) {
+          check.el.classList.add('invalid');
+          if (!firstBad) firstBad = check.el;
+        } else {
+          check.el.classList.remove('invalid');
+        }
+      }
+      return firstBad;
+    }
+
+    function showFormError(message) {
+      elements.formError.textContent = message;
+      elements.formError.style.display = 'block';
+    }
+
+    function clearFormError() {
+      elements.formError.style.display = 'none';
+    }
+
+    function buildLeadPayload() {
+      const c = getContactValues();
+      return {
+        timestamp: new Date().toISOString(),
+        name: c.name,
+        phone: c.phone,
+        email: c.email,
+        address: c.address,
+        sqft: Number(elements.sqftInput.value) || 0,
+        stories: elements.storiesSelect.value,
+        addon: elements.addonInput.checked,
+        basePrice: currentQuote.basePrice,
+        addonCost: currentQuote.addonCost,
+        finalPrice: currentQuote.finalPrice,
+        promoDiscount: PRICING.promoDiscount,
+        userAgent: navigator.userAgent,
+        page: location.href,
+      };
+    }
+
+    function sendLead(payload) {
+      if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.startsWith('PASTE_')) {
+        console.warn('APPS_SCRIPT_URL not set — skipping lead capture.');
+        return;
+      }
+      try {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
+        // sendBeacon ensures the POST completes even as we navigate away.
+        const queued = navigator.sendBeacon(APPS_SCRIPT_URL, blob);
+        if (!queued) {
+          // Fallback for browsers that refuse the beacon — fire-and-forget fetch.
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.warn('Lead capture failed:', err);
+      }
+    }
+
+    function handleSubmit() {
+      clearFormError();
+      const firstBad = validateAndMark();
+      if (firstBad) {
+        firstBad.focus();
+        showFormError('Please fill out all four fields correctly before continuing.');
+        return;
+      }
+      if (currentQuote.finalPrice <= 0) {
+        showFormError('Enter your square footage so we can show your price.');
+        elements.sqftInput.focus();
+        return;
+      }
+
+      const payload = buildLeadPayload();
+
+      // Stash on this device so the post-Square "thanks" page can prefill Calendly.
+      try {
+        localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
+      } catch (_) { /* ignore quota / private-mode errors */ }
+
+      sendLead(payload);
+
+      // Hand off to Square for the $25 deposit. (Square handles redirect to Calendly afterwards.)
+      window.location.href = SQUARE_DEPOSIT_URL;
+    }
+
+    function init() {
+      elements.sqftInput.addEventListener('input', calculatePrice);
+      elements.storiesSelect.addEventListener('change', calculatePrice);
+      elements.addonInput.addEventListener('change', calculatePrice);
+
+      // Contact fields gate the Next button and clear their red border as the user types.
+      ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach((id) => {
+        const el = elements[id];
+        el.addEventListener('input', () => {
+          el.classList.remove('invalid');
+          updateBookBtnState();
+          clearFormError();
+        });
+      });
+
+      elements.bookBtn.addEventListener('click', handleSubmit);
+
+      elements.sqftInput.focus();
+      elements.sqftInput.classList.add('pulse');
+      setTimeout(() => elements.sqftInput.classList.remove('pulse'), 2000);
+
+      if (isWeekdayEligible()) {
+        elements.urgency.style.display = 'block';
+      }
+
+      renderEmptyPrice();
+    }
+
+    init();
+
+    console.assert(roundWhole(220.4) === 220, 'roundWhole should round down under .5');
+    console.assert(roundWhole(220.5) === 221, 'roundWhole should round up at .5');
+    console.assert(getBasePrice(2000, '1') === 200, '1-story pricing failed');
+    console.assert(getBasePrice(2400, '2') === 285, '2-story pricing failed');
+    console.assert(getBasePrice(3000, '2') === 350, '2-story surcharge pricing failed');
+    console.assert(getBasePrice(2000, '3') === 385, '3-story pricing failed');
+    console.assert(getAddonCost(200) === 100, 'addon cost should be 50 percent of base');
+    console.assert(getAddonCost(385) === 193, 'addon cost should round correctly');
+    console.assert((285 + getAddonCost(285)) === 428, 'original display price should include addon when selected');
+    console.assert(Math.max(0, (285 + getAddonCost(285)) - PRICING.promoDiscount) === 403, 'discounted total should subtract promo from cleaning plus addon total');
+    console.assert(isWeekdayEligible(0) === true, 'Sunday should be eligible');
+    console.assert(isWeekdayEligible(4) === true, 'Thursday should be eligible');
+    console.assert(isWeekdayEligible(5) === false, 'Friday should not be eligible');
+    console.assert(isWeekdayEligible(6) === false, 'Saturday should not be eligible');
+    console.assert(isValidEmail('a@b.co') === true, 'valid email check');
+    console.assert(isValidEmail('not-an-email') === false, 'invalid email check');
+    console.assert(isValidPhone('5551234567') === true, '10-digit phone valid');
+    console.assert(isValidPhone('123') === false, 'short phone invalid');
+  </script>
+</body>
+</html>
