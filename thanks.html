@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Schedule Your Gutter Cleaning</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px 20px;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #f3f7fc 0%, #eef4fb 100%);
+      color: #101828;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      max-width: 480px;
+      width: 100%;
+      padding: 32px;
+      background: #fff;
+      border: 1px solid #e4e7ec;
+      border-radius: 20px;
+      box-shadow: 0 18px 50px rgba(16, 24, 40, 0.1);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+    }
+    p {
+      margin: 0 0 20px;
+      color: #475467;
+      line-height: 1.5;
+    }
+    .fallback {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 14px 22px;
+      background: #1d4ed8;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+    .fallback:hover {
+      background: #1e40af;
+    }
+    .spinner {
+      margin: 0 auto 16px;
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e4e7ec;
+      border-top-color: #1d4ed8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Thanks! One last step.</h1>
+    <p>Sending you to our calendar to pick a date for your gutter cleaning&hellip;</p>
+    <a id="fallback" class="fallback" href="https://calendly.com/gutterpros/gutter-cleaning">Pick a date</a>
+  </div>
+
+  <script>
+    const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
+
+    function buildCalendlyUrl() {
+      let lead = null;
+      try {
+        const raw = localStorage.getItem('cgp_lastLead');
+        if (raw) lead = JSON.parse(raw);
+      } catch (_) { /* ignore */ }
+
+      if (!lead || !lead.name || !lead.email) {
+        return CALENDLY_URL;
+      }
+
+      const params = new URLSearchParams({
+        name: lead.name,
+        email: lead.email,
+      });
+      return `${CALENDLY_URL}?${params.toString()}`;
+    }
+
+    const target = buildCalendlyUrl();
+    document.getElementById('fallback').href = target;
+    // Small delay so the user sees the "Sending you to..." card briefly,
+    // which feels less abrupt than an instant flash-redirect.
+    setTimeout(() => { window.location.replace(target); }, 600);
+  </script>
+</body>
+</html>
