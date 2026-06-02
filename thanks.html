@@ -73,18 +73,18 @@
 
   <script>
     const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
-    function buildCalendlyUrl() {
-      let lead = null;
+    function readLead() {
       try {
         const raw = localStorage.getItem('cgp_lastLead');
-        if (raw) lead = JSON.parse(raw);
+        if (raw) return JSON.parse(raw);
       } catch (_) { /* ignore */ }
+      return null;
+    }
 
-      if (!lead || !lead.name || !lead.email) {
-        return CALENDLY_URL;
-      }
-
+    function buildCalendlyUrl(lead) {
+      if (!lead || !lead.name || !lead.email) return CALENDLY_URL;
       const params = new URLSearchParams({
         name: lead.name,
         email: lead.email,
@@ -92,8 +92,36 @@
       return `${CALENDLY_URL}?${params.toString()}`;
     }
 
-    const target = buildCalendlyUrl();
+    function sendBuyerConfirmation(lead) {
+      if (!lead || !lead.email) return;
+      // De-dupe: if we already fired the confirmation for this exact lead, skip.
+      // (Square can sometimes re-redirect to thanks.html, e.g. on a back button.)
+      try {
+        const stamp = lead.timestamp || '';
+        const seen = localStorage.getItem('cgp_confirmSent');
+        if (seen && seen === stamp) return;
+        localStorage.setItem('cgp_confirmSent', stamp);
+      } catch (_) { /* ignore */ }
+
+      const payload = Object.assign({}, lead, { action: 'confirm' });
+      try {
+        const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
+        const queued = navigator.sendBeacon(APPS_SCRIPT_URL, blob);
+        if (!queued) {
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(payload),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (_) { /* ignore */ }
+    }
+
+    const lead = readLead();
+    const target = buildCalendlyUrl(lead);
     document.getElementById('fallback').href = target;
+    sendBuyerConfirmation(lead);
     // Small delay so the user sees the "Sending you to..." card briefly,
     // which feels less abrupt than an instant flash-redirect.
     setTimeout(() => { window.location.replace(target); }, 600);
