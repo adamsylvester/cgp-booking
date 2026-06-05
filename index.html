@@ -708,10 +708,71 @@
         grid-template-columns: 1fr;
       }
     }
+
+    .callback-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
+      padding: 28px;
+      margin-bottom: 24px;
+    }
+
+    .callback-panel h2 {
+      margin: 0 0 16px;
+      font-size: 22px;
+      line-height: 1.3;
+      text-align: center;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+
+    .callback-iframe-wrap {
+      width: 100%;
+      min-height: 125px;
+    }
+
+    .callback-iframe-wrap iframe {
+      width: 100%;
+      min-height: 125px;
+      border: 0;
+      display: block;
+    }
+
+    @media (max-width: 520px) {
+      .callback-panel { padding: 20px; }
+      .callback-panel h2 { font-size: 19px; }
+    }
   </style>
 </head>
 <body>
   <div class="wrap">
+    <!-- LeadConnector callback form (added 2026-06-05). Sits above the
+         instant-quote flow so visitors can pick: quick callback (here) or
+         self-serve quote+booking (below). -->
+    <section class="callback-panel">
+      <h2>Fill out this short form for a call back or book a gutter cleaning service below.</h2>
+      <div class="callback-iframe-wrap">
+        <iframe
+          src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
+          style="width:100%;height:100%;border:none;border-radius:4px"
+          id="inline-x37UvG0xSxSkPto8JMce"
+          data-layout="{'id':'INLINE'}"
+          data-trigger-type="alwaysShow"
+          data-trigger-value=""
+          data-activation-type="alwaysActivated"
+          data-activation-value=""
+          data-deactivation-type="neverDeactivate"
+          data-deactivation-value=""
+          data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
+          data-height="undefined"
+          data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
+          data-form-id="x37UvG0xSxSkPto8JMce"
+          title="Gutter Cleaning Booking Form Lead - LIVE">
+        </iframe>
+      </div>
+    </section>
+
     <div class="card">
       <div class="left">
         <div class="brand-hero">
@@ -1300,5 +1361,8 @@
     console.assert(isValidPhone('5551234567') === true, '10-digit phone valid');
     console.assert(isValidPhone('123') === false, 'short phone invalid');
   </script>
+
+  <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
+  <script src="https://link.msgsndr.com/js/form_embed.js"></script>
 </body>
 </html>
