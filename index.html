@@ -55,7 +55,7 @@
 
     body {
       margin: 0;
-      padding: 32px 16px;
+      padding: 22px 16px 32px;
       font-family: Arial, sans-serif;
       color: var(--text);
       background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
@@ -711,22 +711,52 @@
 
     .top-options {
       display: grid;
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: repeat(3, 1fr);
       gap: 20px;
-      align-items: start;
+      align-items: stretch;
       margin-bottom: 22px;
     }
 
-    @media (max-width: 780px) {
+    @media (max-width: 900px) {
       .top-options { grid-template-columns: 1fr; }
     }
 
-    .pick-intro { text-align: center; margin: 4px 0 20px; }
-    .pick-intro h1 { font-size: clamp(22px, 3.2vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; color: var(--text); }
-    .pick-intro p { font-size: 16px; color: var(--text-muted); margin: 0; }
-    .or-sep { align-self: center; text-align: center; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
-    .or-row { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; color: var(--text-subtle); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
-    .or-row::before, .or-row::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .page-header { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; }
+    .page-header::after { content: ''; flex: 0 0 188px; }
+    .page-heading { flex: 1; text-align: center; }
+    .page-title { font-size: clamp(22px, 3.4vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0; color: var(--text); }
+    .page-sub { font-size: 15px; color: var(--text-muted); margin: 6px 0 0; line-height: 1.45; }
+    @media (max-width: 560px) {
+      .page-header { flex-wrap: wrap; justify-content: center; gap: 10px; }
+      .page-header::after { display: none; }
+      .page-heading { flex: 1 1 100%; }
+    }
+    .or-sep { align-self: center; }
+    .or-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 48px; height: 48px; border-radius: 50%;
+      background: var(--primary); color: #fff;
+      font-size: 15px; font-weight: 800; letter-spacing: 0.04em;
+      box-shadow: 0 4px 14px rgba(29, 78, 216, 0.35);
+    }
+    .or-divide { display: flex; align-items: center; gap: 16px; margin: 6px 0 16px; }
+    .or-divide::before, .or-divide::after { content: ''; flex: 1; height: 2px; background: var(--border); border-radius: 2px; }
+
+    html { scroll-behavior: smooth; }
+    .checkout-cue { display: block; text-align: center; text-decoration: none; margin: 8px 0 24px; }
+    .checkout-cue-label { display: block; font-size: 19px; font-weight: 800; color: var(--primary); letter-spacing: -0.01em; margin-bottom: 8px; }
+    .checkout-cue-arrow {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 50px; height: 50px; border-radius: 50%;
+      background: var(--primary); color: #fff; font-size: 26px;
+      box-shadow: 0 8px 22px rgba(29, 78, 216, 0.4);
+      animation: checkoutBounce 1.1s ease-in-out infinite;
+    }
+    .checkout-cue:hover .checkout-cue-arrow { background: var(--primary-dark); }
+    @keyframes checkoutBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(10px); }
+    }
 
     .callback-panel,
     .assessment-panel {
@@ -753,12 +783,14 @@
 
     .callback-iframe-wrap {
       width: 100%;
-      min-height: 125px;
+      height: 350px;
+      overflow: auto;
     }
 
     .callback-iframe-wrap iframe {
       width: 100%;
-      min-height: 125px;
+      height: 100% !important;
+      min-height: 350px;
       border: 0;
       display: block;
     }
@@ -773,17 +805,18 @@
 </head>
 <body>
   <div class="wrap">
-    <img class="page-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
-
-    <div class="pick-intro">
-      <h1>How would you like to get started?</h1>
-      <p>Pick whichever's easiest — you only need to do <strong>one</strong>.</p>
+    <div class="page-header">
+      <img class="page-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+      <div class="page-heading">
+        <h1 class="page-title">How would you like to get started?</h1>
+        <p class="page-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
+      </div>
     </div>
 
     <div class="top-options">
     <!-- Path 1: quick callback (LeadConnector form). -->
     <section class="callback-panel">
-      <h2>Get a quick callback from our office</h2>
+      <h2>Request a Callback</h2>
       <p class="panel-sub">Best if you're in a hurry now but want to take care of the gutters later.</p>
       <div class="callback-iframe-wrap">
         <iframe
@@ -806,17 +839,24 @@
       </div>
     </section>
 
-    <div class="or-sep">or</div>
-
     <!-- Path 2: schedule a gutter assessment (Calendly). -->
     <section class="assessment-panel">
-      <h2>Schedule a free gutter assessment</h2>
+      <h2>Book an Assessment</h2>
       <p class="panel-sub">Best if you have a known gutter issue you want to fix.</p>
       <!-- Calendly inline widget begin -->
-      <div class="calendly-inline-widget" data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1" style="min-width:320px;height:450px;"></div>
+      <div class="calendly-inline-widget" data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1" style="min-width:320px;height:350px;"></div>
       <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
       <!-- Calendly inline widget end -->
     </section>
+
+    <!-- Path 3: instant quote (reveals the full quote flow when clicked). -->
+    <button class="quote-tile" id="quoteTile" type="button">
+      <h2>Schedule Gutter Cleaning</h2>
+      <p class="panel-sub">Best if you just need to get your gutters cleaned.</p>
+      <img class="quote-tile-icon" src="gutter-cleaning-icon.png" alt="Gutter cleaning" />
+      <p class="quote-tile-text">Answer a few questions and then checkout in 2 minutes.</p>
+      <span class="quote-tile-cta">Quote ➡ Pay ➡ Schedule</span>
+    </button>
     </div>
 
     <style>
@@ -838,6 +878,7 @@
       /* full-width Step-1 banner */
       .house-hero { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:34px 32px; margin-bottom:22px; text-align:center; }
       .house-hero-title { font-size:clamp(22px,3.2vw,30px); font-weight:800; color:var(--text); letter-spacing:-0.02em; margin:0 0 6px; }
+      .house-hero-prompt { font-size:20px; font-weight:700; color:var(--text); margin:0 0 6px; }
       .house-hero-sub { font-size:16px; color:var(--text-muted); margin:0 0 6px; }
       .house-hero-best { font-size:14px; color:var(--text-muted); margin:0 0 22px; }
       .house-hero .house-grid { max-width:920px; margin:0 auto; gap:14px; }
@@ -846,6 +887,18 @@
       #bookingCard[hidden] { display:none; }
       #bookingCard { animation: cgpReveal .35s ease; }
       @keyframes cgpReveal { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+      /* Third tile: clickable card that reveals the full quote flow */
+      .quote-tile { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; text-align:center; cursor:pointer; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:28px; font:inherit; color:var(--text); transition:border-color .15s ease, box-shadow .15s ease, transform .15s ease; }
+      .quote-tile:hover { border-color:#c7d4f7; box-shadow:0 14px 30px rgba(16,24,40,.12); transform:translateY(-3px); }
+      .quote-tile-icon { display:block; width:130px; height:auto; }
+      .quote-tile h2 { margin:0; font-size:22px; line-height:1.3; letter-spacing:-0.02em; color:var(--text); }
+      .quote-tile-text { font-size:15px; color:var(--text-muted); margin:0; line-height:1.45; max-width:240px; }
+      .quote-tile .panel-sub { margin:0; max-width:240px; }
+      .quote-tile-cta { display:inline-block; margin-top:4px; padding:12px 22px; border-radius:999px; background:var(--primary); color:#fff; font-size:15px; font-weight:800; }
+      .quote-tile:hover .quote-tile-cta { background:var(--primary-dark); }
+      .quote-tile.active { border-color:var(--primary); box-shadow:0 8px 18px rgba(29,78,216,.18); }
+      .quote-reveal[hidden] { display:none; }
+      .quote-reveal { animation:cgpReveal .35s ease; }
       @media (max-width:420px) { .house-opt-desc { font-size:11px; } }
 
       /* ===== Plan chooser (replaces the single add-on) ===== */
@@ -874,7 +927,7 @@
       .plan-price { flex:0 0 auto; font-weight:800; font-size:16px; color:var(--primary); white-space:nowrap; }
       .plan-featured { border-color:#bcd0f7; }
       .plan-badge { position:absolute; top:-9px; right:12px; background:var(--primary); color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.04em; padding:3px 8px; border-radius:999px; text-transform:uppercase; }
-      .page-logo { display:block; width:150px; height:auto; margin:0 0 16px; }
+      .page-logo { flex:0 0 auto; width:188px; height:auto; }
       /* ===== Single-column layout: slim trust strip + full-width form ===== */
       .brand-strip { display:flex; align-items:center; justify-content:center; gap:28px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:16px 28px; margin-bottom:18px; flex-wrap:wrap; }
       .brand-strip-logo { width:160px; height:auto; flex:0 0 auto; }
@@ -918,10 +971,10 @@
       .form-card textarea:focus { outline:none; border-color:var(--primary); }
     </style>
 
-    <div class="or-row"><span>or</span></div>
-
+    <div class="quote-reveal" id="quoteReveal" hidden>
     <section class="house-hero" id="houseHero">
-      <h2 class="house-hero-title">Which home looks most like yours?</h2>
+      <h2 class="house-hero-title">Gutter Cleaning Checkout</h2>
+      <p class="house-hero-prompt">Which home looks most like yours?</p>
       <p class="house-hero-sub">Tap the closest match then scroll down.</p>
       <p class="house-hero-best">Best choice if you need gutter cleaning service.</p>
       <div class="house-grid" id="houseGrid">
@@ -966,7 +1019,7 @@
     <div class="card" id="bookingCard">
       <div class="right">
         <div class="form-card">
-          <h2 class="form-title">Instant Booking</h2>
+          <h2 class="form-title">Gutter Cleaning Quote &amp; Checkout</h2>
           <p class="form-subtext">Get your gutter cleaning price instantly with Charlottesville Gutter Pros and book your service without waiting for a callback.</p>
 
           <div class="lock-note" id="lockNote">👆 First pick the home above that looks most like yours.</div>
@@ -1124,6 +1177,7 @@
         </div>
       </div>
     </div>
+    </div><!-- /quote-reveal -->
 
     <div class="reviews-section">
       <h2 class="reviews-heading">What Homeowners Are Saying</h2>
@@ -1565,6 +1619,19 @@
     console.assert(isValidEmail('not-an-email') === false, 'invalid email check');
     console.assert(isValidPhone('5551234567') === true, '10-digit phone valid');
     console.assert(isValidPhone('123') === false, 'short phone invalid');
+  </script>
+
+  <script>
+    (function () {
+      var tile = document.getElementById('quoteTile');
+      var reveal = document.getElementById('quoteReveal');
+      if (!tile || !reveal) return;
+      tile.addEventListener('click', function () {
+        reveal.hidden = false;
+        tile.classList.add('active');
+        reveal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    })();
   </script>
 
   <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
