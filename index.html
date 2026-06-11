@@ -357,11 +357,11 @@
     }
 
     .price-wrap {
-      margin: 18px 0 14px;
-      padding: 20px;
+      margin: 22px 0 14px;
+      padding: 22px;
       text-align: center;
-      background: var(--surface-muted);
-      border: 1px solid var(--border);
+      background: #eff4ff;
+      border: 1px solid #c7d4f7;
       border-radius: 18px;
     }
 
@@ -709,16 +709,36 @@
       }
     }
 
-    .callback-panel {
+    .top-options {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 20px;
+      align-items: start;
+      margin-bottom: 22px;
+    }
+
+    @media (max-width: 780px) {
+      .top-options { grid-template-columns: 1fr; }
+    }
+
+    .pick-intro { text-align: center; margin: 4px 0 20px; }
+    .pick-intro h1 { font-size: clamp(22px, 3.2vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0 0 6px; color: var(--text); }
+    .pick-intro p { font-size: 16px; color: var(--text-muted); margin: 0; }
+    .or-sep { align-self: center; text-align: center; font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle); }
+    .or-row { display: flex; align-items: center; gap: 14px; margin: 0 0 22px; color: var(--text-subtle); font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+    .or-row::before, .or-row::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .callback-panel,
+    .assessment-panel {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-xl);
       box-shadow: var(--shadow-lg);
       padding: 28px;
-      margin-bottom: 24px;
     }
 
-    .callback-panel h2 {
+    .callback-panel h2,
+    .assessment-panel h2 {
       margin: 0 0 16px;
       font-size: 22px;
       line-height: 1.3;
@@ -726,6 +746,10 @@
       letter-spacing: -0.02em;
       color: var(--text);
     }
+
+    .calendly-inline-widget { border-radius: 8px; overflow: hidden; }
+
+    .panel-sub { margin: -8px 0 16px; text-align: center; font-size: 14px; line-height: 1.45; color: var(--text-muted); }
 
     .callback-iframe-wrap {
       width: 100%;
@@ -740,18 +764,27 @@
     }
 
     @media (max-width: 520px) {
-      .callback-panel { padding: 20px; }
-      .callback-panel h2 { font-size: 19px; }
+      .callback-panel,
+      .assessment-panel { padding: 20px; }
+      .callback-panel h2,
+      .assessment-panel h2 { font-size: 19px; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <!-- LeadConnector callback form (added 2026-06-05). Sits above the
-         instant-quote flow so visitors can pick: quick callback (here) or
-         self-serve quote+booking (below). -->
+    <img class="page-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+
+    <div class="pick-intro">
+      <h1>How would you like to get started?</h1>
+      <p>Pick whichever's easiest — you only need to do <strong>one</strong>.</p>
+    </div>
+
+    <div class="top-options">
+    <!-- Path 1: quick callback (LeadConnector form). -->
     <section class="callback-panel">
-      <h2>Fill out this short form for a call back or book a gutter cleaning service below.</h2>
+      <h2>Get a quick callback from our office</h2>
+      <p class="panel-sub">Best if you're in a hurry now but want to take care of the gutters later.</p>
       <div class="callback-iframe-wrap">
         <iframe
           src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
@@ -773,95 +806,175 @@
       </div>
     </section>
 
-    <div class="card">
-      <div class="left">
-        <div class="brand-hero">
-          <img class="brand-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
-          <h2 class="brand-subtitle">Book Your Gutter Cleaning in Minutes</h2>
+    <div class="or-sep">or</div>
+
+    <!-- Path 2: schedule a gutter assessment (Calendly). -->
+    <section class="assessment-panel">
+      <h2>Schedule a free gutter assessment</h2>
+      <p class="panel-sub">Best if you have a known gutter issue you want to fix.</p>
+      <!-- Calendly inline widget begin -->
+      <div class="calendly-inline-widget" data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1" style="min-width:320px;height:450px;"></div>
+      <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
+      <!-- Calendly inline widget end -->
+    </section>
+    </div>
+
+    <style>
+      /* ===== Step 1: "which home looks like yours" picker ===== */
+      .house-grid { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:14px; }
+      .house-grid .house-opt { flex:1 1 240px; max-width:300px; }
+      .house-opt { position:relative; border:2px solid #e4e7ec; border-radius:14px; padding:8px 8px 12px; background:#fff; cursor:pointer; text-align:center; transition:transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease; }
+      .house-opt:hover { transform:translateY(-3px); box-shadow:0 10px 20px rgba(16,24,40,.10); border-color:#c7d4f7; }
+      .house-opt.selected { border-color:#1d4ed8; background:#eff4ff; box-shadow:0 8px 18px rgba(29,78,216,.18); }
+      .house-opt .img-frame { aspect-ratio:4/3; border-radius:10px; overflow:hidden; background:#eef2f7; }
+      .house-opt .img-frame img { width:100%; height:100%; object-fit:cover; object-position:center 55%; display:block; transition:transform .2s ease; }
+      .house-opt[data-house^="townhome"] .img-frame img { object-fit:contain; object-position:center; }
+      .house-opt:hover .img-frame img { transform:scale(1.05); }
+      .house-opt-name { font-weight:700; font-size:13.5px; color:#101828; margin-top:8px; }
+      .house-opt-desc { font-size:11.5px; color:#667085; line-height:1.3; margin-top:2px; }
+      .house-opt-note { font-size:10.5px; font-style:italic; color:#9aa3b2; line-height:1.3; margin-top:5px; }
+      .house-check { position:absolute; top:9px; right:9px; width:22px; height:22px; border-radius:50%; background:#1d4ed8; color:#fff; display:none; align-items:center; justify-content:center; font-size:13px; font-weight:700; box-shadow:0 2px 6px rgba(29,78,216,.4); z-index:2; }
+      .house-opt.selected .house-check { display:flex; }
+      /* full-width Step-1 banner */
+      .house-hero { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:34px 32px; margin-bottom:22px; text-align:center; }
+      .house-hero-title { font-size:clamp(22px,3.2vw,30px); font-weight:800; color:var(--text); letter-spacing:-0.02em; margin:0 0 6px; }
+      .house-hero-sub { font-size:16px; color:var(--text-muted); margin:0 0 6px; }
+      .house-hero-best { font-size:14px; color:var(--text-muted); margin:0 0 22px; }
+      .house-hero .house-grid { max-width:920px; margin:0 auto; gap:14px; }
+      .house-hero .house-opt-name { font-size:15px; margin-top:10px; }
+      .house-hero .house-opt-desc { font-size:12.5px; margin-top:3px; min-height:32px; }
+      #bookingCard[hidden] { display:none; }
+      #bookingCard { animation: cgpReveal .35s ease; }
+      @keyframes cgpReveal { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+      @media (max-width:420px) { .house-opt-desc { font-size:11px; } }
+
+      /* ===== Plan chooser (replaces the single add-on) ===== */
+      .lock-note { display:none; margin:0 0 14px; padding:10px 14px; background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; border-radius:12px; font-size:13px; font-weight:600; text-align:center; }
+      .form-card.is-locked .lock-note { display:block; }
+      .form-card.is-locked .step-head,
+      .form-card.is-locked .step-active,
+      .form-card.is-locked .plan-grid,
+      .form-card.is-locked .price-wrap,
+      .form-card.is-locked .contact-panel,
+      .form-card.is-locked .cta { opacity:.4; pointer-events:none; }
+      .plan-heading { margin:18px 0 10px; font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--primary); }
+      .plan-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+      .plan-opt { flex-direction:column; align-items:flex-start; }
+      .plan-opt .plan-price { align-self:flex-end; margin-top:auto; }
+      .plan-opt { position:relative; display:flex; align-items:center; gap:12px; border:2px solid var(--border); border-radius:14px; padding:14px; cursor:pointer; background:#fff; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+      .plan-opt:hover { border-color:#c7d4f7; }
+      .plan-opt.selected { border-color:var(--primary); background:#eff4ff; box-shadow:0 6px 16px rgba(29,78,216,.14); }
+      .plan-opt input { position:absolute; opacity:0; pointer-events:none; }
+      .plan-radio { flex:0 0 auto; width:20px; height:20px; border-radius:50%; border:2px solid #c2c8d2; position:relative; transition:border-color .15s ease; }
+      .plan-opt.selected .plan-radio { border-color:var(--primary); }
+      .plan-opt.selected .plan-radio::after { content:''; position:absolute; inset:3px; border-radius:50%; background:var(--primary); }
+      .plan-body { flex:1 1 auto; text-align:left; }
+      .plan-name { display:block; font-weight:700; font-size:14.5px; color:var(--text); }
+      .plan-sub { display:block; font-size:12px; color:var(--text-muted); margin-top:2px; line-height:1.35; }
+      .plan-price { flex:0 0 auto; font-weight:800; font-size:16px; color:var(--primary); white-space:nowrap; }
+      .plan-featured { border-color:#bcd0f7; }
+      .plan-badge { position:absolute; top:-9px; right:12px; background:var(--primary); color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.04em; padding:3px 8px; border-radius:999px; text-transform:uppercase; }
+      .page-logo { display:block; width:150px; height:auto; margin:0 0 16px; }
+      /* ===== Single-column layout: slim trust strip + full-width form ===== */
+      .brand-strip { display:flex; align-items:center; justify-content:center; gap:28px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:16px 28px; margin-bottom:18px; flex-wrap:wrap; }
+      .brand-strip-logo { width:160px; height:auto; flex:0 0 auto; }
+      .brand-strip-info { flex:1 1 300px; }
+      .brand-strip-rating { font-size:14px; font-weight:700; color:var(--text); margin-bottom:8px; }
+      .brand-strip-rating .stars { color:#f59e0b; letter-spacing:1px; }
+      .brand-strip-incl { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; font-weight:600; color:var(--text); }
+      .brand-strip-incl span { white-space:nowrap; }
+      #bookingCard { display:block; max-width:920px; margin:0 auto; border:none; background:transparent; box-shadow:none; overflow:visible; }
+      #bookingCard .right { border-left:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); }
+      .field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+      .arrow-wrap { display:none; }
+      @media (max-width:680px){ .plan-grid, .field-row { grid-template-columns:1fr; } }
+      @media (max-width:640px){ .brand-strip { justify-content:center; text-align:center; } .brand-strip-info { text-align:center; } .brand-strip-incl { justify-content:center; } }
+      /* ===== Numbered step headers for clearer hierarchy ===== */
+      .step-head { display:flex; align-items:center; gap:10px; margin:0 0 14px; padding-top:20px; border-top:1px solid var(--border); }
+      .step-head .num { flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--primary); color:#fff; font-size:12.5px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+      .step-head .txt { font-size:15px; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+      .price-wrap .price { color:var(--primary); }
+      /* Reviews + what's-included, integrated into the price box */
+      .price-trust { margin-top:16px; padding-top:14px; border-top:1px solid #c7d4f7; }
+      .price-rating { font-size:13px; font-weight:700; color:var(--text); margin-bottom:8px; }
+      .price-rating .stars { color:#f59e0b; letter-spacing:1px; }
+      .price-incl { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 16px; font-size:12.5px; font-weight:600; color:var(--text); }
+      .price-incl span { white-space:nowrap; }
+      /* Step 1 is the only required input zone — highlight it as the active step. */
+      .step-active { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 18px 12px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
+      .step-active .step-head { border-top:none; padding-top:0; }
+      .step-active .extra-check { background:#fff; }
+      /* Compact, centered inputs so the value fills the box and pops. */
+      .step-active .field-row { display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-end; gap:22px; }
+      .step-active .field-row .field { flex:0 0 auto; margin-bottom:0; text-align:center; }
+      .step-active .field-row label { text-align:center; }
+      .step-active #sqftField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
+      .step-active #storiesField select { width:160px; text-align:center; text-align-last:center; font-size:16px; font-weight:600; padding:12px 14px; }
+      .extra-check { display:flex; align-items:flex-start; gap:10px; margin:16px 0 4px; padding:12px 14px; border:1.5px solid var(--border); border-radius:12px; cursor:pointer; font-size:13.5px; color:var(--text); line-height:1.4; }
+      .extra-check:hover { border-color:#c7d4f7; }
+      .extra-check input { margin-top:1px; width:18px; height:18px; flex:0 0 auto; accent-color:var(--primary); cursor:pointer; }
+      .extra-fee { color:var(--primary); font-weight:700; white-space:nowrap; }
+      .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
+      .form-card textarea:focus { outline:none; border-color:var(--primary); }
+    </style>
+
+    <div class="or-row"><span>or</span></div>
+
+    <section class="house-hero" id="houseHero">
+      <h2 class="house-hero-title">Which home looks most like yours?</h2>
+      <p class="house-hero-sub">Tap the closest match then scroll down.</p>
+      <p class="house-hero-best">Best choice if you need gutter cleaning service.</p>
+      <div class="house-grid" id="houseGrid">
+        <div class="house-opt" data-house="simple">
+          <div class="house-check">✓</div>
+          <div class="img-frame"><img src="house-simple.png" alt="Simple home — front and back gutter" /></div>
+          <div class="house-opt-name">Simple</div>
+          <div class="house-opt-desc">Front and back gutter</div>
+          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Mill Creek, Greenbrier, Hollymead</div>
         </div>
-
-        <!-- promo-only: $25 online-savings badge. Hidden by JS when PRICING.promoEnabled is false. -->
-        <div class="promo promo-only">$25 SAVINGS ONLINE</div>
-
-        <div class="feature-heading" style="margin-top:16px;">Quote ➡ Pay ➡ Schedule</div>
-        <div class="feature-list" style="margin-bottom:20px;">
-          <div class="feature">
-            <div class="feature-icon">1</div>
-            <div>
-              <strong>Enter your home's square footage and number of stories</strong>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">2</div>
-            <div>
-              <strong>See your price instantly and pay a $25 deposit</strong>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">3</div>
-            <div>
-              <strong>Schedule your service onto our calendar</strong>
-            </div>
-          </div>
+        <div class="house-opt" data-house="standard">
+          <div class="house-check">✓</div>
+          <div class="img-frame"><img src="house-standard.png" alt="Standard home — multiple sections of gutters" /></div>
+          <div class="house-opt-name">Standard</div>
+          <div class="house-opt-desc">Multiple sections of gutters, uppers and lowers</div>
+          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Forest Lakes, Ashcroft, and Redfields</div>
         </div>
-
-        <!-- Promo-on version of this line: "Get your price instantly, claim your $25 savings, and book in minutes." -->
-        <p class="intro">Get your price instantly and book in minutes.</p>
-
-        <div class="feature-heading">What’s included</div>
-        <div class="feature-list">
-          <div class="feature">
-            <div class="feature-icon">✓</div>
-            <div>
-              <strong>Full gutter and downspout cleaning</strong>
-              <span>We remove all debris from gutters and downspouts.</span>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">✓</div>
-            <div>
-              <strong>Downspout flow check</strong>
-              <span>We make sure every downspout is clear and draining correctly.</span>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">✓</div>
-            <div>
-              <strong>Minor adjustments &amp; resecuring</strong>
-              <span>If we see loose hangers or braces we'll tighten them.</span>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">✓</div>
-            <div>
-              <strong>Thorough clean-up</strong>
-              <span>We won't make a mess, but if we do, we'll clean it up!</span>
-            </div>
-          </div>
-
-          <div class="feature">
-            <div class="feature-icon">✓</div>
-            <div>
-              <strong>Gutter system inspection</strong>
-              <span>We spot issues early and recommend cost-saving fixes.</span>
-            </div>
-          </div>
+        <div class="house-opt" data-house="complex">
+          <div class="house-check">✓</div>
+          <div class="img-frame"><img src="house-complex.png" alt="Complex home — gutters with gables and wings" /></div>
+          <div class="house-opt-name">Complex</div>
+          <div class="house-opt-desc">Several sections of gutters with gables and wings</div>
+          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Glenmore, Preddy Creek, Fontana, Old Trail</div>
         </div>
-
-        <div class="rating-note">★ 4.9 Rated with 800+ Google Reviews</div>
+        <div class="house-opt" data-house="townhome2">
+          <div class="house-check">✓</div>
+          <div class="img-frame"><img src="house-townhome2.png" alt="2-story townhome" /></div>
+          <div class="house-opt-name">2-Story Townhome</div>
+          <div class="house-opt-desc">Attached home, up to two floors</div>
+          <div class="house-opt-note">🪜 1-man team &amp; 24-ft ladder</div>
+        </div>
+        <div class="house-opt" data-house="townhome3">
+          <div class="house-check">✓</div>
+          <div class="img-frame"><img src="house-townhome3.png" alt="3-story townhome" /></div>
+          <div class="house-opt-name">3-Story Townhome</div>
+          <div class="house-opt-desc">Attached home, three floors</div>
+          <div class="house-opt-note">🪜 2-man team &amp; 40-ft ladder</div>
+        </div>
       </div>
+    </section>
 
+    <div class="card" id="bookingCard">
       <div class="right">
         <div class="form-card">
           <h2 class="form-title">Instant Booking</h2>
           <p class="form-subtext">Get your gutter cleaning price instantly with Charlottesville Gutter Pros and book your service without waiting for a callback.</p>
 
-          <div class="field">
+          <div class="lock-note" id="lockNote">👆 First pick the home above that looks most like yours.</div>
+
+          <div class="step-active">
+          <div class="step-head"><span class="num">1</span><span class="txt">Your home</span></div>
+          <div class="field-row">
+          <div class="field" id="sqftField">
             <div class="arrow-wrap" aria-hidden="true">
               <svg viewBox="0 0 150 78" class="loopy-arrow" xmlns="http://www.w3.org/2000/svg">
                 <path
@@ -887,36 +1000,68 @@
             <input id="sqft" type="number" placeholder="" />
           </div>
 
-          <div class="field">
-            <label for="stories">Stories</label>
+          <div class="field" id="storiesField">
+            <label for="stories">Most of my gutters are</label>
             <select id="stories">
-              <option value="1">1 Story</option>
-              <option value="2">2 Stories</option>
-              <option value="3" selected>3 Stories</option>
+              <option value="1">1 story</option>
+              <option value="2">2 story</option>
+              <option value="3" selected>3 story</option>
             </select>
           </div>
+          </div>
 
-          <div class="addon-heading">Optional Add-On</div>
-          <label class="addon-row" for="addon">
-            <span class="addon-left">
-              <input class="addon-checkbox" type="checkbox" id="addon" checked />
-              <span class="addon-copy">
-                <span class="addon-title">Keep Your Gutters Clean All Season</span>
-                <span id="addonSubtext" class="addon-subtext">Free touchups thru Oct. 31st · Normally $0 per visit</span>
-              </span>
-            </span>
-            <span id="addonPrice" class="addon-price-pill">+$0</span>
+          <label class="extra-check" for="withinArea">
+            <input type="checkbox" id="withinArea" checked />
+            <span>My house is within the City of Charlottesville or Albemarle County</span>
           </label>
+          </div>
+
+          <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
+          <div class="plan-grid" id="planGrid">
+            <label class="plan-opt selected" data-plan="basic">
+              <input type="radio" name="plan" value="basic" checked />
+              <span class="plan-radio" aria-hidden="true"></span>
+              <span class="plan-body">
+                <span class="plan-name">Basic Cleaning</span>
+                <span class="plan-sub">One-time gutter &amp; downspout cleaning.</span>
+              </span>
+              <span class="plan-price" data-plan-price="basic">$0</span>
+            </label>
+
+            <label class="plan-opt" data-plan="simple">
+              <input type="radio" name="plan" value="simple" />
+              <span class="plan-radio" aria-hidden="true"></span>
+              <span class="plan-body">
+                <span class="plan-name">Basic + Seasonal Touch-Ups</span>
+                <span class="plan-sub">This cleaning, plus free touch-ups through Oct. 31.</span>
+              </span>
+              <span class="plan-price" data-plan-price="simple">$0</span>
+            </label>
+
+            <label class="plan-opt plan-featured" data-plan="protection">
+              <span class="plan-badge">Best value</span>
+              <input type="radio" name="plan" value="protection" />
+              <span class="plan-radio" aria-hidden="true"></span>
+              <span class="plan-body">
+                <span class="plan-name">Gutter Protection Plan</span>
+                <span class="plan-sub">4 cleanings over 2 years — for the price of 3.</span>
+              </span>
+              <span class="plan-price" data-plan-price="protection">$0</span>
+            </label>
+          </div>
 
           <div class="price-wrap">
-            <div id="savingsTop" style="display:none; font-weight:700; color:var(--success); margin-bottom:6px;">You’re saving $25 today 🎉</div>
             <div class="price-label">Your Total Price</div>
             <div class="price" id="price">$0</div>
             <div class="price-note">No hidden fees.</div>
             <div id="paymentBreakdown" class="payment-breakdown" style="display:none;">
-              <div class="breakdown-row addon-confirm" id="addonConfirmRow" style="display:none;">
-                <span class="breakdown-label">Includes seasonal touch-ups add-on</span>
-                <span class="breakdown-value" id="addonConfirmValue">+$0</span>
+              <div class="breakdown-row">
+                <span class="breakdown-label" id="planSummaryLabel">Basic Cleaning</span>
+                <span class="breakdown-value" id="planSummaryValue">$0</span>
+              </div>
+              <div class="breakdown-row" id="outsideRow" style="display:none;">
+                <span class="breakdown-label">Outside service area</span>
+                <span class="breakdown-value" id="outsideValue">+$50</span>
               </div>
               <div class="breakdown-row deposit">
                 <span class="breakdown-label">Pay today (deposit)</span>
@@ -927,10 +1072,19 @@
                 <span class="breakdown-value" id="balanceDisplay">$0</span>
               </div>
             </div>
+            <div class="price-trust">
+              <div class="price-rating"><span class="stars">★★★★★</span> 4.9 · 800+ Google Reviews</div>
+              <div class="price-incl">
+                <span>✓ Full gutter &amp; downspout cleaning</span>
+                <span>✓ Downspout flow check</span>
+                <span>✓ Minor adjustments &amp; resecuring</span>
+                <span>✓ Free gutter inspection</span>
+              </div>
+            </div>
           </div>
 
           <div class="contact-panel">
-            <div class="contact-heading">Your Info</div>
+            <div class="step-head"><span class="num">3</span><span class="txt">Your details</span></div>
             <div class="contact-grid">
               <div class="field">
                 <label for="custName">Full Name</label>
@@ -940,13 +1094,17 @@
                 <label for="custPhone">Phone</label>
                 <input id="custPhone" type="tel" autocomplete="tel" />
               </div>
-              <div class="field field-full">
+              <div class="field">
                 <label for="custEmail">Email</label>
                 <input id="custEmail" type="email" autocomplete="email" />
               </div>
-              <div class="field field-full">
+              <div class="field">
                 <label for="custAddress">Service Address</label>
                 <input id="custAddress" type="text" autocomplete="street-address" />
+              </div>
+              <div class="field field-full">
+                <label for="custNotes">Anything unique about your gutters? (optional)</label>
+                <textarea id="custNotes" rows="3" placeholder="e.g. my gutters are overflowing in the back"></textarea>
               </div>
             </div>
           </div>
@@ -1005,43 +1163,45 @@
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
     const PRICING = {
-      // ===== $25 ONLINE-SAVINGS PROMO =====
-      // Flip promoEnabled to true to re-enable the entire promo:
-      //   - the red "$25 SAVINGS ONLINE" badge on the left panel
-      //   - the "You're saving $25 today" banner above the price
-      //   - the strikethrough on the original price
-      //   - subtracting $25 from the final total
-      // promoDiscount stays at 25 so you can tweak the amount without rewiring.
+      // Promo badge toggle (the red "$25 SAVINGS ONLINE" chip). Off for now.
       promoEnabled: false,
-      promoDiscount: 25,
       depositAmount: 25,
-      oneStoryBase: 100,
-      oneStoryRate: 0.05,
-      twoStoryBase: 105,
-      twoStoryRate: 0.075,
-      twoStoryLargeHomeThreshold: 2800,
-      twoStoryLargeHomeFee: 20,
-      threeStoryBase: 235,
-      threeStoryRate: 0.075,
+      // Simple upsell add-on = this fraction of the base cleaning price.
       addonMultiplier: 0.5,
+      // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
+      protectionMultiplier: 3,
+      // Surcharge when the home is outside Charlottesville City / Albemarle County.
+      outsideAreaFee: 50,
+      // Per-house pricing.
+      //   Regular homes: price = max(floor, modifier[stories] × square footage)
+      //   Townhomes:     flat price (square footage + stories ignored)
+      houses: {
+        simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
+        standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
+        complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.18 } },
+        townhome2: { flat: 195 },
+        townhome3: { flat: 325 },
+      },
     };
 
     const elements = {
-      savingsTop: document.getElementById('savingsTop'),
       sqftInput: document.getElementById('sqft'),
+      sqftField: document.getElementById('sqftField'),
       storiesSelect: document.getElementById('stories'),
-      addonInput: document.getElementById('addon'),
-      addonPrice: document.getElementById('addonPrice'),
-      addonSubtext: document.getElementById('addonSubtext'),
+      storiesField: document.getElementById('storiesField'),
+      withinArea: document.getElementById('withinArea'),
       price: document.getElementById('price'),
       urgency: document.getElementById('urgency'),
-      addonRow: document.querySelector('.addon-row'),
       paymentBreakdown: document.getElementById('paymentBreakdown'),
-      addonConfirmRow: document.getElementById('addonConfirmRow'),
-      addonConfirmValue: document.getElementById('addonConfirmValue'),
+      planSummaryLabel: document.getElementById('planSummaryLabel'),
+      planSummaryValue: document.getElementById('planSummaryValue'),
+      outsideRow: document.getElementById('outsideRow'),
       depositDisplay: document.getElementById('depositDisplay'),
       balanceDisplay: document.getElementById('balanceDisplay'),
+      lockNote: document.getElementById('lockNote'),
+      formCard: document.querySelector('.form-card'),
       custName: document.getElementById('custName'),
+      custNotes: document.getElementById('custNotes'),
       custPhone: document.getElementById('custPhone'),
       custEmail: document.getElementById('custEmail'),
       custAddress: document.getElementById('custAddress'),
@@ -1057,24 +1217,42 @@
       finalPrice: 0,
     };
 
+    // Step 1 selection: 'simple' | 'standard' | 'complex' | null.
+    let selectedHouse = null;
+    // Plan selection: 'basic' | 'simple' | 'protection'.
+    let selectedPlan = 'basic';
+
+    const PLAN_LABELS = {
+      basic: 'Basic Cleaning',
+      simple: 'Basic + Seasonal Touch-Ups',
+      protection: 'Gutter Protection Plan',
+    };
+
     function roundWhole(number) {
       return Math.round(number);
     }
 
-    function getBasePrice(squareFootage, stories) {
-      if (stories === '1') {
-        return PRICING.oneStoryBase + PRICING.oneStoryRate * squareFootage;
-      }
+    // Total for a given plan, derived from the base cleaning price.
+    function planTotal(base, plan) {
+      if (plan === 'simple') return base + getAddonCost(base);
+      if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
+      return base; // basic
+    }
 
-      if (stories === '2') {
-        let total = PRICING.twoStoryBase + PRICING.twoStoryRate * squareFootage;
-        if (squareFootage > PRICING.twoStoryLargeHomeThreshold) {
-          total += PRICING.twoStoryLargeHomeFee;
-        }
-        return total;
-      }
+    // Base cleaning price for the selected house.
+    //   townhomes -> flat price
+    //   others    -> max(floor, modifier[stories] × square footage)
+    function getBasePrice(house, squareFootage, stories) {
+      const cfg = PRICING.houses[house];
+      if (!cfg) return 0;
+      if (cfg.flat != null) return cfg.flat;
+      const rate = cfg.modifier[stories] || 0;
+      return Math.max(cfg.floor, roundWhole(rate * squareFootage));
+    }
 
-      return PRICING.threeStoryBase + PRICING.threeStoryRate * squareFootage;
+    function isHouseFlat(house) {
+      const cfg = PRICING.houses[house];
+      return !!(cfg && cfg.flat != null);
     }
 
     function getAddonCost(basePrice) {
@@ -1085,61 +1263,46 @@
       return dayIndex >= 0 && dayIndex <= 4;
     }
 
-    function setAddonActive(isActive) {
-      elements.addonRow.classList.toggle('active', isActive);
-    }
-
-    function updateAddonSubtext(basePrice) {
-      const visitPrice = basePrice > 0 ? basePrice : 0;
-      elements.addonSubtext.textContent = `Free touchups thru Oct. 31st · Normally $${visitPrice} per visit`;
+    // Show every plan's price on its card so customers can compare.
+    function updatePlanCardPrices(base) {
+      document.querySelectorAll('[data-plan-price]').forEach((el) => {
+        el.textContent = base > 0 ? '$' + planTotal(base, el.dataset.planPrice) : '$0';
+      });
     }
 
     function renderEmptyPrice() {
       elements.price.textContent = '$0';
-      elements.savingsTop.style.display = 'none';
-      elements.addonPrice.textContent = '+$0';
-      updateAddonSubtext(0);
-      setAddonActive(elements.addonInput.checked);
+      updatePlanCardPrices(0);
       elements.paymentBreakdown.style.display = 'none';
-      elements.addonConfirmRow.style.display = 'none';
       elements.bookBtn.textContent = 'Next';
-      currentQuote = { basePrice: 0, addonCost: 0, finalPrice: 0 };
+      currentQuote = { basePrice: 0, plan: selectedPlan, finalPrice: 0 };
       updateBookBtnState();
     }
 
-    function renderPrice(originalPrice, discountedPrice, addonCost, hasAddon) {
-      const originalDisplayPrice = hasAddon ? originalPrice + addonCost : originalPrice;
+    function renderPrice(base) {
+      const outside = !elements.withinArea.checked;
+      const fee = outside ? PRICING.outsideAreaFee : 0;
 
-      let html = '';
-      if (PRICING.promoEnabled) {
-        html += `<span class="price-original">$${originalDisplayPrice}</span>`;
-      }
-      html += `<span class="price-current">$${discountedPrice}</span>`;
+      // Each plan card shows the price they'd actually pay (incl. any surcharge).
+      document.querySelectorAll('[data-plan-price]').forEach((el) => {
+        el.textContent = '$' + (planTotal(base, el.dataset.planPrice) + fee);
+      });
 
-      elements.price.innerHTML = html;
-      elements.savingsTop.style.display = PRICING.promoEnabled ? 'block' : 'none';
-
-      if (hasAddon) {
-        elements.addonConfirmValue.textContent = `+$${addonCost}`;
-        elements.addonConfirmRow.style.display = 'flex';
-      } else {
-        elements.addonConfirmRow.style.display = 'none';
-      }
-      elements.addonPrice.textContent = `+$${addonCost}`;
-      updateAddonSubtext(originalPrice);
-
+      const subtotal = planTotal(base, selectedPlan);
+      const total = subtotal + fee;
       const deposit = PRICING.depositAmount;
-      const balance = Math.max(0, discountedPrice - deposit);
-      elements.depositDisplay.textContent = `$${deposit}`;
-      elements.balanceDisplay.textContent = `$${balance}`;
+      const balance = Math.max(0, total - deposit);
+
+      elements.price.textContent = '$' + total;
+      elements.planSummaryLabel.textContent = PLAN_LABELS[selectedPlan];
+      elements.planSummaryValue.textContent = '$' + subtotal;
+      elements.outsideRow.style.display = outside ? 'flex' : 'none';
+      elements.depositDisplay.textContent = '$' + deposit;
+      elements.balanceDisplay.textContent = '$' + balance;
       elements.paymentBreakdown.style.display = 'grid';
       elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
 
-      currentQuote = {
-        basePrice: originalPrice,
-        addonCost: hasAddon ? addonCost : 0,
-        finalPrice: discountedPrice,
-      };
+      currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total };
       updateBookBtnState();
     }
 
@@ -1148,10 +1311,19 @@
     function calculatePrice() {
       const squareFootage = Number(elements.sqftInput.value);
       const stories = elements.storiesSelect.value;
-      const hasAddon = elements.addonInput.checked;
 
-      setAddonActive(hasAddon);
       clearTimeout(calculationTimer);
+
+      if (!selectedHouse) {
+        renderEmptyPrice();
+        return;
+      }
+
+      // Townhomes are a flat price — no square footage needed.
+      if (isHouseFlat(selectedHouse)) {
+        renderPrice(getBasePrice(selectedHouse, 0, stories));
+        return;
+      }
 
       if (!squareFootage || squareFootage <= 0) {
         renderEmptyPrice();
@@ -1161,16 +1333,7 @@
       elements.price.innerHTML = '<span class="calculating">Calculating...</span>';
 
       calculationTimer = setTimeout(() => {
-        const basePrice = roundWhole(getBasePrice(squareFootage, stories));
-        const addonCost = getAddonCost(basePrice);
-        const activePromo = PRICING.promoEnabled ? PRICING.promoDiscount : 0;
-        let finalPrice = Math.max(0, basePrice - activePromo);
-
-        if (hasAddon) {
-          finalPrice += addonCost;
-        }
-
-        renderPrice(basePrice, finalPrice, addonCost, hasAddon);
+        renderPrice(getBasePrice(selectedHouse, squareFootage, stories));
       }, 650);
     }
 
@@ -1202,7 +1365,7 @@
     function updateBookBtnState() {
       const hasQuote = currentQuote.finalPrice > 0;
       const hasContact = contactIsComplete();
-      elements.bookBtn.disabled = !(hasQuote && hasContact);
+      elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact);
     }
 
     function validateAndMark() {
@@ -1242,13 +1405,15 @@
         phone: c.phone,
         email: c.email,
         address: c.address,
-        sqft: Number(elements.sqftInput.value) || 0,
-        stories: elements.storiesSelect.value,
-        addon: elements.addonInput.checked,
+        sqft: isHouseFlat(selectedHouse) ? '' : (Number(elements.sqftInput.value) || 0),
+        stories: isHouseFlat(selectedHouse) ? '' : elements.storiesSelect.value,
+        houseType: selectedHouse,
+        plan: selectedPlan,
+        planName: PLAN_LABELS[selectedPlan],
+        outsideArea: !elements.withinArea.checked,
+        notes: elements.custNotes.value.trim(),
         basePrice: currentQuote.basePrice,
-        addonCost: currentQuote.addonCost,
         finalPrice: currentQuote.finalPrice,
-        promoDiscount: PRICING.promoEnabled ? PRICING.promoDiscount : 0,
         userAgent: navigator.userAgent,
         page: location.href,
       };
@@ -1315,7 +1480,21 @@
 
       elements.sqftInput.addEventListener('input', calculatePrice);
       elements.storiesSelect.addEventListener('change', calculatePrice);
-      elements.addonInput.addEventListener('change', calculatePrice);
+      elements.withinArea.addEventListener('change', calculatePrice);
+
+      // Plan radios: update the total and which card is highlighted.
+      document.querySelectorAll('input[name="plan"]').forEach((radio) => {
+        radio.addEventListener('change', () => {
+          selectedPlan = radio.value;
+          document.querySelectorAll('.plan-opt').forEach((p) => {
+            p.classList.toggle('selected', p.dataset.plan === selectedPlan);
+          });
+          calculatePrice();
+        });
+      });
+
+      // Lock the form until a home is chosen.
+      elements.formCard.classList.add('is-locked');
 
       // Contact fields gate the Next button and clear their red border as the user types.
       ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach((id) => {
@@ -1329,9 +1508,33 @@
 
       elements.bookBtn.addEventListener('click', handleSubmit);
 
-      elements.sqftInput.focus();
-      elements.sqftInput.classList.add('pulse');
-      setTimeout(() => elements.sqftInput.classList.remove('pulse'), 2000);
+      // Step 1: tapping a house unlocks the form below.
+      const houseGrid = document.getElementById('houseGrid');
+      houseGrid.querySelectorAll('.house-opt').forEach((opt) => {
+        opt.addEventListener('click', () => {
+          const firstPick = !selectedHouse;
+          houseGrid.querySelectorAll('.house-opt').forEach((o) => o.classList.remove('selected'));
+          opt.classList.add('selected');
+          selectedHouse = opt.dataset.house;
+          elements.formCard.classList.remove('is-locked');
+
+          // Townhomes are flat-priced — hide square footage + stories for them.
+          const flat = isHouseFlat(selectedHouse);
+          elements.sqftField.style.display = flat ? 'none' : '';
+          elements.storiesField.style.display = flat ? 'none' : '';
+
+          if (firstPick) {
+            elements.formCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!flat) {
+              elements.sqftInput.focus();
+              elements.sqftInput.classList.add('pulse');
+              setTimeout(() => elements.sqftInput.classList.remove('pulse'), 2000);
+            }
+          }
+          calculatePrice();   // re-price for the chosen house
+          updateBookBtnState();
+        });
+      });
 
       if (isWeekdayEligible()) {
         elements.urgency.style.display = 'block';
@@ -1344,14 +1547,16 @@
 
     console.assert(roundWhole(220.4) === 220, 'roundWhole should round down under .5');
     console.assert(roundWhole(220.5) === 221, 'roundWhole should round up at .5');
-    console.assert(getBasePrice(2000, '1') === 200, '1-story pricing failed');
-    console.assert(getBasePrice(2400, '2') === 285, '2-story pricing failed');
-    console.assert(getBasePrice(3000, '2') === 350, '2-story surcharge pricing failed');
-    console.assert(getBasePrice(2000, '3') === 385, '3-story pricing failed');
+    console.assert(getBasePrice('simple', 2000, '1') === 140, 'simple 1-story = max(99, .07*2000) = 140');
+    console.assert(getBasePrice('simple', 500, '1') === 99, 'small home hits the $99 floor');
+    console.assert(getBasePrice('standard', 2000, '2') === 280, 'standard 2-story = .14*2000 = 280');
+    console.assert(getBasePrice('complex', 2000, '3') === 360, 'complex 3-story = .18*2000 = 360');
+    console.assert(getBasePrice('townhome2') === 195, '2-story townhome flat $195');
+    console.assert(getBasePrice('townhome3') === 325, '3-story townhome flat $325');
     console.assert(getAddonCost(200) === 100, 'addon cost should be 50 percent of base');
-    console.assert(getAddonCost(385) === 193, 'addon cost should round correctly');
-    console.assert((285 + getAddonCost(285)) === 428, 'original display price should include addon when selected');
-    console.assert(Math.max(0, (285 + getAddonCost(285)) - PRICING.promoDiscount) === 403, 'discounted total should subtract promo from cleaning plus addon total');
+    console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
+    console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
+    console.assert(isHouseFlat('simple') === false, 'simple home is not flat-priced');
     console.assert(isWeekdayEligible(0) === true, 'Sunday should be eligible');
     console.assert(isWeekdayEligible(4) === true, 'Thursday should be eligible');
     console.assert(isWeekdayEligible(5) === false, 'Friday should not be eligible');
