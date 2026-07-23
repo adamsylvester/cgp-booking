@@ -722,13 +722,16 @@
     }
 
     .page-header { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; }
-    .page-header::after { content: ''; flex: 0 0 188px; }
+    .page-phone { flex: 0 0 188px; text-align: right; line-height: 1.2; }
+    .page-phone-label { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-subtle); }
+    .page-phone-num { display: inline-block; margin-top: 3px; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; color: var(--primary); text-decoration: none; white-space: nowrap; }
+    .page-phone-num:hover { color: var(--primary-dark); text-decoration: underline; }
     .page-heading { flex: 1; text-align: center; }
     .page-title { font-size: clamp(22px, 3.4vw, 30px); font-weight: 800; letter-spacing: -0.02em; margin: 0; color: var(--text); }
     .page-sub { font-size: 15px; color: var(--text-muted); margin: 6px 0 0; line-height: 1.45; }
     @media (max-width: 560px) {
       .page-header { flex-wrap: wrap; justify-content: center; gap: 10px; }
-      .page-header::after { display: none; }
+      .page-phone { flex: 1 1 100%; text-align: center; order: 3; }
       .page-heading { flex: 1 1 100%; }
     }
     .or-sep { align-self: center; }
@@ -810,6 +813,10 @@
       <div class="page-heading">
         <h1 class="page-title">How would you like to get started?</h1>
         <p class="page-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
+      </div>
+      <div class="page-phone">
+        <span class="page-phone-label">Call us</span>
+        <a class="page-phone-num" href="tel:+14344224700">434-422-4700</a>
       </div>
     </div>
 
