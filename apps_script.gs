@@ -346,16 +346,23 @@ function checkPendingPayments() {
 
 function rowToLead(vals) {
   return {
+    timestamp: vals[COL.TIMESTAMP - 1],
     name: vals[COL.NAME - 1],
     phone: vals[COL.PHONE - 1],
     email: vals[COL.EMAIL - 1],
     address: vals[COL.ADDRESS - 1],
     house: vals[COL.HOUSE - 1],
+    sqft: vals[COL.SQFT - 1],
+    stories: vals[COL.STORIES - 1],
     plan: vals[COL.PLAN - 1],
+    outside: String(vals[COL.OUTSIDE - 1]).indexOf('Yes') === 0,
     zip: vals[COL.ZIP - 1],
     notes: vals[COL.NOTES - 1],
+    base: vals[COL.BASE - 1],
     total: vals[COL.TOTAL - 1],
     deposit: vals[COL.DEPOSIT - 1],
+    userAgent: vals[COL.USER_AGENT - 1],
+    page: vals[COL.PAGE - 1],
   };
 }
 
@@ -406,6 +413,52 @@ function quoteSummaryRows(data) {
   return html;
 }
 
+// Every input + every dollar line, for the office emails. Accepts a normalized
+// object: {timestamp, house, sqft, stories, zip, outside, plan, base, total, deposit}.
+function fullBreakdownRows(o) {
+  var base = Number(o.base || 0);
+  var total = Number(o.total || 0);
+  var deposit = Number(o.deposit || 0);
+  var fee = o.outside ? OUTSIDE_AREA_FEE : 0;
+  var planUpgrade = total - fee - base;
+  var balance = Math.max(0, total - deposit);
+
+  var html = '';
+  html += sectionHead('Their inputs') + '<table style="border-collapse:collapse;width:100%;">';
+  html += row('Home type', escapeHtml(String(o.house || '')));
+  html += row('Square footage', o.sqft ? Number(o.sqft).toLocaleString() : 'n/a (flat-priced townhome)');
+  html += row('Stories', o.stories ? escapeHtml(String(o.stories)) : 'n/a (flat-priced townhome)');
+  html += row('ZIP code', escapeHtml(String(o.zip || '—')));
+  html += row('Service area', o.outside ? 'Outside Cville/Albemarle (trip fee applies)' : 'In service area (no trip fee)');
+  html += row('Plan chosen', escapeHtml(String(o.plan || '')));
+  html += '</table>';
+
+  html += sectionHead('Price math') + '<table style="border-collapse:collapse;width:100%;">';
+  html += row('Base cleaning', '$' + base);
+  if (planUpgrade > 0) html += row('Plan upgrade', '+$' + planUpgrade);
+  html += row('Trip fee', fee ? '+$' + fee : '$0');
+  html += rowBold('Total price', '$' + total);
+  html += row('Deposit (25%)', '$' + deposit);
+  html += rowBold('Balance on completion', '$' + balance);
+  html += '</table>';
+  return html;
+}
+
+// Submission metadata footer (timestamp, device, page).
+function metaFooter(o) {
+  var device = String(o.userAgent || '');
+  var short = /iPhone|iPad/.test(device) ? 'iPhone/iPad' :
+              /Android/.test(device) ? 'Android' :
+              /Macintosh/.test(device) ? 'Mac' :
+              /Windows/.test(device) ? 'Windows PC' : (device ? 'Other' : '');
+  var bits = [];
+  if (o.timestamp) bits.push('Submitted ' + escapeHtml(String(o.timestamp)));
+  if (short) bits.push('Device: ' + short);
+  if (o.page) bits.push('Page: ' + escapeHtml(String(o.page)));
+  bits.push('Full row in the CGP Booking Leads sheet.');
+  return '<p style="margin-top:18px;font-size:12px;color:#667085;">' + bits.join('<br>') + '</p>';
+}
+
 function contactRows(name, phone, email, address) {
   var html = '';
   html += rowBold('Name', escapeHtml(name || 'Unknown'));
@@ -433,14 +486,18 @@ function sendCheckoutStartedEmail(data, priceCheck) {
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(name) + ' — $' + Number(data.finalPrice || 0) + ' quote</h2>';
   inner += sectionHead('Customer');
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(data.name, data.phone, data.email, data.address) + '</table>';
-  inner += sectionHead('Quote');
-  inner += '<table style="border-collapse:collapse;width:100%;">' + quoteSummaryRows(data) + '</table>';
+  inner += fullBreakdownRows({
+    house: houseLabel(data.houseType), sqft: data.sqft, stories: data.stories,
+    zip: data.zip, outside: !!data.outsideArea, plan: data.planName || data.plan,
+    base: data.basePrice, total: data.finalPrice, deposit: deposit,
+  });
   if (priceCheck) inner += '<p style="margin-top:10px;font-size:13px;color:' + (priceCheck.indexOf('✓') === 0 ? '#15803d' : '#b42318') + ';font-weight:700;">Price check: ' + escapeHtml(priceCheck) + '</p>';
   var notes = (data.notes || '').trim();
   if (notes) {
     inner += sectionHead('Customer notes');
     inner += '<p style="margin:0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(notes) + '</p>';
   }
+  inner += metaFooter(data);
 
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
@@ -461,16 +518,17 @@ function sendPaidEmail(lead, receiptUrl) {
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(lead.name) + ' — $' + lead.total + ' ' + escapeHtml(String(lead.plan)) + '</h2>';
   inner += sectionHead('Customer');
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(lead.name, lead.phone, lead.email, lead.address) + '</table>';
-  inner += sectionHead('Money');
+  inner += fullBreakdownRows(lead);
+  inner += sectionHead('Money status');
   inner += '<table style="border-collapse:collapse;width:100%;">';
-  inner += rowBold('Total price', '$' + lead.total);
-  inner += row('Deposit paid', '$' + lead.deposit);
-  inner += rowBold('Balance on completion', '$' + balance);
+  inner += rowBold('Deposit paid today', '$' + lead.deposit);
+  inner += rowBold('Balance to collect on completion', '$' + balance);
   inner += '</table>';
   if (receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
   inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re being sent to Calendly to pick their date — watch for the calendar invite.</p>';
+  inner += metaFooter(lead);
 
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
@@ -489,20 +547,14 @@ function sendAbandonedEmail(lead) {
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(lead.name) + ' — $' + lead.total + ' quote on the table</h2>';
   inner += sectionHead('Customer');
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(lead.name, lead.phone, lead.email, lead.address) + '</table>';
-  inner += sectionHead('What they saw');
-  inner += '<table style="border-collapse:collapse;width:100%;">';
-  inner += row('Home', escapeHtml(String(lead.house)));
-  inner += row('Plan', escapeHtml(String(lead.plan)));
-  if (lead.zip) inner += row('ZIP', escapeHtml(String(lead.zip)));
-  inner += rowBold('Quoted total', '$' + lead.total);
-  inner += row('Deposit they didn\'t pay', '$' + lead.deposit);
-  inner += '</table>';
+  inner += fullBreakdownRows(lead);
   var notes = String(lead.notes || '').trim();
   if (notes) {
     inner += sectionHead('Their notes');
     inner += '<p style="margin:0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(notes) + '</p>';
   }
   inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">If they pay later, this flips to ✅ PAID automatically — no action needed on the sheet.</p>';
+  inner += metaFooter(lead);
 
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
