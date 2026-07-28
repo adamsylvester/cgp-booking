@@ -32,16 +32,17 @@
       --text: #101828;
       --text-muted: #475467;
       --text-subtle: #667085;
-      --border: #e4e7ec;
-      --border-strong: #d0d5dd;
+      --border: #dbe4f5;
+      --border-strong: #c9d6f0;
       --primary: #1d4ed8;
       --primary-dark: #1e40af;
+      --primary-grad: linear-gradient(100deg, #1d4ed8, #3b70e8);
       --success: #16a34a;
       --warning: #f59e0b;
       --danger: #dc2626;
-      --shadow-lg: 0 18px 50px rgba(16, 24, 40, 0.1);
-      --shadow-md: 0 10px 24px rgba(16, 24, 40, 0.06);
-      --shadow-sm: 0 8px 20px rgba(16, 24, 40, 0.05);
+      --shadow-lg: 0 18px 50px rgba(29, 78, 216, 0.1);
+      --shadow-md: 0 10px 30px rgba(29, 78, 216, 0.07);
+      --shadow-sm: 0 8px 20px rgba(29, 78, 216, 0.05);
       --radius-xl: 24px;
       --radius-lg: 20px;
       --radius-md: 16px;
@@ -56,10 +57,11 @@
     body {
       margin: 0;
       padding: 22px 16px 32px;
-      font-family: Arial, sans-serif;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text);
-      background: linear-gradient(180deg, var(--bg-start) 0%, var(--bg-end) 100%);
+      background: linear-gradient(180deg, #eef4ff 0%, #f8fafc 420px);
     }
+    body.has-paybar { padding-bottom: 96px; }
 
     a {
       color: inherit;
@@ -358,11 +360,12 @@
 
     .price-wrap {
       margin: 22px 0 14px;
-      padding: 22px;
+      padding: 26px 24px 22px;
       text-align: center;
-      background: #eff4ff;
-      border: 1px solid #c7d4f7;
-      border-radius: 18px;
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      box-shadow: var(--shadow-md);
     }
 
     .price-label {
@@ -376,8 +379,9 @@
 
     .price {
       margin: 0;
-      font-size: 42px;
-      font-weight: 800;
+      font-size: 54px;
+      font-weight: 900;
+      letter-spacing: -0.04em;
       line-height: 1.05;
     }
 
@@ -504,7 +508,7 @@
       padding: 16px;
       border: 0;
       border-radius: 14px;
-      background: var(--primary);
+      background: var(--primary-grad);
       color: #fff;
       text-align: center;
       text-decoration: none;
@@ -512,6 +516,7 @@
       font-weight: 800;
       line-height: 1.2;
       cursor: pointer;
+      box-shadow: 0 10px 26px rgba(29, 78, 216, 0.3);
     }
 
     .cta:hover {
@@ -693,7 +698,7 @@
       }
 
       .price {
-        font-size: 34px;
+        font-size: 40px;
       }
 
       .addon-row {
@@ -920,10 +925,12 @@
       .plan-heading { margin:18px 0 10px; font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--primary); }
       .plan-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
       .plan-opt { flex-direction:column; align-items:flex-start; }
-      .plan-opt .plan-price { align-self:flex-end; margin-top:auto; }
-      .plan-opt { position:relative; display:flex; align-items:center; gap:12px; border:2px solid var(--border); border-radius:14px; padding:14px; cursor:pointer; background:#fff; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+      .plan-opt .plan-price, .plan-opt .plan-price-wrap { align-self:flex-end; margin-top:auto; }
+      .plan-price-wrap { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; }
+      .plan-price-wrap .plan-price { align-self:auto; margin-top:0; }
+      .plan-opt { position:relative; display:flex; align-items:center; gap:12px; border:2px solid var(--border); border-radius:16px; padding:16px 14px 14px; cursor:pointer; background:#fff; transition:border-color .15s ease, box-shadow .15s ease, background .15s ease; }
       .plan-opt:hover { border-color:#c7d4f7; }
-      .plan-opt.selected { border-color:var(--primary); background:#eff4ff; box-shadow:0 6px 16px rgba(29,78,216,.14); }
+      .plan-opt.selected { border-color:var(--primary); background:linear-gradient(180deg,#f4f8ff,#fff); box-shadow:0 8px 22px rgba(29,78,216,.14); }
       .plan-opt input { position:absolute; opacity:0; pointer-events:none; }
       .plan-radio { flex:0 0 auto; width:20px; height:20px; border-radius:50%; border:2px solid #c2c8d2; position:relative; transition:border-color .15s ease; }
       .plan-opt.selected .plan-radio { border-color:var(--primary); }
@@ -933,7 +940,9 @@
       .plan-sub { display:block; font-size:12px; color:var(--text-muted); margin-top:2px; line-height:1.35; }
       .plan-price { flex:0 0 auto; font-weight:800; font-size:16px; color:var(--primary); white-space:nowrap; }
       .plan-featured { border-color:#bcd0f7; }
-      .plan-badge { position:absolute; top:-9px; right:12px; background:var(--primary); color:#fff; font-size:10.5px; font-weight:700; letter-spacing:.04em; padding:3px 8px; border-radius:999px; text-transform:uppercase; }
+      .plan-badge { position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:linear-gradient(100deg,#f59e0b,#fbbf24); color:#451a03; font-size:10.5px; font-weight:900; letter-spacing:.05em; padding:4px 11px; border-radius:999px; text-transform:uppercase; white-space:nowrap; }
+      .plan-per { display:block; font-size:11px; font-weight:600; color:var(--text-subtle); margin-top:2px; text-align:right; }
+      .plan-per:empty { display:none; }
       .page-logo { flex:0 0 auto; width:188px; height:auto; }
       /* ===== Single-column layout: slim trust strip + full-width form ===== */
       .brand-strip { display:flex; align-items:center; justify-content:center; gap:28px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:var(--shadow-lg); padding:16px 28px; margin-bottom:18px; flex-wrap:wrap; }
@@ -975,11 +984,27 @@
       .step-active #zipField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
       .zip-note { margin:8px auto 0; max-width:420px; font-size:13px; font-weight:600; line-height:1.4; }
       .zip-note.in-area { color:var(--success, #15803d); }
-      .zip-note.trip-fee { color:var(--primary); }
+      .zip-note.trip-fee { color:var(--success, #15803d); }
       .zip-note.unserved { color:#b42318; }
       .extra-fee { color:var(--primary); font-weight:700; white-space:nowrap; }
       .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
       .form-card textarea:focus { outline:none; border-color:var(--primary); }
+      /* ===== Deposit meter: visual 25%-now / 75%-later split ===== */
+      .deposit-meter { margin-top:10px; padding-top:12px; border-top:1px dashed var(--border-strong); }
+      .meter-bar { display:flex; height:12px; border-radius:999px; overflow:hidden; }
+      .meter-bar .meter-dep { width:25%; background:var(--success); }
+      .meter-bar .meter-rest { flex:1; background:var(--border); }
+      .meter-legend { display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:700; margin-top:7px; }
+      .meter-dep-label { color:var(--success); }
+      .meter-rest-label { color:var(--text-subtle); }
+      /* ===== Sticky pay bar ===== */
+      .paybar { position:fixed; bottom:0; left:0; right:0; background:rgba(255,255,255,.92); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-top:1px solid var(--border); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:flex; align-items:center; justify-content:center; gap:16px; z-index:40; }
+      .paybar[hidden] { display:none; }
+      .paybar .paybar-sum { text-align:right; }
+      .paybar .paybar-t { font-size:12px; color:var(--text-subtle); font-weight:700; }
+      .paybar .paybar-v { font-size:19px; font-weight:900; letter-spacing:-.02em; }
+      .paybar .paybar-go { padding:14px 28px; background:var(--primary-grad); color:#fff; border:none; border-radius:14px; font-size:16px; font-weight:800; cursor:pointer; box-shadow:0 10px 26px rgba(29,78,216,.35); white-space:nowrap; }
+      .paybar .paybar-go:active { transform:translateY(1px); }
     </style>
 
     <div class="quote-reveal" id="quoteReveal" hidden>
@@ -1092,14 +1117,14 @@
             </label>
 
             <label class="plan-opt plan-featured selected" data-plan="simple">
-              <span class="plan-badge">Best value</span>
+              <span class="plan-badge">★ Best value</span>
               <input type="radio" name="plan" value="simple" checked />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Basic + Seasonal Touch-Ups</span>
                 <span class="plan-sub">This cleaning, plus free touch-ups through Oct. 31.</span>
               </span>
-              <span class="plan-price" data-plan-price="simple">$0</span>
+              <span class="plan-price-wrap"><span class="plan-price" data-plan-price="simple">$0</span><span class="plan-per" id="planPerFeatured"></span></span>
             </label>
 
             <label class="plan-opt" data-plan="protection">
@@ -1126,13 +1151,12 @@
                 <span class="breakdown-label">Trip fee (outside Charlottesville &amp; Albemarle)</span>
                 <span class="breakdown-value" id="outsideValue">+$50</span>
               </div>
-              <div class="breakdown-row deposit">
-                <span class="breakdown-label">Pay today (deposit)</span>
-                <span class="breakdown-value" id="depositDisplay">$25</span>
-              </div>
-              <div class="breakdown-row">
-                <span class="breakdown-label">Balance on completion</span>
-                <span class="breakdown-value" id="balanceDisplay">$0</span>
+              <div class="deposit-meter">
+                <div class="meter-bar"><span class="meter-dep"></span><span class="meter-rest"></span></div>
+                <div class="meter-legend">
+                  <span class="meter-dep-label" id="meterDepLabel">$0 today (25%)</span>
+                  <span class="meter-rest-label" id="meterRestLabel">$0 after the job</span>
+                </div>
               </div>
             </div>
             <div class="price-trust">
@@ -1186,6 +1210,14 @@
           </p>
         </div>
       </div>
+    </div>
+
+    <div class="paybar" id="payBar" hidden>
+      <div class="paybar-sum">
+        <div class="paybar-t">Due today</div>
+        <div class="paybar-v" id="payBarAmt">$0</div>
+      </div>
+      <button class="paybar-go" id="payBarBtn" type="button">Pay Deposit →</button>
     </div>
     </div><!-- /quote-reveal -->
 
@@ -1286,8 +1318,12 @@
       planSummaryLabel: document.getElementById('planSummaryLabel'),
       planSummaryValue: document.getElementById('planSummaryValue'),
       outsideRow: document.getElementById('outsideRow'),
-      depositDisplay: document.getElementById('depositDisplay'),
-      balanceDisplay: document.getElementById('balanceDisplay'),
+      meterDepLabel: document.getElementById('meterDepLabel'),
+      meterRestLabel: document.getElementById('meterRestLabel'),
+      planPerFeatured: document.getElementById('planPerFeatured'),
+      payBar: document.getElementById('payBar'),
+      payBarAmt: document.getElementById('payBarAmt'),
+      payBarBtn: document.getElementById('payBarBtn'),
       lockNote: document.getElementById('lockNote'),
       formCard: document.querySelector('.form-card'),
       custName: document.getElementById('custName'),
@@ -1373,10 +1409,10 @@
       const note = elements.zipNote;
       note.className = 'zip-note';
       if (status === 'inArea') {
-        note.textContent = '✓ You\'re in our service area — no trip fee.';
+        note.textContent = '✓ Great news — we service your area, no trip fee!';
         note.classList.add('in-area');
       } else if (status === 'tripFee') {
-        note.textContent = 'Outside Charlottesville & Albemarle — a $' + PRICING.outsideAreaFee + ' trip fee applies.';
+        note.textContent = '✓ Great news — we service your area! Your price includes a $' + PRICING.outsideAreaFee + ' trip fee.';
         note.classList.add('trip-fee');
       } else if (status === 'unserved') {
         note.textContent = 'Sorry, that ZIP is outside our service area. Contact us and we\'ll see what we can do.';
@@ -1397,8 +1433,10 @@
       updatePlanCardPrices(0);
       elements.paymentBreakdown.style.display = 'none';
       elements.bookBtn.textContent = 'Next';
+      elements.planPerFeatured.textContent = '';
       currentQuote = { basePrice: 0, plan: selectedPlan, finalPrice: 0 };
       updateBookBtnState();
+      updatePayBar();
     }
 
     function renderPrice(base) {
@@ -1419,13 +1457,21 @@
       elements.planSummaryLabel.textContent = PLAN_LABELS[selectedPlan];
       elements.planSummaryValue.textContent = '$' + subtotal;
       elements.outsideRow.style.display = outside ? 'flex' : 'none';
-      elements.depositDisplay.textContent = '$' + deposit + ' (25%)';
-      elements.balanceDisplay.textContent = '$' + balance;
+      elements.meterDepLabel.textContent = '$' + deposit + ' today (25%)';
+      elements.meterRestLabel.textContent = '$' + balance + ' after the job';
       elements.paymentBreakdown.style.display = 'grid';
       elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
 
+      // "only $X today" nudge on the featured plan card.
+      const featuredDeposit = Math.round((planTotal(base, 'simple') + fee) * PRICING.depositRate);
+      elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' today';
+
+      elements.payBarAmt.textContent = '$' + deposit;
+      elements.payBarBtn.textContent = `Pay $${deposit} Deposit →`;
+
       currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
+      updatePayBar();
     }
 
     let calculationTimer;
@@ -1489,6 +1535,26 @@
       const hasContact = contactIsComplete();
       const zipOk = zipStatus() === 'inArea' || zipStatus() === 'tripFee';
       elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact && zipOk);
+    }
+
+    // ===== Sticky pay bar =====
+    // Shown once there's a real quote, but hidden while the main pay button is
+    // already on screen (no point showing two).
+    let bookBtnInView = false;
+
+    function updatePayBar() {
+      const show = currentQuote.finalPrice > 0 && !bookBtnInView;
+      elements.payBar.hidden = !show;
+      document.body.classList.toggle('has-paybar', show);
+    }
+
+    function handlePayBarClick() {
+      if (elements.bookBtn.disabled) {
+        // Not ready yet (details missing) — take them to the form instead.
+        elements.bookBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      handleSubmit();
     }
 
     function validateAndMark() {
@@ -1652,6 +1718,15 @@
         calculatePrice();
       });
 
+      // Sticky pay bar: mirror the main button, hide when it's on screen.
+      elements.payBarBtn.addEventListener('click', handlePayBarClick);
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver((entries) => {
+          bookBtnInView = entries[0].isIntersecting;
+          updatePayBar();
+        }, { rootMargin: '0px 0px -10px 0px' }).observe(elements.bookBtn);
+      }
+
       // Plan radios: update the total and which card is highlighted.
       document.querySelectorAll('input[name="plan"]').forEach((radio) => {
         radio.addEventListener('change', () => {
@@ -1735,6 +1810,10 @@
     console.assert(isValidEmail('not-an-email') === false, 'invalid email check');
     console.assert(isValidPhone('5551234567') === true, '10-digit phone valid');
     console.assert(isValidPhone('123') === false, 'short phone invalid');
+    console.assert(IN_AREA_ZIPS.has('22901') === true, 'Cville ZIP is in-area');
+    console.assert(IN_AREA_ZIPS.has('22963') === false, 'Palmyra ZIP is not in-area');
+    console.assert(/^2[234]\d{3}$/.test('22963') === true, 'central VA ZIP gets trip-fee tier');
+    console.assert(/^2[234]\d{3}$/.test('90210') === false, 'far ZIP is unserved');
   </script>
 
   <script>
