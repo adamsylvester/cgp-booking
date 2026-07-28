@@ -571,15 +571,11 @@ function buildBuyerEmailHtml(data) {
   var name = escapeHtml(data.name || 'there');
   var firstName = name.split(' ')[0];
   var deposit = depositFor(data);
-  var calendlyHref = CALENDLY_URL + '?name=' + encodeURIComponent(data.name || '') + '&email=' + encodeURIComponent(data.email || '');
 
   var inner = '';
   inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit + ' deposit is in.</h2>';
   inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">';
-  inner += 'We are on the books for your gutter cleaning. Pick the date that works best for you using the link below, and our crew will take it from there.';
-  inner += '</p>';
-  inner += '<p style="margin:0 0 22px;">';
-  inner += '<a href="' + calendlyHref + '" style="display:inline-block;padding:14px 22px;background:#1d4ed8;color:#ffffff;text-decoration:none;border-radius:12px;font-weight:700;">Pick your service date</a>';
+  inner += 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
   inner += '</p>';
   inner += sectionHead('Your quote');
   inner += '<table style="border-collapse:collapse;width:100%;">' + quoteSummaryRows(data) + '</table>';
