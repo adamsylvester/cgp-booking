@@ -727,15 +727,16 @@
     }
 
     /* ===== Centered hero header ===== */
-    .hero-head { text-align: center; margin: 6px 0 26px; }
-    .hero-logo { width: 150px; height: auto; margin-bottom: 10px; }
+    .hero-head { text-align: center; margin: 6px 0 18px; }
+    .hero-logo { width: 150px; height: auto; margin-bottom: 8px; }
+    .hero-quote { text-align: center; margin: 10px 0 18px; }
     .hero-title { margin: 0 0 8px; font-size: clamp(30px, 5.5vw, 46px); font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
     .hero-title em { font-style: normal; background: linear-gradient(100deg, var(--primary), #4f8bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
     .hero-sub { margin: 0 0 8px; font-size: 16.5px; color: var(--text-muted); }
     .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
     .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
     .hero-phone a:hover { text-decoration: underline; }
-    .chooser-title { margin: 0 0 4px; text-align: center; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+    .chooser-title { margin: 0 0 6px; text-align: center; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
     .chooser-sub { margin: 0 0 18px; text-align: center; font-size: 14.5px; line-height: 1.45; color: var(--text-muted); }
     /* ===== Progress rail (quote flow) ===== */
     .rail { display: flex; justify-content: center; gap: 6px; margin: 0 0 18px; flex-wrap: wrap; }
@@ -831,12 +832,10 @@
   <div class="wrap">
     <div class="hero-head">
       <img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
-      <h1 class="hero-title">Your price in <em>10 seconds.</em></h1>
-      <p class="hero-sub">Instant quote · 25% deposit · pick your date online</p>
       <p class="hero-phone">Prefer to talk? <a href="tel:+14344224700">Call/Text 434-422-4700</a></p>
     </div>
 
-    <h2 class="chooser-title">How would you like to get started?</h2>
+    <h1 class="chooser-title">How would you like to get started?</h1>
     <p class="chooser-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
 
     <div class="top-options">
@@ -1027,6 +1026,10 @@
     </style>
 
     <div class="quote-reveal" id="quoteReveal" hidden>
+    <div class="hero-quote">
+      <h2 class="hero-title">Your price in <em>10 seconds.</em></h2>
+      <p class="hero-sub">Instant quote · 25% deposit · pick your date online</p>
+    </div>
     <div class="rail">
       <span class="seg on">1 · Home</span>
       <span class="seg" id="railPlan">2 · Plan</span>
