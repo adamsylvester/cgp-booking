@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Facelift A — Navy Premium (static mockup)</title>
+<style>
+  :root {
+    --navy: #0e2038;
+    --navy-2: #16304f;
+    --blue: #2f7de1;
+    --green: #2e9e44;
+    --gold: #f5b73c;
+    --ink: #14213a;
+    --muted: #5b6b84;
+    --line: #e3e9f2;
+    --bg: #f6f8fb;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--ink); }
+  .mock-tag { position: fixed; top: 10px; right: 10px; background: #b42318; color: #fff; font-size: 11px; font-weight: 800; letter-spacing: .08em; padding: 5px 10px; border-radius: 999px; z-index: 50; }
+
+  /* ===== Hero band ===== */
+  .hero { background: linear-gradient(160deg, var(--navy) 0%, var(--navy-2) 70%); color: #fff; padding: 34px 20px 84px; text-align: center; }
+  .hero img { width: 130px; margin-bottom: 14px; filter: drop-shadow(0 6px 18px rgba(0,0,0,.35)); }
+  .hero h1 { font-family: Georgia, 'Times New Roman', serif; font-size: clamp(30px, 5vw, 44px); letter-spacing: -.01em; margin-bottom: 10px; }
+  .hero p { color: #b9c8dd; font-size: 17px; max-width: 520px; margin: 0 auto 18px; line-height: 1.5; }
+  .hero .proof { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 600; }
+  .hero .stars { color: var(--gold); letter-spacing: 2px; }
+
+  /* ===== Card ===== */
+  .sheet { max-width: 760px; margin: -56px auto 40px; padding: 0 16px; }
+  .card { background: #fff; border-radius: 22px; box-shadow: 0 24px 60px rgba(14,32,56,.16); padding: 34px 34px 28px; }
+  .step { display: flex; align-items: center; gap: 10px; margin: 26px 0 16px; }
+  .step:first-child { margin-top: 0; }
+  .step .n { width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 13px; font-weight: 800; display: grid; place-items: center; }
+  .step .t { font-size: 17px; font-weight: 800; letter-spacing: -.01em; }
+  .step .rule { flex: 1; height: 1px; background: var(--line); }
+
+  .inputs { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+  .inp { text-align: center; }
+  .inp label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 7px; }
+  .inp .box { width: 150px; padding: 13px; border: 1.5px solid var(--line); border-radius: 12px; font-size: 19px; font-weight: 700; text-align: center; background: #fff; }
+  .zip-ok { margin-top: 14px; text-align: center; font-size: 13.5px; font-weight: 600; color: var(--green); }
+
+  /* Plans */
+  .plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .plan { position: relative; border: 1.5px solid var(--line); border-radius: 16px; padding: 20px 16px 16px; background: #fff; }
+  .plan.sel { border-color: var(--navy); box-shadow: 0 0 0 3px rgba(14,32,56,.1); background: #f8fafd; }
+  .plan .badge { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--green); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .06em; padding: 4px 10px; border-radius: 999px; text-transform: uppercase; white-space: nowrap; }
+  .plan h3 { font-size: 15px; margin-bottom: 5px; letter-spacing: -.01em; }
+  .plan p { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-bottom: 12px; }
+  .plan .pp { font-family: Georgia, serif; font-size: 22px; font-weight: 700; color: var(--navy); }
+
+  /* Price panel */
+  .price-panel { margin-top: 24px; background: var(--navy); border-radius: 18px; color: #fff; padding: 26px 28px; text-align: center; }
+  .price-panel .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: #93a8c4; margin-bottom: 4px; }
+  .price-panel .amt { font-family: Georgia, serif; font-size: 52px; letter-spacing: -.02em; }
+  .rows { max-width: 400px; margin: 16px auto 0; border-top: 1px solid rgba(255,255,255,.15); padding-top: 14px; font-size: 14.5px; }
+  .rows .r { display: flex; justify-content: space-between; padding: 4px 0; color: #c6d3e6; }
+  .rows .r.hot { color: #fff; font-weight: 800; }
+  .rows .r.hot .v { color: var(--gold); }
+  .cta { display: block; width: 100%; max-width: 400px; margin: 22px auto 0; padding: 17px; background: var(--green); color: #fff; border: none; border-radius: 14px; font-size: 18px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 24px rgba(46,158,68,.35); }
+  .fine { margin-top: 12px; font-size: 12.5px; color: #93a8c4; }
+
+  .includes { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; margin-top: 20px; font-size: 13px; font-weight: 600; color: var(--ink); }
+  .includes span::before { content: "✓ "; color: var(--green); font-weight: 800; }
+
+  @media (max-width: 640px) { .plans { grid-template-columns: 1fr; } .card { padding: 24px 18px; } }
+</style>
+</head>
+<body>
+<div class="mock-tag">STATIC MOCKUP A</div>
+
+<div class="hero">
+  <img src="../logo.png" alt="Charlottesville Gutter Pros" />
+  <h1>Gutter cleaning, booked in two minutes.</h1>
+  <p>See your exact price instantly, pay a 25% deposit, and pick your date. No callbacks, no waiting.</p>
+  <div class="proof"><span class="stars">★★★★★</span> 4.9 · 800+ Google Reviews</div>
+</div>
+
+<div class="sheet">
+  <div class="card">
+    <div class="step"><span class="n">1</span><span class="t">Your home</span><span class="rule"></span></div>
+    <div class="inputs">
+      <div class="inp"><label>Square footage</label><div class="box">3000</div></div>
+      <div class="inp"><label>Gutter height</label><div class="box">3 story</div></div>
+      <div class="inp"><label>ZIP code</label><div class="box">22901</div></div>
+    </div>
+    <p class="zip-ok">✓ You're in our service area — no trip fee.</p>
+
+    <div class="step"><span class="n">2</span><span class="t">Choose your plan</span><span class="rule"></span></div>
+    <div class="plans">
+      <div class="plan">
+        <h3>Basic Cleaning</h3>
+        <p>One-time gutter &amp; downspout cleaning.</p>
+        <div class="pp">$380</div>
+      </div>
+      <div class="plan sel">
+        <span class="badge">Best value</span>
+        <h3>Basic + Seasonal Touch-Ups</h3>
+        <p>This cleaning, plus free touch-ups through Oct. 31.</p>
+        <div class="pp">$545</div>
+      </div>
+      <div class="plan">
+        <h3>Gutter Protection Plan</h3>
+        <p>4 cleanings over 2 years — for the price of 3.</p>
+        <div class="pp">$1040</div>
+      </div>
+    </div>
+
+    <div class="price-panel">
+      <div class="lbl">Your total price</div>
+      <div class="amt">$545</div>
+      <div class="rows">
+        <div class="r"><span>Basic + Seasonal Touch-Ups</span><span>$545</span></div>
+        <div class="r hot"><span>Pay today (25% deposit)</span><span class="v">$136</span></div>
+        <div class="r"><span>Balance on completion</span><span>$409</span></div>
+      </div>
+      <button class="cta">Pay $136 Deposit →</button>
+      <div class="fine">Secure checkout powered by Square · Pick your date on the next screen</div>
+    </div>
+
+    <div class="includes">
+      <span>Full gutter &amp; downspout cleaning</span>
+      <span>Downspout flow check</span>
+      <span>Minor adjustments &amp; resecuring</span>
+      <span>Free gutter inspection</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>
