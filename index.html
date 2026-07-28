@@ -1076,8 +1076,8 @@
 
           <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
           <div class="plan-grid" id="planGrid">
-            <label class="plan-opt selected" data-plan="basic">
-              <input type="radio" name="plan" value="basic" checked />
+            <label class="plan-opt" data-plan="basic">
+              <input type="radio" name="plan" value="basic" />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Basic Cleaning</span>
@@ -1086,8 +1086,9 @@
               <span class="plan-price" data-plan-price="basic">$0</span>
             </label>
 
-            <label class="plan-opt" data-plan="simple">
-              <input type="radio" name="plan" value="simple" />
+            <label class="plan-opt plan-featured selected" data-plan="simple">
+              <span class="plan-badge">Best value</span>
+              <input type="radio" name="plan" value="simple" checked />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Basic + Seasonal Touch-Ups</span>
@@ -1096,8 +1097,7 @@
               <span class="plan-price" data-plan-price="simple">$0</span>
             </label>
 
-            <label class="plan-opt plan-featured" data-plan="protection">
-              <span class="plan-badge">Best value</span>
+            <label class="plan-opt" data-plan="protection">
               <input type="radio" name="plan" value="protection" />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
@@ -1279,7 +1279,7 @@
     // Step 1 selection: 'simple' | 'standard' | 'complex' | null.
     let selectedHouse = null;
     // Plan selection: 'basic' | 'simple' | 'protection'.
-    let selectedPlan = 'basic';
+    let selectedPlan = 'simple';
 
     const PLAN_LABELS = {
       basic: 'Basic Cleaning',
