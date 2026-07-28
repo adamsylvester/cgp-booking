@@ -4,13 +4,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Charlottesville Gutter Pros — Book Online</title>
-  <meta name="description" content="Get an instant quote for gutter cleaning, pay a $25 deposit, and book your date — no callbacks, no waiting." />
+  <meta name="description" content="Get an instant quote for gutter cleaning, pay a 25% deposit, and book your date — no callbacks, no waiting." />
 
   <!-- Open Graph (Facebook, LinkedIn, iMessage, etc.) -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Charlottesville Gutter Pros" />
   <meta property="og:title" content="Book Your Gutter Cleaning in Minutes" />
-  <meta property="og:description" content="Instant quote based on your home's size. Pay a $25 deposit, pick your date, done." />
+  <meta property="og:description" content="Instant quote based on your home's size. Pay a 25% deposit, pick your date, done." />
   <meta property="og:url" content="https://book.cvillegutterpros.com/" />
   <meta property="og:image" content="https://book.cvillegutterpros.com/logo.png" />
   <meta property="og:image:width" content="600" />
@@ -20,7 +20,7 @@
   <!-- Twitter card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Book Your Gutter Cleaning in Minutes" />
-  <meta name="twitter:description" content="Instant quote based on your home's size. Pay a $25 deposit, pick your date, done." />
+  <meta name="twitter:description" content="Instant quote based on your home's size. Pay a 25% deposit, pick your date, done." />
   <meta name="twitter:image" content="https://book.cvillegutterpros.com/logo.png" />
   <style>
     :root {
@@ -963,16 +963,20 @@
       /* Step 1 is the only required input zone — highlight it as the active step. */
       .step-active { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 18px 12px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
       .step-active .step-head { border-top:none; padding-top:0; }
-      .step-active .extra-check { background:#fff; }
+      .step-active .zip-field input { background:#fff; }
       /* Compact, centered inputs so the value fills the box and pops. */
       .step-active .field-row { display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-end; gap:22px; }
       .step-active .field-row .field { flex:0 0 auto; margin-bottom:0; text-align:center; }
       .step-active .field-row label { text-align:center; }
       .step-active #sqftField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
       .step-active #storiesField select { width:160px; text-align:center; text-align-last:center; font-size:16px; font-weight:600; padding:12px 14px; }
-      .extra-check { display:flex; align-items:flex-start; gap:10px; margin:16px 0 4px; padding:12px 14px; border:1.5px solid var(--border); border-radius:12px; cursor:pointer; font-size:13.5px; color:var(--text); line-height:1.4; }
-      .extra-check:hover { border-color:#c7d4f7; }
-      .extra-check input { margin-top:1px; width:18px; height:18px; flex:0 0 auto; accent-color:var(--primary); cursor:pointer; }
+      .zip-field { margin:16px 0 4px; text-align:center; }
+      .zip-field label { text-align:center; }
+      .step-active #zipField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
+      .zip-note { margin:8px auto 0; max-width:420px; font-size:13px; font-weight:600; line-height:1.4; }
+      .zip-note.in-area { color:var(--success, #15803d); }
+      .zip-note.trip-fee { color:var(--primary); }
+      .zip-note.unserved { color:#b42318; }
       .extra-fee { color:var(--primary); font-weight:700; white-space:nowrap; }
       .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
       .form-card textarea:focus { outline:none; border-color:var(--primary); }
@@ -1068,10 +1072,11 @@
           </div>
           </div>
 
-          <label class="extra-check" for="withinArea">
-            <input type="checkbox" id="withinArea" checked />
-            <span>My house is within the City of Charlottesville or Albemarle County</span>
-          </label>
+          <div class="field zip-field" id="zipField">
+            <label for="zip">Home ZIP Code</label>
+            <input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="22901" />
+            <p class="zip-note" id="zipNote" style="display:none;"></p>
+          </div>
           </div>
 
           <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
@@ -1118,7 +1123,7 @@
                 <span class="breakdown-value" id="planSummaryValue">$0</span>
               </div>
               <div class="breakdown-row" id="outsideRow" style="display:none;">
-                <span class="breakdown-label">Outside service area</span>
+                <span class="breakdown-label">Trip fee (outside Charlottesville &amp; Albemarle)</span>
                 <span class="breakdown-value" id="outsideValue">+$50</span>
               </div>
               <div class="breakdown-row deposit">
@@ -1216,15 +1221,40 @@
 
   <script>
     // ===== CONFIG =====
-    // Replace SQUARE_DEPOSIT_URL with your Square link.
-    // Replace APPS_SCRIPT_URL once you've deployed the Google Apps Script as a Web App.
-    const SQUARE_DEPOSIT_URL = 'https://square.link/u/1CK0Bclg';
+    // SQUARE_FALLBACK_URL is the old flat-$25 payment link — only used if the
+    // Apps Script can't create a live 25% checkout (network error, Square down).
+    // APPS_SCRIPT_URL is the deployed Google Apps Script Web App.
+    const SQUARE_FALLBACK_URL = 'https://square.link/u/1CK0Bclg';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
+
+    // ZIP codes in the City of Charlottesville + Albemarle County (no trip fee).
+    // Any other Virginia-area ZIP (starts with 22/23/24) gets the $50 trip fee.
+    // ZIPs outside that range can't book online and are asked to contact us.
+    const IN_AREA_ZIPS = new Set([
+      // Charlottesville city + close-in Albemarle
+      '22901', '22902', '22903', '22904', '22905', '22906', '22907',
+      '22908', '22909', '22910', '22911',
+      // Albemarle County towns
+      '22924', // Batesville
+      '22931', // Covesville
+      '22932', // Crozet
+      '22936', // Earlysville
+      '22937', // Esmont
+      '22940', // Free Union
+      '22943', // Greenwood
+      '22945', // Ivy
+      '22946', // Keene
+      '22947', // Keswick
+      '22959', // North Garden
+      '22987', // White Hall
+      '24590', // Scottsville
+    ]);
 
     const PRICING = {
       // Promo badge toggle (the red "$25 SAVINGS ONLINE" chip). Off for now.
       promoEnabled: false,
-      depositAmount: 25,
+      // Deposit charged today = this fraction of the total, rounded to a whole dollar.
+      depositRate: 0.25,
       // Simple upsell add-on = this fraction of the base cleaning price.
       addonMultiplier: 0.5,
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
@@ -1248,7 +1278,8 @@
       sqftField: document.getElementById('sqftField'),
       storiesSelect: document.getElementById('stories'),
       storiesField: document.getElementById('storiesField'),
-      withinArea: document.getElementById('withinArea'),
+      zipInput: document.getElementById('zip'),
+      zipNote: document.getElementById('zipNote'),
       price: document.getElementById('price'),
       urgency: document.getElementById('urgency'),
       paymentBreakdown: document.getElementById('paymentBreakdown'),
@@ -1322,6 +1353,38 @@
       return dayIndex >= 0 && dayIndex <= 4;
     }
 
+    // ===== ZIP / service area =====
+
+    function getZip() {
+      return elements.zipInput.value.replace(/\D/g, '').slice(0, 5);
+    }
+
+    // 'partial' (not 5 digits yet) | 'inArea' | 'tripFee' | 'unserved'
+    function zipStatus() {
+      const zip = getZip();
+      if (zip.length < 5) return 'partial';
+      if (IN_AREA_ZIPS.has(zip)) return 'inArea';
+      if (/^2[234]\d{3}$/.test(zip)) return 'tripFee';
+      return 'unserved';
+    }
+
+    function renderZipNote() {
+      const status = zipStatus();
+      const note = elements.zipNote;
+      note.className = 'zip-note';
+      if (status === 'inArea') {
+        note.textContent = '✓ You\'re in our service area — no trip fee.';
+        note.classList.add('in-area');
+      } else if (status === 'tripFee') {
+        note.textContent = 'Outside Charlottesville & Albemarle — a $' + PRICING.outsideAreaFee + ' trip fee applies.';
+        note.classList.add('trip-fee');
+      } else if (status === 'unserved') {
+        note.textContent = 'Sorry, that ZIP is outside our service area. Contact us and we\'ll see what we can do.';
+        note.classList.add('unserved');
+      }
+      note.style.display = status === 'partial' ? 'none' : 'block';
+    }
+
     // Show every plan's price on its card so customers can compare.
     function updatePlanCardPrices(base) {
       document.querySelectorAll('[data-plan-price]').forEach((el) => {
@@ -1339,7 +1402,7 @@
     }
 
     function renderPrice(base) {
-      const outside = !elements.withinArea.checked;
+      const outside = zipStatus() === 'tripFee';
       const fee = outside ? PRICING.outsideAreaFee : 0;
 
       // Each plan card shows the price they'd actually pay (incl. any surcharge).
@@ -1349,19 +1412,19 @@
 
       const subtotal = planTotal(base, selectedPlan);
       const total = subtotal + fee;
-      const deposit = PRICING.depositAmount;
+      const deposit = Math.round(total * PRICING.depositRate);
       const balance = Math.max(0, total - deposit);
 
       elements.price.textContent = '$' + total;
       elements.planSummaryLabel.textContent = PLAN_LABELS[selectedPlan];
       elements.planSummaryValue.textContent = '$' + subtotal;
       elements.outsideRow.style.display = outside ? 'flex' : 'none';
-      elements.depositDisplay.textContent = '$' + deposit;
+      elements.depositDisplay.textContent = '$' + deposit + ' (25%)';
       elements.balanceDisplay.textContent = '$' + balance;
       elements.paymentBreakdown.style.display = 'grid';
       elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
 
-      currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total };
+      currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
     }
 
@@ -1424,7 +1487,8 @@
     function updateBookBtnState() {
       const hasQuote = currentQuote.finalPrice > 0;
       const hasContact = contactIsComplete();
-      elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact);
+      const zipOk = zipStatus() === 'inArea' || zipStatus() === 'tripFee';
+      elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact && zipOk);
     }
 
     function validateAndMark() {
@@ -1469,10 +1533,12 @@
         houseType: selectedHouse,
         plan: selectedPlan,
         planName: PLAN_LABELS[selectedPlan],
-        outsideArea: !elements.withinArea.checked,
+        zip: getZip(),
+        outsideArea: zipStatus() === 'tripFee',
         notes: elements.custNotes.value.trim(),
         basePrice: currentQuote.basePrice,
         finalPrice: currentQuote.finalPrice,
+        deposit: currentQuote.deposit,
         userAgent: navigator.userAgent,
         page: location.href,
       };
@@ -1501,12 +1567,23 @@
       }
     }
 
-    function handleSubmit() {
+    async function handleSubmit() {
       clearFormError();
       const firstBad = validateAndMark();
       if (firstBad) {
         firstBad.focus();
         showFormError('Please fill out all four fields correctly before continuing.');
+        return;
+      }
+      const zip = zipStatus();
+      if (zip === 'partial') {
+        showFormError('Enter your 5-digit ZIP code so we can confirm your service area.');
+        elements.zipInput.focus();
+        return;
+      }
+      if (zip === 'unserved') {
+        showFormError('Sorry, we can\'t book that ZIP code online. Use the contact link below and we\'ll see what we can do.');
+        elements.zipInput.focus();
         return;
       }
       if (currentQuote.finalPrice <= 0) {
@@ -1522,10 +1599,41 @@
         localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
       } catch (_) { /* ignore quota / private-mode errors */ }
 
-      sendLead(payload);
+      // Ask the Apps Script to log the lead AND create a Square checkout for
+      // exactly this customer's 25% deposit, then send them there.
+      elements.bookBtn.disabled = true;
+      const originalLabel = elements.bookBtn.textContent;
+      elements.bookBtn.textContent = 'Preparing secure checkout…';
 
-      // Hand off to Square for the $25 deposit. (Square handles redirect to Calendly afterwards.)
-      window.location.href = SQUARE_DEPOSIT_URL;
+      let serverReached = false;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
+        const res = await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          body: JSON.stringify(Object.assign({}, payload, { action: 'checkout' })),
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          signal: controller.signal,
+        });
+        clearTimeout(timer);
+        serverReached = true;
+        const out = await res.json();
+        if (out && out.ok && out.checkoutUrl) {
+          window.location.href = out.checkoutUrl;
+          return;
+        }
+        console.warn('Checkout link not returned:', out && out.error);
+      } catch (err) {
+        console.warn('Checkout request failed:', err);
+      }
+
+      // Fallback: use the flat $25 payment link so the booking isn't lost.
+      // Only re-send the lead if the server never got the checkout request
+      // (it already logged the lead + emailed the office if it responded).
+      if (!serverReached) sendLead(payload);
+      elements.bookBtn.textContent = originalLabel;
+      elements.bookBtn.disabled = false;
+      window.location.href = SQUARE_FALLBACK_URL;
     }
 
     function init() {
@@ -1539,7 +1647,10 @@
 
       elements.sqftInput.addEventListener('input', calculatePrice);
       elements.storiesSelect.addEventListener('change', calculatePrice);
-      elements.withinArea.addEventListener('change', calculatePrice);
+      elements.zipInput.addEventListener('input', () => {
+        renderZipNote();
+        calculatePrice();
+      });
 
       // Plan radios: update the total and which card is highlighted.
       document.querySelectorAll('input[name="plan"]').forEach((radio) => {
