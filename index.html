@@ -726,6 +726,22 @@
       .top-options { grid-template-columns: 1fr; }
     }
 
+    /* ===== Centered hero header ===== */
+    .hero-head { text-align: center; margin: 6px 0 26px; }
+    .hero-logo { width: 150px; height: auto; margin-bottom: 10px; }
+    .hero-title { margin: 0 0 8px; font-size: clamp(30px, 5.5vw, 46px); font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
+    .hero-title em { font-style: normal; background: linear-gradient(100deg, var(--primary), #4f8bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero-sub { margin: 0 0 8px; font-size: 16.5px; color: var(--text-muted); }
+    .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
+    .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
+    .hero-phone a:hover { text-decoration: underline; }
+    .chooser-title { margin: 0 0 4px; text-align: center; font-size: 20px; font-weight: 800; letter-spacing: -0.01em; color: var(--text); }
+    .chooser-sub { margin: 0 0 18px; text-align: center; font-size: 14.5px; line-height: 1.45; color: var(--text-muted); }
+    /* ===== Progress rail (quote flow) ===== */
+    .rail { display: flex; justify-content: center; gap: 6px; margin: 0 0 18px; flex-wrap: wrap; }
+    .rail .seg { display: flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--text-muted); background: #fff; border: 1.5px solid var(--border); padding: 8px 15px; border-radius: 999px; transition: all .2s ease; }
+    .rail .seg.on { color: #fff; background: var(--primary); border-color: var(--primary); }
+
     .page-header { display: flex; align-items: center; gap: 16px; margin: 4px 0 20px; }
     .page-phone { flex: 0 0 188px; text-align: right; line-height: 1.2; }
     .page-phone-label { display: block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-subtle); }
@@ -813,17 +829,15 @@
 </head>
 <body>
   <div class="wrap">
-    <div class="page-header">
-      <img class="page-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
-      <div class="page-heading">
-        <h1 class="page-title">How would you like to get started?</h1>
-        <p class="page-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
-      </div>
-      <div class="page-phone">
-        <span class="page-phone-label">Call/Text Us</span>
-        <a class="page-phone-num" href="tel:+14344224700">434-422-4700</a>
-      </div>
+    <div class="hero-head">
+      <img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+      <h1 class="hero-title">Your price in <em>10 seconds.</em></h1>
+      <p class="hero-sub">Instant quote · 25% deposit · pick your date online</p>
+      <p class="hero-phone">Prefer to talk? <a href="tel:+14344224700">Call/Text 434-422-4700</a></p>
     </div>
+
+    <h2 class="chooser-title">How would you like to get started?</h2>
+    <p class="chooser-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
 
     <div class="top-options">
     <!-- Path 1: quick callback (LeadConnector form). -->
@@ -979,9 +993,14 @@
       .step-active .field-row label { text-align:center; }
       .step-active #sqftField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
       .step-active #storiesField select { width:160px; text-align:center; text-align-last:center; font-size:16px; font-weight:600; padding:12px 14px; }
-      .zip-field { margin:16px 0 4px; text-align:center; }
+      .zip-field { text-align:center; }
       .zip-field label { text-align:center; }
       .step-active #zipField input { width:150px; text-align:center; font-size:20px; font-weight:700; padding:12px; }
+      /* Uppercase compact labels for the three inline inputs (mockup C style). */
+      .step-active .field-row label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-subtle); }
+      /* No spinner arrows on the square-footage number input. */
+      #sqft { appearance:textfield; -moz-appearance:textfield; }
+      #sqft::-webkit-outer-spin-button, #sqft::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
       .zip-note { margin:8px auto 0; max-width:420px; font-size:13px; font-weight:600; line-height:1.4; }
       .zip-note.in-area { color:var(--success, #15803d); }
       .zip-note.trip-fee { color:var(--success, #15803d); }
@@ -1008,6 +1027,11 @@
     </style>
 
     <div class="quote-reveal" id="quoteReveal" hidden>
+    <div class="rail">
+      <span class="seg on">1 · Home</span>
+      <span class="seg" id="railPlan">2 · Plan</span>
+      <span class="seg" id="railBook">3 · Book</span>
+    </div>
     <section class="house-hero" id="houseHero">
       <p class="house-hero-prompt">Which home looks most like yours?</p>
       <p class="house-hero-sub">Tap the closest match then scroll down.</p>
@@ -1083,25 +1107,26 @@
               </svg>
             </div>
 
-            <label for="sqft">Home's Square Footage</label>
+            <label for="sqft">Square Feet</label>
             <input id="sqft" type="number" placeholder="" />
           </div>
 
           <div class="field" id="storiesField">
-            <label for="stories">Most of my gutters are</label>
+            <label for="stories">Gutter Height</label>
             <select id="stories">
               <option value="1">1 story</option>
               <option value="2">2 story</option>
               <option value="3" selected>3 story</option>
             </select>
           </div>
-          </div>
 
           <div class="field zip-field" id="zipField">
-            <label for="zip">Home ZIP Code</label>
+            <label for="zip">ZIP Code</label>
             <input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="22901" />
-            <p class="zip-note" id="zipNote" style="display:none;"></p>
           </div>
+          </div>
+
+          <p class="zip-note" id="zipNote" style="display:none;"></p>
           </div>
 
           <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
@@ -1324,6 +1349,8 @@
       payBar: document.getElementById('payBar'),
       payBarAmt: document.getElementById('payBarAmt'),
       payBarBtn: document.getElementById('payBarBtn'),
+      railPlan: document.getElementById('railPlan'),
+      railBook: document.getElementById('railBook'),
       lockNote: document.getElementById('lockNote'),
       formCard: document.querySelector('.form-card'),
       custName: document.getElementById('custName'),
@@ -1535,6 +1562,10 @@
       const hasContact = contactIsComplete();
       const zipOk = zipStatus() === 'inArea' || zipStatus() === 'tripFee';
       elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact && zipOk);
+
+      // Progress rail pills light up as the customer moves through the flow.
+      elements.railPlan.classList.toggle('on', !!selectedHouse && hasQuote);
+      elements.railBook.classList.toggle('on', !elements.bookBtn.disabled);
     }
 
     // ===== Sticky pay bar =====
