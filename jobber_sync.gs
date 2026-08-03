@@ -870,6 +870,116 @@ function jobberFindRow_(timestamp, email) {
 // SETUP + TEST (run these by hand from the editor)
 // ===========================================================================
 
+// ---------------------------------------------------------------------------
+// END-TO-END TEST — run this ONCE before a real customer hits the flow.
+//
+// Fakes a paid booking and walks it through every step for real: creates a
+// Client, Property, Request and Quote in Jobber, then fires a synthetic
+// Calendly webhook to create the scheduled Job. No money moves and no email
+// goes to a customer.
+//
+// Everything is named "ZZZ TEST — DELETE ME" so it sorts to the bottom of your
+// Jobber lists and is obvious. Run cleanupEndToEndTest() afterwards, then
+// delete the leftovers by hand (see the note in that function).
+// ---------------------------------------------------------------------------
+function testEndToEnd() {
+  if (!jobberSyncEnabled_()) throw new Error('Set the JOBBER_TOKEN_STORE_* Script Properties first.');
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var stamp = new Date().toISOString();
+  var email = 'jobber-sync-test+' + stamp.slice(0, 19).replace(/\D/g, '') + '@example.com';
+
+  // 1. A row exactly as a real paid booking would look.
+  var lead = {
+    timestamp: stamp,
+    name: 'ZZZ TEST — DELETE ME',
+    phone: '4345550199',
+    email: email,
+    address: '123 Test Street, Charlottesville, VA',
+    houseType: 'standard',
+    sqft: 2000,
+    stories: '2',
+    planName: 'Basic + Seasonal Touch-Ups',
+    zip: '22901',
+    notes: 'Automated end-to-end test. Safe to delete.',
+    basePrice: 280,
+    finalPrice: 420,
+    deposit: 105,
+  };
+  logLead(lead, STATUS.PAID, 'TEST-ORDER', '✓ verified (test)');
+  var row = sheet.getLastRow();
+  Logger.log('1/3  Test row added at sheet row ' + row);
+
+  // 2. Deposit-paid path: Client -> Property -> Request -> Quote.
+  pushBookingToJobber_(rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]), row, '');
+  var sync = String(sheet.getRange(row, JCOL.SYNC).getValue() || '');
+  if (sync.indexOf('⚠️') === 0) throw new Error('Stage 1 failed — ' + sync);
+  Logger.log('2/3  ' + sync);
+  Logger.log('     client|property: ' + sheet.getRange(row, JCOL.CLIENT).getValue());
+  Logger.log('     request: ' + sheet.getRange(row, JCOL.REQUEST).getValue());
+  Logger.log('     quote:   ' + sheet.getRange(row, JCOL.QUOTE).getValue());
+
+  // 3. Calendly path: a slot two days out becomes a scheduled Job.
+  var start = new Date(Date.now() + 2 * 86400000);
+  start.setHours(9, 0, 0, 0);
+  var end = new Date(start.getTime() + 2 * 3600000);   // the event is 2 hours
+
+  var result = handleCalendlyWebhook_({
+    event: 'invitee.created',
+    payload: {
+      name: lead.name,
+      email: email,
+      text_reminder_number: '+14345550199',
+      questions_and_answers: [{ question: 'Phone number', answer: '(434) 555-0199' }],
+      scheduled_event: {
+        name: 'Gutter Cleaning',
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+      },
+    },
+  }, { cal: PropertiesService.getScriptProperties().getProperty('CALENDLY_WEBHOOK_SECRET') });
+
+  if (!result.ok) throw new Error('Stage 2 failed — ' + result.error);
+  Logger.log('3/3  ' + String(sheet.getRange(row, JCOL.SYNC).getValue()));
+  Logger.log('     job: ' + sheet.getRange(row, JCOL.JOB).getValue());
+  Logger.log('     scheduled for: ' + start);
+  Logger.log('');
+  Logger.log('PASSED. Check Jobber for "ZZZ TEST — DELETE ME", then run cleanupEndToEndTest().');
+  return row;
+}
+
+// Archives the test client and clears the test rows from the sheet.
+//
+// NOTE: Jobber's API has no delete for jobs or quotes — archiving the client
+// hides it from normal views, but to remove the job, quote and request fully
+// you have to delete them in the Jobber UI.
+function cleanupEndToEndTest() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  var removed = 0;
+
+  for (var r = lastRow; r >= 2; r--) {
+    if (String(sheet.getRange(r, COL.NAME).getValue()).indexOf('ZZZ TEST') !== 0) continue;
+
+    var clientCell = String(sheet.getRange(r, JCOL.CLIENT).getValue() || '');
+    var clientId = clientCell.split('|')[0];
+    if (clientId) {
+      try {
+        jobberGql_(
+          'mutation($id: EncodedId!) { clientArchive(clientId: $id) { userErrors { message } } }',
+          { id: clientId }
+        );
+        Logger.log('Archived test client ' + clientId);
+      } catch (err) {
+        Logger.log('Could not archive ' + clientId + ': ' + err);
+      }
+    }
+    sheet.deleteRow(r);
+    removed++;
+  }
+  Logger.log('Removed ' + removed + ' test row(s). Delete the job/quote/request by hand in Jobber.');
+}
+
 // Adds the Jobber columns to the leads sheet. Safe to re-run.
 function setupJobberColumns() {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
