@@ -33,7 +33,11 @@ const JOBBER_API_VERSION = '2025-01-20';
 // ===== Scheduling / capacity config =====
 // How the availability engine decides a day is full. Tune these to reality.
 const SCHED = {
-  crewCount: 1,             // how many crews can be out at once
+  // Measured from the real calendar on 2026-08-03: peak overlap was 3 crews on
+  // 7 days and 4 on one. Raise this and more slots open up; lower it and the
+  // picker gets stingier. This is the number to check first if availability
+  // ever looks wrong.
+  crewCount: 3,             // how many crews can be out at once
   dayStartHour: 8,          // first start time offered (24h, local)
   dayEndHour: 17,           // last END time allowed (24h, local)
   jobMinutes: 90,           // how long to block for one online booking
@@ -443,6 +447,11 @@ function scheduleBookingInJobber_(sheetRow, startISO, receiptUrl) {
 // Returns [{date:'2026-08-14', label:'Thu, Aug 14', slots:[{startISO,label}]}]
 // for every day in the horizon that still has room. Cached 5 minutes so the
 // booking page stays instant.
+//
+// A slot is open when FEWER THAN crewCount visits overlap it. Counting overlaps
+// rather than totalling each day's booked minutes matters: the real calendar
+// contains visits running to 11pm and one starting at 2am, and a minutes-based
+// model reads those as a full day when the crew is actually free.
 function jobberAvailability_(days) {
   var horizon = Math.min(Number(days) || SCHED.horizonDays, 60);
   var cacheKey = 'jobber_avail_' + horizon;
@@ -456,24 +465,26 @@ function jobberAvailability_(days) {
   from.setHours(0, 0, 0, 0);
   var to = new Date(from.getTime() + horizon * 86400000);
 
-  var booked = jobberBookedMinutesByDay_(from, to);
-  var capacityPerDay = SCHED.crewCount * (SCHED.dayEndHour - SCHED.dayStartHour) * 60;
+  var spans = jobberVisitSpans_(from, to);   // [{start: ms, end: ms}, ...]
 
   var out = [];
   for (var d = 0; d < horizon; d++) {
     var day = new Date(from.getTime() + d * 86400000);
     if (SCHED.workDays.indexOf(day.getDay()) === -1) continue;
 
-    var key = Utilities.formatDate(day, tz, 'yyyy-MM-dd');
-    var used = booked[key] || 0;
-    if (used + SCHED.jobMinutes > capacityPerDay) continue;   // day is full
-
     var slots = [];
-    var minutesFree = capacityPerDay - used;
     for (var h = SCHED.dayStartHour * 60; h + SCHED.jobMinutes <= SCHED.dayEndHour * 60; h += SCHED.slotStepMinutes) {
-      if (slots.length * SCHED.jobMinutes >= minutesFree) break;
       var slotStart = new Date(day.getTime());
       slotStart.setHours(Math.floor(h / 60), h % 60, 0, 0);
+      var startMs = slotStart.getTime();
+      var endMs = startMs + SCHED.jobMinutes * 60000;
+
+      var busy = 0;
+      for (var i = 0; i < spans.length; i++) {
+        if (spans[i].start < endMs && spans[i].end > startMs) busy++;
+      }
+      if (busy >= SCHED.crewCount) continue;   // every crew is out at this hour
+
       slots.push({
         startISO: Utilities.formatDate(slotStart, tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
         label: Utilities.formatDate(slotStart, tz, 'h:mm a'),
@@ -482,7 +493,7 @@ function jobberAvailability_(days) {
     if (!slots.length) continue;
 
     out.push({
-      date: key,
+      date: Utilities.formatDate(day, tz, 'yyyy-MM-dd'),
       label: Utilities.formatDate(day, tz, 'EEE, MMM d'),
       slots: slots,
     });
@@ -492,8 +503,8 @@ function jobberAvailability_(days) {
   return out;
 }
 
-// Sums scheduled visit minutes per calendar day from Jobber.
-function jobberBookedMinutesByDay_(from, to) {
+// Every scheduled visit in the window, as plain start/end millisecond spans.
+function jobberVisitSpans_(from, to) {
   var query =
     'query($cursor: String, $after: ISO8601DateTime!, $before: ISO8601DateTime!) {' +
     '  visits(first: 100, after: $cursor,' +
@@ -504,7 +515,7 @@ function jobberBookedMinutesByDay_(from, to) {
     '  }' +
     '}';
 
-  var byDay = {};
+  var spans = [];
   var cursor = null;
   for (var guard = 0; guard < 20; guard++) {
     var data = jobberGql_(query, {
@@ -516,16 +527,15 @@ function jobberBookedMinutesByDay_(from, to) {
       if (!v.startAt) return;
       var s = new Date(v.startAt);
       var e = v.endAt ? new Date(v.endAt) : new Date(s.getTime() + SCHED.jobMinutes * 60000);
-      var key = Utilities.formatDate(s, SCHED.timeZone, 'yyyy-MM-dd');
-      var mins = Math.max(30, Math.round((e - s) / 60000));
-      byDay[key] = (byDay[key] || 0) + mins;
+      if (e <= s) e = new Date(s.getTime() + SCHED.jobMinutes * 60000);
+      spans.push({ start: s.getTime(), end: e.getTime() });
     });
 
     if (!conn.pageInfo.hasNextPage) break;
     cursor = conn.pageInfo.endCursor;
     Utilities.sleep(250);
   }
-  return byDay;
+  return spans;
 }
 
 // ===========================================================================

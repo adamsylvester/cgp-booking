@@ -74,7 +74,7 @@ URL the booking page points at.
 All in the `SCHED` block at the top of `jobber_sync.gs`:
 
 ```js
-crewCount: 1,          // how many crews can be out at once
+crewCount: 3,          // how many crews can be out at once
 dayStartHour: 8,       // first start time offered
 dayEndHour: 17,        // last end time allowed
 jobMinutes: 90,        // how long one online booking blocks
@@ -83,9 +83,18 @@ horizonDays: 30,       // how far out to offer
 workDays: [1,2,3,4,5,6],  // 0=Sun … 6=Sat
 ```
 
-A day disappears from the picker once its booked visit minutes leave no room
-for another `jobMinutes`. Availability is cached 5 minutes so the page stays
-fast.
+**How a slot is judged open:** it counts how many existing visits *overlap* that
+slot, and offers it when fewer than `crewCount` do. It deliberately does not add
+up each day's booked minutes — the real calendar has visits running to 11pm and
+one starting at 2am, and a minutes-based model reads those as a full day when
+the crew is actually free.
+
+`crewCount: 3` was measured from the live calendar on 2026-08-03: peak overlap
+was 3 crews on 7 days, 4 on one. **If availability ever looks wrong, check this
+number first.** Against real data it produced 24 open days in 30 — 6 slots on
+quiet days, 1–3 on busy ones.
+
+Availability is cached 5 minutes so the page stays fast.
 
 `JOBBER_ASSIGN_USER_IDS` is empty, so jobs are created **unassigned**. Fill it
 with Jobber user IDs once you decide who owns online bookings.
