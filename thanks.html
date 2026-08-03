@@ -78,6 +78,16 @@
     const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
+    // Prefill for the gutter-cleaning event's CUSTOM questions, in the exact
+    // order they appear on that event in Calendly. The best fix is to delete
+    // those questions entirely — we already have every answer, and it's all in
+    // Jobber before they ever reach this page. Use this only for questions you
+    // want to keep visible.
+    //
+    // Example, if the event asks "Service address?" then "Anything unique?":
+    //   const CALENDLY_ANSWERS = [ (l) => l.address, (l) => l.notes ];
+    const CALENDLY_ANSWERS = [];
+
     function readLead() {
       try {
         const raw = localStorage.getItem('cgp_lastLead');
@@ -86,14 +96,38 @@
       return null;
     }
 
-    // Prefilling name + email is what lets the Calendly webhook match this
-    // booking back to its paid row, so the Jobber job lands on the right slot.
+    // Calendly wants E.164 for the SMS reminder field (+14345551234).
+    function toE164(raw) {
+      const digits = String(raw || '').replace(/\D/g, '');
+      if (digits.length === 10) return `+1${digits}`;
+      if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
+      return '';
+    }
+
+    // Prefill everything Calendly will otherwise ask again. name + email are
+    // also what lets the webhook match this booking back to its paid row, so
+    // the Jobber job lands on the right slot.
     function buildCalendlyUrl(lead) {
       if (!lead || !lead.name || !lead.email) return CALENDLY_URL;
+
       const params = new URLSearchParams({
         name: lead.name,
         email: lead.email,
+        hide_gdpr_banner: '1',
       });
+
+      // Calendly's SMS reminder field. Ignored if the event has SMS off.
+      const phone = toE164(lead.phone);
+      if (phone) params.set('text_reminder_number', phone);
+
+      // Custom questions, answered in the order they appear on the event.
+      // Leave CALENDLY_ANSWERS empty unless the event actually asks these —
+      // a1 pointing at the wrong question is worse than no prefill at all.
+      CALENDLY_ANSWERS.forEach((pick, i) => {
+        const value = pick(lead);
+        if (value) params.set(`a${i + 1}`, value);
+      });
+
       return `${CALENDLY_URL}?${params.toString()}`;
     }
 
