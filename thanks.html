@@ -81,12 +81,14 @@
     // Prefill for the gutter-cleaning event's CUSTOM questions.
     //
     // Calendly fills these BY SLOT NUMBER (a1, a2, ...), and a question that is
-    // toggled OFF still occupies its slot. That is not visible anywhere in the
-    // Calendly UI — it labels them "Question 1 / Question 2" regardless — so
-    // this was confirmed by testing a real link on 2026-08-03:
+    // toggled OFF still occupies its slot. The Calendly UI hides this — it
+    // relabels them "Question 1 / Question 2" regardless.
     //
-    //   slot 1 = "Is there anything you'd like us to know before we come?" (OFF)
-    //   slot 2 = "Phone number" (required, ON)   <-- a1 did nothing, a2 works
+    // Confirmed 2026-08-03 against the Calendly API, which exposes the true
+    // order (GET /event_types -> custom_questions[].position):
+    //
+    //   position 0 -> a1 = "Is there anything you'd like us to know..."  enabled=false
+    //   position 1 -> a2 = "Phone number"                                enabled=true, required
     //
     // ⚠️ Adding, reordering, or re-enabling a question shifts these slots. The
     // failure is silent — an answer lands in the wrong box rather than erroring.
