@@ -78,20 +78,22 @@
     const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
-    // Prefill for the gutter-cleaning event's CUSTOM questions. Calendly fills
-    // these BY POSITION (a1, a2, ...), counting only questions whose Status is
-    // ON — a question toggled off doesn't take a slot.
+    // Prefill for the gutter-cleaning event's CUSTOM questions.
     //
-    // As of 2026-08-03 that event has exactly one active question:
-    //   a1 = "Phone number" (required)
-    // "Is there anything you'd like us to know before we come?" is toggled OFF,
-    // and "Property address" was deleted.
+    // Calendly fills these BY SLOT NUMBER (a1, a2, ...), and a question that is
+    // toggled OFF still occupies its slot. That is not visible anywhere in the
+    // Calendly UI — it labels them "Question 1 / Question 2" regardless — so
+    // this was confirmed by testing a real link on 2026-08-03:
     //
-    // ⚠️ If you turn a question back on, add a question, or reorder them, this
-    // list must change to match — otherwise the phone lands in the wrong box.
-    const CALENDLY_ANSWERS = [
-      (lead) => lead.phone,     // a1 — "Phone number"
-    ];
+    //   slot 1 = "Is there anything you'd like us to know before we come?" (OFF)
+    //   slot 2 = "Phone number" (required, ON)   <-- a1 did nothing, a2 works
+    //
+    // ⚠️ Adding, reordering, or re-enabling a question shifts these slots. The
+    // failure is silent — an answer lands in the wrong box rather than erroring.
+    // Re-test a link after any change to that event's questions.
+    const CALENDLY_ANSWERS = {
+      2: (lead) => lead.phone,
+    };
 
     function readLead() {
       try {
@@ -136,12 +138,10 @@
       const phone = toE164(lead.phone);
       if (phone) params.set('text_reminder_number', phone);
 
-      // Custom questions, answered in the order they appear on the event.
-      // Leave CALENDLY_ANSWERS empty unless the event actually asks these —
-      // a1 pointing at the wrong question is worse than no prefill at all.
-      CALENDLY_ANSWERS.forEach((pick, i) => {
-        const value = pick(lead);
-        if (value) params.set(`a${i + 1}`, value);
+      // Custom questions, keyed by their Calendly slot number (see above).
+      Object.keys(CALENDLY_ANSWERS).forEach((slot) => {
+        const value = CALENDLY_ANSWERS[slot](lead);
+        if (value) params.set(`a${slot}`, value);
       });
 
       return `${CALENDLY_URL}?${params.toString()}`;
