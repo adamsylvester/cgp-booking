@@ -165,8 +165,9 @@
         .finally(() => clearTimeout(timer));
     }
 
-    // Buyer confirmation email (unchanged behavior — fires once per booking).
-    function sendBuyerConfirmation(lead) {
+    // Buyer confirmation email. Fires once per booking, and preferably AFTER
+    // they've picked a date so the email can name it.
+    function sendBuyerConfirmation(lead, visitLabel) {
       if (!lead || !lead.email) return;
       try {
         const stamp = lead.timestamp || '';
@@ -175,7 +176,10 @@
         localStorage.setItem('cgp_confirmSent', stamp);
       } catch (_) { /* ignore */ }
 
-      const payload = Object.assign({}, lead, { action: 'confirm' });
+      const payload = Object.assign({}, lead, {
+        action: 'confirm',
+        visitLabel: visitLabel || '',
+      });
       try {
         const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
         if (!navigator.sendBeacon(APPS_SCRIPT_URL, blob)) {
@@ -194,12 +198,16 @@
         ? `${CALENDLY_URL}?${new URLSearchParams({ name: lead.name, email: lead.email })}`
         : CALENDLY_URL;
       el('fallback-link').href = url;
+      sendBuyerConfirmation(lead);   // they'll pick on Calendly, so send it now
       show('view-fallback');
     }
 
     const lead = readLead();
     let chosenDay = null;
     let chosenSlot = null;
+    // Safety net: if they wander off without picking a date, they still get
+    // their receipt email — just without a date in it.
+    let confirmTimer = setTimeout(() => sendBuyerConfirmation(lead), 120000);
 
     function renderDays(days) {
       const wrap = el('days');
@@ -265,8 +273,10 @@
           startISO: chosenSlot.startISO,
         });
         if (out && out.ok) {
-          el('done-when').textContent =
-            `We'll see you ${chosenDay.label} at ${chosenSlot.label}.`;
+          const when = `${chosenDay.label} at ${chosenSlot.label}`;
+          el('done-when').textContent = `We'll see you ${when}.`;
+          clearTimeout(confirmTimer);
+          sendBuyerConfirmation(lead, when);
           show('view-done');
           return;
         }
@@ -284,7 +294,6 @@
     };
 
     (async function init() {
-      sendBuyerConfirmation(lead);
       try {
         const out = await post({ action: 'availability' });
         if (out && out.ok && out.days && out.days.length) {

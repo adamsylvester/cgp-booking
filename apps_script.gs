@@ -116,6 +116,13 @@ function depositFor(data) {
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
+
+    // Calendly posts its own payload shape (no "action"), so it's recognized by
+    // its event field rather than by us adding one.
+    if (data.event && data.payload) {
+      return jsonOutput(handleCalendlyWebhook_(data, (e && e.parameter) || {}));
+    }
+
     var action = data.action || 'lead';
 
     if (action === 'confirm') {
@@ -587,10 +594,19 @@ function buildBuyerEmailHtml(data) {
   var firstName = name.split(' ')[0];
   var deposit = depositFor(data);
 
+  var visitLabel = String(data.visitLabel || '').trim();
+
   var inner = '';
   inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit + ' deposit is in.</h2>';
+  if (visitLabel) {
+    inner += '<p style="margin:0 0 14px;padding:14px 16px;background:#ecfdf3;border:1px solid #abefc6;' +
+             'border-radius:12px;color:#067647;font-weight:700;font-size:16px;">' +
+             'You are booked for ' + escapeHtml(visitLabel) + '.</p>';
+  }
   inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">';
-  inner += 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
+  inner += visitLabel
+    ? 'We are on the books for your gutter cleaning. Our crew will take it from there - you will get a reminder before we head your way.'
+    : 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
   inner += '</p>';
   inner += sectionHead('Your quote');
   inner += '<table style="border-collapse:collapse;width:100%;">' + quoteSummaryRows(data) + '</table>';

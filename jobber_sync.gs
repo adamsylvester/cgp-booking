@@ -50,11 +50,6 @@ const SCHED = {
 // who owns online bookings: ['Z2lkOi8vSm9iYmVyL1VzZXIvMTIzNDU='].
 const JOBBER_ASSIGN_USER_IDS = [];
 
-// Online bookings are created as ONE-OFF jobs, even for the plan tiers — the
-// plan is recorded in the job title, line items and instructions. Flip this to
-// true only once you've decided the real recurrence for the plan tiers.
-const JOBBER_PLANS_RECUR = false;
-
 // ===== Extra sheet columns (added by setupJobberColumns) =====
 const JCOL = {
   CLIENT: 23, REQUEST: 24, QUOTE: 25, JOB: 26, VISIT_AT: 27, SYNC: 28,
@@ -172,7 +167,7 @@ function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
     };
 
     if (!ids.clientId) {
-      var made = jobberEnsureClient_(lead, receiptUrl);
+      var made = jobberEnsureClient_(lead);
       ids.clientId = made.clientId;
       ids.propertyId = made.propertyId;
       sheet.getRange(sheetRow, JCOL.CLIENT).setValue(ids.clientId + '|' + made.propertyId);
@@ -205,7 +200,7 @@ function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
 
 // Finds an existing client by email (then phone) so repeat customers don't get
 // duplicated. Returns {clientId, propertyId}.
-function jobberEnsureClient_(lead, receiptUrl) {
+function jobberEnsureClient_(lead) {
   var email = String(lead.email || '').trim();
   var phone = String(lead.phone || '').trim();
 
@@ -411,6 +406,10 @@ function scheduleBookingInJobber_(sheetRow, startISO, receiptUrl) {
         durationUnits: 'DAYS',
         durationValue: 1,
       },
+      // ASSUMPTION: every online booking is a ONE-OFF job, including the plan
+      // tiers — the plan is captured in the title, line items and instructions,
+      // but nobody has decided how often a plan visit actually recurs. To make
+      // plans recurring, add `recurrence` (an iCal rule) to `scheduling` below.
       invoicing: { invoicingType: 'FIXED_PRICE', invoicingSchedule: 'ON_COMPLETION' },
       arrivalWindow: { durationInMinutes: SCHED.arrivalWindowMinutes },
       allowReviewRequest: true,
@@ -671,6 +670,179 @@ function jobberNotifyFailure_(lead, err, doingWhat) {
       name: FROM_NAME,
     });
   } catch (e) { /* email must never mask the original failure */ }
+}
+
+// ===========================================================================
+// CALENDLY -> JOBBER (the free on-site assessment path)
+// ===========================================================================
+// The booking page's "book an assessment" tile is a Calendly embed. Calendly
+// posts here when someone books, and we turn it into a Jobber Request with the
+// assessment already on the calendar.
+//
+// SETUP: put a Calendly personal access token in Script Properties as
+// CALENDLY_TOKEN, then run registerCalendlyWebhook() once.
+
+// Calendly hits the web app with ?cal=<CALENDLY_WEBHOOK_SECRET> so a stranger
+// who guesses the /exec URL can't inject fake assessments.
+function handleCalendlyWebhook_(body, queryParams) {
+  var expected = PropertiesService.getScriptProperties().getProperty('CALENDLY_WEBHOOK_SECRET');
+  if (expected && (queryParams || {}).cal !== expected) {
+    return { ok: false, error: 'bad_secret' };
+  }
+  if (!jobberSyncEnabled_()) return { ok: false, error: 'jobber_not_configured' };
+  if (body.event !== 'invitee.created') return { ok: true, skipped: body.event };
+
+  var p = body.payload || {};
+  var ev = p.scheduled_event || {};
+  var answers = p.questions_and_answers || [];
+
+  var lead = {
+    name: p.name || '',
+    email: p.email || '',
+    phone: p.text_reminder_number || calendlyAnswer_(answers, ['phone', 'number']) || '',
+    address: calendlyAnswer_(answers, ['address', 'street', 'property']) || '',
+    zip: (String(calendlyAnswer_(answers, ['address', 'zip', 'postal']) || '').match(/\b\d{5}\b/) || [''])[0],
+    notes: calendlyAnswer_(answers, ['anything', 'note', 'detail', 'tell us']) || '',
+    plan: 'On-site assessment',
+    house: '', sqft: '', stories: '', outside: false, base: 0, total: 0, deposit: 0,
+  };
+
+  try {
+    var made = jobberEnsureClient_(lead);
+    var requestId = jobberCreateAssessmentRequest_(made.clientId, made.propertyId, lead, ev);
+    calendlyLogRow_(lead, ev, requestId, '✅ Request created in Jobber');
+    return { ok: true, requestId: requestId };
+  } catch (err) {
+    calendlyLogRow_(lead, ev, '', '⚠️ ' + String(err).slice(0, 300));
+    jobberNotifyFailure_(lead, err, 'creating the assessment request from Calendly');
+    return { ok: false, error: String(err) };
+  }
+}
+
+// A Request whose assessment is scheduled for the Calendly slot.
+function jobberCreateAssessmentRequest_(clientId, propertyId, lead, ev) {
+  var tz = SCHED.timeZone;
+  var start = new Date(ev.start_time);
+  var end = ev.end_time ? new Date(ev.end_time) : new Date(start.getTime() + 30 * 60000);
+
+  var data = jobberGql_(
+    'mutation($input: RequestCreateInput!) {' +
+    '  requestCreate(input: $input) { request { id } userErrors { message path } }' +
+    '}',
+    {
+      input: {
+        clientId: clientId,
+        propertyId: propertyId,
+        title: (ev.name || 'Gutter assessment') + ' (booked online)',
+        assessment: {
+          instructions: calendlyInstructions_(lead, ev),
+          schedule: {
+            notifyTeam: true,
+            startAt: {
+              date: Utilities.formatDate(start, tz, 'yyyy-MM-dd'),
+              time: Utilities.formatDate(start, tz, 'HH:mm:ss'),
+              timezone: tz,
+            },
+            endAt: {
+              date: Utilities.formatDate(end, tz, 'yyyy-MM-dd'),
+              time: Utilities.formatDate(end, tz, 'HH:mm:ss'),
+              timezone: tz,
+            },
+            teamMemberIdsToAssign: JOBBER_ASSIGN_USER_IDS.length ? JOBBER_ASSIGN_USER_IDS : null,
+          },
+        },
+      },
+    }
+  );
+  return jobberCheckErrors_(data.requestCreate, 'requestCreate (assessment)').request.id;
+}
+
+// Finds a Calendly answer whose QUESTION mentions any of these words.
+function calendlyAnswer_(answers, words) {
+  for (var i = 0; i < answers.length; i++) {
+    var q = String(answers[i].question || '').toLowerCase();
+    for (var w = 0; w < words.length; w++) {
+      if (q.indexOf(words[w]) !== -1 && String(answers[i].answer || '').trim()) {
+        return String(answers[i].answer).trim();
+      }
+    }
+  }
+  return '';
+}
+
+function calendlyInstructions_(lead, ev) {
+  var lines = ['Booked through Calendly from book.cvillegutterpros.com.'];
+  if (ev.name) lines.push('Event: ' + ev.name);
+  if (lead.phone) lines.push('Phone: ' + lead.phone);
+  if (lead.notes) lines.push('What they told us: ' + lead.notes);
+  return lines.join('\n');
+}
+
+// Assessments get their own tab so they never mix with the paid-booking sheet.
+function calendlyLogRow_(lead, ev, requestId, status) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Assessments');
+    if (!sheet) {
+      sheet = ss.insertSheet('Assessments');
+      sheet.appendRow(['Booked at', 'Assessment at', 'Name', 'Email', 'Phone',
+                       'Address', 'Notes', 'Jobber request', 'Status']);
+      sheet.setFrozenRows(1);
+      sheet.getRange(1, 1, 1, 9).setFontWeight('bold')
+           .setFontColor('#ffffff').setBackground('#1d4ed8');
+    }
+    sheet.appendRow([
+      new Date(), ev.start_time ? new Date(ev.start_time) : '',
+      lead.name, lead.email, lead.phone, lead.address, lead.notes,
+      requestId, status,
+    ]);
+  } catch (e) { /* logging must never break the sync */ }
+}
+
+// Run ONCE by hand after setting CALENDLY_TOKEN. Points Calendly at this web app.
+function registerCalendlyWebhook() {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('CALENDLY_TOKEN');
+  if (!token) throw new Error('Set CALENDLY_TOKEN in Script Properties first.');
+
+  var secret = props.getProperty('CALENDLY_WEBHOOK_SECRET');
+  if (!secret) {
+    secret = Utilities.getUuid();
+    props.setProperty('CALENDLY_WEBHOOK_SECRET', secret);
+  }
+
+  var webAppUrl = ScriptApp.getService().getUrl();
+  if (!webAppUrl) throw new Error('Deploy this script as a web app first.');
+
+  var me = calendlyApi_(token, 'get', '/users/me', null).resource;
+  var result = calendlyApi_(token, 'post', '/webhook_subscriptions', {
+    url: webAppUrl + '?cal=' + encodeURIComponent(secret),
+    events: ['invitee.created', 'invitee.canceled'],
+    organization: me.current_organization,
+    user: me.uri,
+    scope: 'user',
+  });
+
+  Logger.log('Calendly webhook registered: ' + (result.resource || {}).uri);
+  Logger.log('Assessments booked from now on will land in Jobber as Requests.');
+}
+
+function calendlyApi_(token, method, path, body) {
+  var options = {
+    method: method,
+    headers: { Authorization: 'Bearer ' + token },
+    contentType: 'application/json',
+    muteHttpExceptions: true,
+  };
+  if (body) options.payload = JSON.stringify(body);
+
+  var resp = UrlFetchApp.fetch('https://api.calendly.com' + path, options);
+  var code = resp.getResponseCode();
+  var parsed = JSON.parse(resp.getContentText() || '{}');
+  if (code < 200 || code >= 300) {
+    throw new Error('Calendly API ' + code + ' — ' + (parsed.message || resp.getContentText()));
+  }
+  return parsed;
 }
 
 // ===========================================================================
