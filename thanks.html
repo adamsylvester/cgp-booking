@@ -78,15 +78,20 @@
     const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
-    // Prefill for the gutter-cleaning event's CUSTOM questions, in the exact
-    // order they appear on that event in Calendly. The best fix is to delete
-    // those questions entirely — we already have every answer, and it's all in
-    // Jobber before they ever reach this page. Use this only for questions you
-    // want to keep visible.
+    // Prefill for the gutter-cleaning event's CUSTOM questions. Calendly fills
+    // these BY POSITION (a1, a2, ...), counting only questions whose Status is
+    // ON — a question toggled off doesn't take a slot.
     //
-    // Example, if the event asks "Service address?" then "Anything unique?":
-    //   const CALENDLY_ANSWERS = [ (l) => l.address, (l) => l.notes ];
-    const CALENDLY_ANSWERS = [];
+    // As of 2026-08-03 that event has exactly one active question:
+    //   a1 = "Phone number" (required)
+    // "Is there anything you'd like us to know before we come?" is toggled OFF,
+    // and "Property address" was deleted.
+    //
+    // ⚠️ If you turn a question back on, add a question, or reorder them, this
+    // list must change to match — otherwise the phone lands in the wrong box.
+    const CALENDLY_ANSWERS = [
+      (lead) => lead.phone,     // a1 — "Phone number"
+    ];
 
     function readLead() {
       try {
