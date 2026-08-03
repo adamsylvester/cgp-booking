@@ -115,8 +115,8 @@ Failures never block payment. The deposit is collected either way, and:
 
 - The **"Jobber sync"** column (col 28) on the leads sheet shows the error.
 - You get an email: *"Jobber sync failed — money is fine, Jobber is not."*
-- `thanks.html` falls back to Calendly if availability can't be reached, so a
-  paying customer is never stranded.
+- The customer's Calendly booking is unaffected either way — Calendly holds the
+  appointment whether or not Jobber accepted it, so nobody loses their slot.
 
 Re-running is safe. Every step checks the sheet for an ID it already wrote, so a
 retry can't create a second client, quote, or job.
