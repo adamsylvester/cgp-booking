@@ -111,10 +111,21 @@
       if (!lead || !lead.name || !lead.email) return CALENDLY_URL;
 
       const params = new URLSearchParams({
-        name: lead.name,
         email: lead.email,
         hide_gdpr_banner: '1',
       });
+
+      // The event's invitee details are set to "First Name, Last Name, Email",
+      // which ignores `name` — that only fills a single "Full Name" field.
+      // Send both spellings so this keeps working if that setting changes.
+      const parts = String(lead.name || '').trim().split(/\s+/);
+      params.set('name', lead.name);
+      if (parts.length > 1) {
+        params.set('first_name', parts[0]);
+        params.set('last_name', parts.slice(1).join(' '));
+      } else if (parts[0]) {
+        params.set('first_name', parts[0]);
+      }
 
       // Calendly's SMS reminder field. Ignored if the event has SMS off.
       const phone = toE164(lead.phone);
