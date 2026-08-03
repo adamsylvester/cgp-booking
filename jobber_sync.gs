@@ -5,18 +5,18 @@
 // Script, name it "jobber_sync"). It shares that file's PRICING, COL, STATUS
 // and sheet helpers.
 //
-// Three stages, in the order the money moves:
+// CALENDLY IS THE SOURCE OF TRUTH FOR SCHEDULING. This script never decides
+// what's available — it mirrors whatever slot the customer picked in Calendly
+// onto the Jobber calendar.
+//
+// Two stages, in the order the money moves:
 //
 //   1. pushBookingToJobber_(lead, row)   fires the moment the deposit lands.
 //      Creates: Client (+ Property) -> Request -> Quote (deposit recorded as a
 //      note, since Jobber's API cannot post a payment).
 //
-//   2. scheduleBookingInJobber_(row, startISO)  fires when the customer picks
-//      their date. Creates the Job with the visit already on the calendar.
-//
-//   3. jobberAvailability_(days)   reads the crew's real Jobber calendar and
-//      returns which days still have room. This is what lets the booking page
-//      offer dates without Calendly.
+//   2. Calendly webhook   fires when they pick their slot. Creates the Job with
+//      the visit scheduled for exactly that time.
 //
 // SETUP — Script Properties (Project Settings > Script properties):
 //   JOBBER_TOKEN_STORE_URL     same /exec URL the dashboard uses
@@ -30,22 +30,11 @@
 const JOBBER_GRAPHQL_URL = 'https://api.getjobber.com/api/graphql';
 const JOBBER_API_VERSION = '2025-01-20';
 
-// ===== Scheduling / capacity config =====
-// How the availability engine decides a day is full. Tune these to reality.
+// ===== Scheduling config =====
+// Calendly decides WHEN. These only fill gaps Calendly doesn't tell us.
 const SCHED = {
-  // Measured from the real calendar on 2026-08-03: peak overlap was 3 crews on
-  // 7 days and 4 on one. Raise this and more slots open up; lower it and the
-  // picker gets stingier. This is the number to check first if availability
-  // ever looks wrong.
-  crewCount: 3,             // how many crews can be out at once
-  dayStartHour: 8,          // first start time offered (24h, local)
-  dayEndHour: 17,           // last END time allowed (24h, local)
-  jobMinutes: 90,           // how long to block for one online booking
+  jobMinutes: 90,           // job length, used only if Calendly sends no end time
   arrivalWindowMinutes: 60, // customer-facing "we'll arrive between" cushion
-  slotStepMinutes: 90,      // spacing of offered start times
-  workDays: [1, 2, 3, 4, 5, 6],  // 0=Sun ... 6=Sat
-  leadTimeDays: 2,          // earliest bookable day (today + this)
-  horizonDays: 30,          // how far out to offer
   timeZone: 'America/New_York',
 };
 
@@ -360,8 +349,10 @@ function jobberCreateQuote_(clientId, propertyId, requestId, lead, receiptUrl) {
 // STAGE 2 — the customer picks a date, so the Job goes on the calendar
 // ===========================================================================
 
-// startISO is the chosen local start time, e.g. "2026-08-14T09:00:00-04:00".
-function scheduleBookingInJobber_(sheetRow, startISO, receiptUrl) {
+// startISO/endISO come straight from the Calendly slot the customer picked,
+// e.g. "2026-08-14T13:00:00.000000Z". Calendly is the source of truth for
+// timing — we just mirror it onto the Jobber calendar.
+function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) throw new Error('Busy — try again in a moment.');
@@ -381,7 +372,12 @@ function scheduleBookingInJobber_(sheetRow, startISO, receiptUrl) {
 
     var start = new Date(startISO);
     if (isNaN(start)) throw new Error('Bad start time: ' + startISO);
-    var end = new Date(start.getTime() + SCHED.jobMinutes * 60000);
+    // Trust Calendly's end time; fall back to the default job length only if
+    // it's missing or nonsensical.
+    var end = endISO ? new Date(endISO) : null;
+    if (!end || isNaN(end) || end <= start) {
+      end = new Date(start.getTime() + SCHED.jobMinutes * 60000);
+    }
     var tz = SCHED.timeZone;
 
     var attributes = {
@@ -438,104 +434,6 @@ function scheduleBookingInJobber_(sheetRow, startISO, receiptUrl) {
   } finally {
     lock.releaseLock();
   }
-}
-
-// ===========================================================================
-// STAGE 3 — availability, read straight off the crew's Jobber calendar
-// ===========================================================================
-
-// Returns [{date:'2026-08-14', label:'Thu, Aug 14', slots:[{startISO,label}]}]
-// for every day in the horizon that still has room. Cached 5 minutes so the
-// booking page stays instant.
-//
-// A slot is open when FEWER THAN crewCount visits overlap it. Counting overlaps
-// rather than totalling each day's booked minutes matters: the real calendar
-// contains visits running to 11pm and one starting at 2am, and a minutes-based
-// model reads those as a full day when the crew is actually free.
-function jobberAvailability_(days) {
-  var horizon = Math.min(Number(days) || SCHED.horizonDays, 60);
-  var cacheKey = 'jobber_avail_' + horizon;
-  var cache = CacheService.getScriptCache();
-  var hit = cache.get(cacheKey);
-  if (hit) return JSON.parse(hit);
-
-  var tz = SCHED.timeZone;
-  var now = new Date();
-  var from = new Date(now.getTime() + SCHED.leadTimeDays * 86400000);
-  from.setHours(0, 0, 0, 0);
-  var to = new Date(from.getTime() + horizon * 86400000);
-
-  var spans = jobberVisitSpans_(from, to);   // [{start: ms, end: ms}, ...]
-
-  var out = [];
-  for (var d = 0; d < horizon; d++) {
-    var day = new Date(from.getTime() + d * 86400000);
-    if (SCHED.workDays.indexOf(day.getDay()) === -1) continue;
-
-    var slots = [];
-    for (var h = SCHED.dayStartHour * 60; h + SCHED.jobMinutes <= SCHED.dayEndHour * 60; h += SCHED.slotStepMinutes) {
-      var slotStart = new Date(day.getTime());
-      slotStart.setHours(Math.floor(h / 60), h % 60, 0, 0);
-      var startMs = slotStart.getTime();
-      var endMs = startMs + SCHED.jobMinutes * 60000;
-
-      var busy = 0;
-      for (var i = 0; i < spans.length; i++) {
-        if (spans[i].start < endMs && spans[i].end > startMs) busy++;
-      }
-      if (busy >= SCHED.crewCount) continue;   // every crew is out at this hour
-
-      slots.push({
-        startISO: Utilities.formatDate(slotStart, tz, "yyyy-MM-dd'T'HH:mm:ssXXX"),
-        label: Utilities.formatDate(slotStart, tz, 'h:mm a'),
-      });
-    }
-    if (!slots.length) continue;
-
-    out.push({
-      date: Utilities.formatDate(day, tz, 'yyyy-MM-dd'),
-      label: Utilities.formatDate(day, tz, 'EEE, MMM d'),
-      slots: slots,
-    });
-  }
-
-  cache.put(cacheKey, JSON.stringify(out), 300);
-  return out;
-}
-
-// Every scheduled visit in the window, as plain start/end millisecond spans.
-function jobberVisitSpans_(from, to) {
-  var query =
-    'query($cursor: String, $after: ISO8601DateTime!, $before: ISO8601DateTime!) {' +
-    '  visits(first: 100, after: $cursor,' +
-    '         filter: { startAt: { after: $after, before: $before } },' +
-    '         sort: [{ key: START_AT, direction: ASCENDING }]) {' +
-    '    nodes { id startAt endAt }' +
-    '    pageInfo { hasNextPage endCursor }' +
-    '  }' +
-    '}';
-
-  var spans = [];
-  var cursor = null;
-  for (var guard = 0; guard < 20; guard++) {
-    var data = jobberGql_(query, {
-      after: from.toISOString(), before: to.toISOString(), cursor: cursor,
-    });
-    var conn = data.visits;
-
-    conn.nodes.forEach(function (v) {
-      if (!v.startAt) return;
-      var s = new Date(v.startAt);
-      var e = v.endAt ? new Date(v.endAt) : new Date(s.getTime() + SCHED.jobMinutes * 60000);
-      if (e <= s) e = new Date(s.getTime() + SCHED.jobMinutes * 60000);
-      spans.push({ start: s.getTime(), end: e.getTime() });
-    });
-
-    if (!conn.pageInfo.hasNextPage) break;
-    cursor = conn.pageInfo.endCursor;
-    Utilities.sleep(250);
-  }
-  return spans;
 }
 
 // ===========================================================================
@@ -700,12 +598,68 @@ function handleCalendlyWebhook_(body, queryParams) {
     return { ok: false, error: 'bad_secret' };
   }
   if (!jobberSyncEnabled_()) return { ok: false, error: 'jobber_not_configured' };
-  if (body.event !== 'invitee.created') return { ok: true, skipped: body.event };
 
   var p = body.payload || {};
   var ev = p.scheduled_event || {};
-  var answers = p.questions_and_answers || [];
+  var email = String(p.email || '').trim();
 
+  if (body.event === 'invitee.canceled') {
+    return calendlyHandleCancellation_(email, ev);
+  }
+  if (body.event !== 'invitee.created') return { ok: true, skipped: body.event };
+
+  // A paid booking that's waiting on a date is the common case: the customer
+  // paid the deposit, then landed on Calendly. Schedule THAT job for the slot
+  // they just chose. Anything else is a free assessment.
+  var row = calendlyFindPaidUnscheduledRow_(email);
+  if (row) return calendlyScheduleePaidBooking_(row, ev, email);
+
+  return calendlyCreateAssessment_(p, ev);
+}
+
+// The Jobber job goes on the calendar for exactly the Calendly slot.
+function calendlyScheduleePaidBooking_(row, ev, email) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var receiptUrl = String(sheet.getRange(row, COL.PAYMENT_LINK).getValue() || '');
+  var lead = rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]);
+
+  try {
+    // The deposit usually lands first, but if the customer beat the payment
+    // checker here, create the client/request/quote now.
+    if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) {
+      pushBookingToJobber_(lead, row, receiptUrl);
+    }
+    var jobId = scheduleBookingInJobber_(row, ev.start_time, ev.end_time, receiptUrl);
+    return { ok: true, jobId: jobId, scheduled: ev.start_time };
+  } catch (err) {
+    jobberNotifyFailure_(lead, err, 'putting the Calendly slot on the Jobber calendar');
+    return { ok: false, error: String(err) };
+  }
+}
+
+// Newest row for this email that is PAID and has no Jobber job yet.
+function calendlyFindPaidUnscheduledRow_(email) {
+  if (!email) return 0;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+
+  var firstRow = Math.max(2, lastRow - 299);
+  var vals = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, JOBBER_LAST_COL).getValues();
+  var want = email.toLowerCase();
+
+  for (var i = vals.length - 1; i >= 0; i--) {
+    if (String(vals[i][COL.EMAIL - 1] || '').trim().toLowerCase() !== want) continue;
+    if (String(vals[i][COL.STATUS - 1]) !== STATUS.PAID) continue;
+    if (String(vals[i][JCOL.JOB - 1] || '')) continue;   // already scheduled
+    return firstRow + i;
+  }
+  return 0;
+}
+
+// A free on-site assessment: a Request with the assessment scheduled.
+function calendlyCreateAssessment_(p, ev) {
+  var answers = p.questions_and_answers || [];
   var lead = {
     name: p.name || '',
     email: p.email || '',
@@ -727,6 +681,34 @@ function handleCalendlyWebhook_(body, queryParams) {
     jobberNotifyFailure_(lead, err, 'creating the assessment request from Calendly');
     return { ok: false, error: String(err) };
   }
+}
+
+// Cancellations can't be undone automatically — Jobber keeps the job so the
+// deposit stays attached to something. The office gets told to reschedule.
+function calendlyHandleCancellation_(email, ev) {
+  // NB: not named `row` — that's the shared email-table helper in apps_script.gs.
+  var sheetRow = email ? jobberFindRow_('', email) : 0;
+  var jobId = sheetRow ? String(SpreadsheetApp.getActiveSpreadsheet().getSheets()[0]
+                            .getRange(sheetRow, JCOL.JOB).getValue() || '') : '';
+  try {
+    MailApp.sendEmail({
+      to: NOTIFICATION_EMAIL,
+      subject: '📅 Calendly cancellation — reschedule in Jobber' + (email ? ': ' + email : ''),
+      htmlBody: emailShell(
+        statusBanner('#f59e0b', '📅 A booked slot was cancelled in Calendly.') +
+        '<p style="margin:0 0 12px;line-height:1.5;">Their Jobber job was <strong>not</strong> ' +
+        'changed — the deposit is still attached to it. Move or cancel it by hand once they rebook.</p>' +
+        '<table style="border-collapse:collapse;width:100%;">' +
+        row('Email', escapeHtml(email || '—')) +
+        row('Was scheduled for', escapeHtml(String(ev.start_time || '—'))) +
+        row('Jobber job', jobId ? escapeHtml(jobId) : 'none found') +
+        '</table>'
+      ),
+      from: FROM_ADDRESS,
+      name: FROM_NAME,
+    });
+  } catch (e) { /* never let the notification break the webhook */ }
+  return { ok: true, cancelled: true };
 }
 
 // A Request whose assessment is scheduled for the Calendly slot.
@@ -859,34 +841,6 @@ function calendlyApi_(token, method, path, body) {
 // WEB APP HANDLERS (called from doPost in apps_script.gs)
 // ===========================================================================
 
-// { action: 'availability' } -> { ok, days: [...] }
-function handleAvailabilityRequest_(data) {
-  if (!jobberSyncEnabled_()) return { ok: false, error: 'jobber_not_configured' };
-  return { ok: true, days: jobberAvailability_(data.days) };
-}
-
-// { action: 'schedule', timestamp, email, startISO } -> { ok, jobId }
-// Called by thanks.html once the customer taps a date.
-function handleScheduleRequest_(data) {
-  if (!jobberSyncEnabled_()) return { ok: false, error: 'jobber_not_configured' };
-
-  var row = jobberFindRow_(data.timestamp, data.email);
-  if (!row) return { ok: false, error: 'booking_not_found' };
-
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
-  var receiptUrl = String(sheet.getRange(row, COL.PAYMENT_LINK).getValue() || '');
-
-  // The deposit lands within seconds, but the customer can beat it to this
-  // page. Create the client/request/quote now if the payment checker hasn't.
-  if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) {
-    var vals = sheet.getRange(row, 1, 1, LAST_COL).getValues()[0];
-    pushBookingToJobber_(rowToLead(vals), row, receiptUrl);
-  }
-
-  var jobId = scheduleBookingInJobber_(row, data.startISO, receiptUrl);
-  return { ok: true, jobId: jobId };
-}
-
 // Locates the sheet row for this customer: exact timestamp first, then their
 // most recent row by email. Only looks at the last 300 rows.
 function jobberFindRow_(timestamp, email) {
@@ -950,7 +904,4 @@ function testJobberConnection() {
     }
   }
 
-  var avail = jobberAvailability_(14);
-  Logger.log('Open days in the next 14: ' + avail.length +
-             (avail.length ? ' (first: ' + avail[0].label + ')' : ''));
 }

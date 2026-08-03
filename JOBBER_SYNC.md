@@ -1,7 +1,10 @@
 # Jobber sync — setup runbook
 
-Turns a paid online booking into real Jobber records, and lets the booking page
-offer dates off the crew's actual Jobber calendar instead of Calendly.
+Turns a paid online booking into real Jobber records.
+
+**Calendly is the source of truth for scheduling.** This script never decides
+what's available — it mirrors whatever slot the customer picked in Calendly onto
+the Jobber calendar.
 
 Everything lives in `jobber_sync.gs`, which goes in the **same Apps Script
 project** as `apps_script.gs`.
@@ -13,88 +16,79 @@ project** as `apps_script.gs`.
 | When | What happens in Jobber |
 |---|---|
 | Deposit hits Square | Client (+ Property) → Request → Quote, with the deposit as a pinned note |
-| Customer picks a date on `thanks.html` | Job created, visit already on the calendar |
-| Someone books the free assessment on Calendly | Request created with the assessment scheduled |
-| Booking page loads the date picker | Reads real visits from Jobber to decide which days have room |
+| Customer picks their slot in Calendly | Job created, visit scheduled for exactly that time |
+| Someone books the free assessment in Calendly | Request created with the assessment scheduled |
+| A Calendly booking is cancelled | Email to the office; the Jobber job is left alone so the deposit stays attached |
 
 Repeat customers are matched by email → phone → street, so they don't get
 duplicated.
+
+### How a Calendly booking finds its paid row
+
+`thanks.html` prefills the Calendly form with the customer's name and email.
+When the webhook fires, the script looks for the **newest sheet row with that
+email that is PAID and has no Jobber job yet**:
+
+- **Found** → that's the post-deposit cleaning. Job created for the Calendly slot.
+- **Not found** → treated as a free assessment. Request created with the
+  assessment scheduled.
+
+So the webhook is not optional. Without it, paid bookings stop at the quote and
+never become scheduled jobs.
 
 ---
 
 ## Setup, in order
 
-**1. Turn on write scopes** (this is the blocker — nothing writes until it's done)
+**1. Write scopes + re-authorization — DONE 2026-08-03**
 
-Jobber Developer Center → your app → Scopes. Keep every Read scope you already
-have, and add **Write** for: Clients, Properties, Requests, Quotes, Jobs, and
-Scheduled Items (that last one covers visits and assessments).
+Write scopes were enabled in the Jobber Developer Center and the app
+re-authorized via `oauth_setup.py`, which also pushed the new refresh token to
+the shared token service. Verified: a write mutation now executes instead of
+returning "hidden due to permissions".
 
-**2. Re-authorize, because scopes only apply to newly issued tokens**
+Only redo this if writes start failing with a permissions error.
 
-```
-cd ~/projects/jobber-dashboard
-./venv/bin/python oauth_setup.py
-```
-
-Then push the new refresh token into the Apps Script **token service** — it is
-the single owner of the refresh chain, and it will keep handing out old
-read-only tokens until you do. Nothing else needs new credentials: this script
-reads its token from that same service.
-
-**3. Script Properties** (Project Settings → Script properties)
+**2. Script Properties** (Project Settings → Script properties)
 
 | Key | Value |
 |---|---|
 | `JOBBER_TOKEN_STORE_URL` | same `/exec` URL the dashboard uses |
 | `JOBBER_TOKEN_STORE_SECRET` | same shared secret |
-| `CALENDLY_TOKEN` | Calendly personal access token (only for the assessment sync) |
+| `CALENDLY_TOKEN` | Calendly personal access token — **required**, this is what creates jobs |
 
 Both Jobber values are already in `~/projects/jobber-dashboard/.env`.
 
-**4. Run these once, from the Apps Script editor**
+**3. Run these once, from the Apps Script editor**
 
 ```
 setupJobberColumns()      // adds columns 23–28 to the leads sheet
-testJobberConnection()    // confirms the account, scopes, and availability
-registerCalendlyWebhook() // only if you want assessments synced too
+testJobberConnection()    // confirms the account and write scopes
+registerCalendlyWebhook() // REQUIRED — without it, nothing gets scheduled
 ```
 
-`testJobberConnection()` prints `WRITE SCOPES: MISSING ❌` if step 1 or 2 didn't
-take. Nothing else will work until it says enabled.
+`testJobberConnection()` prints `WRITE SCOPES: MISSING ❌` if the authorization
+ever lapses.
 
-**5. Redeploy the web app** — Deploy → Manage deployments → pencil → Version
+**4. Redeploy the web app** — Deploy → Manage deployments → pencil → Version
 "New version". Do **not** create a fresh deployment; that changes the `/exec`
 URL the booking page points at.
 
 ---
 
-## Tuning the calendar
+## Scheduling config
 
-All in the `SCHED` block at the top of `jobber_sync.gs`:
+Calendly decides when. The `SCHED` block only fills gaps Calendly doesn't tell
+us:
 
 ```js
-crewCount: 3,          // how many crews can be out at once
-dayStartHour: 8,       // first start time offered
-dayEndHour: 17,        // last end time allowed
-jobMinutes: 90,        // how long one online booking blocks
-leadTimeDays: 2,       // earliest bookable day
-horizonDays: 30,       // how far out to offer
-workDays: [1,2,3,4,5,6],  // 0=Sun … 6=Sat
+jobMinutes: 90,           // job length, used ONLY if Calendly sends no end time
+arrivalWindowMinutes: 60, // customer-facing "we'll arrive between" cushion
+timeZone: 'America/New_York',
 ```
 
-**How a slot is judged open:** it counts how many existing visits *overlap* that
-slot, and offers it when fewer than `crewCount` do. It deliberately does not add
-up each day's booked minutes — the real calendar has visits running to 11pm and
-one starting at 2am, and a minutes-based model reads those as a full day when
-the crew is actually free.
-
-`crewCount: 3` was measured from the live calendar on 2026-08-03: peak overlap
-was 3 crews on 7 days, 4 on one. **If availability ever looks wrong, check this
-number first.** Against real data it produced 24 open days in 30 — 6 slots on
-quiet days, 1–3 on busy ones.
-
-Availability is cached 5 minutes so the page stays fast.
+Change the appointment length in **Calendly**, not here — the visit uses
+Calendly's own start and end times.
 
 `JOBBER_ASSIGN_USER_IDS` is empty, so jobs are created **unassigned**. Fill it
 with Jobber user IDs once you decide who owns online bookings.

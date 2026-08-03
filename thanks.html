@@ -3,28 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pick Your Gutter Cleaning Date</title>
+  <title>Schedule Your Gutter Cleaning</title>
   <style>
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 32px 16px;
+      padding: 40px 20px;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       background: linear-gradient(180deg, #f3f7fc 0%, #eef4fb 100%);
       color: #101828;
       min-height: 100vh;
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       justify-content: center;
     }
     .card {
-      max-width: 560px;
+      max-width: 480px;
       width: 100%;
-      padding: 28px 24px 24px;
+      padding: 32px;
       background: #fff;
       border: 1px solid #dbe6f5;
       border-radius: 20px;
       box-shadow: 0 18px 50px rgba(16, 24, 40, 0.1);
+      text-align: center;
     }
     .paid {
       display: inline-flex;
@@ -39,110 +40,43 @@
       font-weight: 700;
       margin-bottom: 16px;
     }
-    h1 { margin: 0 0 8px; font-size: 25px; letter-spacing: -0.02em; }
-    .sub { margin: 0 0 22px; color: #475467; line-height: 1.5; font-size: 15px; }
-    .label {
-      font-size: 12px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: #475467; margin: 0 0 10px;
-    }
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
-    .chip {
-      padding: 11px 14px;
-      border: 1.5px solid #dbe6f5;
-      background: #fff;
+    h1 { margin: 0 0 12px; font-size: 26px; letter-spacing: -0.02em; }
+    p { margin: 0 0 20px; color: #475467; line-height: 1.5; }
+    .fallback {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 14px 22px;
+      background: #1d4ed8;
+      color: #fff;
+      text-decoration: none;
       border-radius: 12px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #101828;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      font-family: inherit;
+      font-weight: 700;
     }
-    .chip:hover { border-color: #1d4ed8; transform: translateY(-1px); }
-    .chip[aria-pressed="true"] {
-      background: #1d4ed8; border-color: #1d4ed8; color: #fff;
-      box-shadow: 0 6px 16px rgba(29, 78, 216, 0.3);
-    }
-    .cta {
-      display: block; width: 100%; padding: 16px;
-      background: #1d4ed8; color: #fff; border: 0; border-radius: 14px;
-      font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
-      box-shadow: 0 10px 24px rgba(29, 78, 216, 0.28);
-    }
-    .cta:disabled { background: #b9c6dd; box-shadow: none; cursor: not-allowed; }
-    .muted { margin: 14px 0 0; font-size: 13px; color: #667085; text-align: center; line-height: 1.5; }
-    .muted a { color: #1d4ed8; }
+    .fallback:hover { background: #1e40af; }
     .spinner {
-      margin: 8px auto 16px; width: 30px; height: 30px;
-      border: 3px solid #e4e7ec; border-top-color: #1d4ed8;
-      border-radius: 50%; animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e4e7ec;
+      border-top-color: #1d4ed8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .hidden { display: none; }
-    .done-mark { font-size: 44px; line-height: 1; margin-bottom: 8px; }
-    .slot-note { margin: -12px 0 20px; font-size: 13px; color: #667085; }
-    .fallback {
-      display: inline-block; margin-top: 14px; padding: 14px 22px;
-      background: #1d4ed8; color: #fff; text-decoration: none;
-      border-radius: 12px; font-weight: 700;
-    }
   </style>
 </head>
 <body>
   <div class="card">
-    <!-- 1. Loading -->
-    <div id="view-loading">
-      <div class="paid">✓ Deposit received</div>
-      <h1>Thanks! One last step.</h1>
-      <p class="sub">Checking our crew's calendar for the soonest openings&hellip;</p>
-      <div class="spinner" aria-hidden="true"></div>
-    </div>
-
-    <!-- 2. Pick a date -->
-    <div id="view-picker" class="hidden">
-      <div class="paid">✓ Deposit received</div>
-      <h1>Pick your service date</h1>
-      <p class="sub">These are the days our crew has room. Choose what works for you and you're all set.</p>
-
-      <p class="label">Choose a day</p>
-      <div class="chips" id="days"></div>
-
-      <div id="times-wrap" class="hidden">
-        <p class="label">Choose a start time</p>
-        <div class="chips" id="times"></div>
-        <p class="slot-note">We'll arrive within an hour of your start time and text you when we're on the way.</p>
-      </div>
-
-      <button class="cta" id="confirm" disabled>Select a day and time</button>
-      <p class="muted" id="picker-error"></p>
-    </div>
-
-    <!-- 3. Booked -->
-    <div id="view-done" class="hidden" style="text-align:center;">
-      <div class="done-mark">🎉</div>
-      <h1>You're on the schedule!</h1>
-      <p class="sub" id="done-when"></p>
-      <p class="muted">A confirmation is on its way to your email. Questions? Just reply to it &mdash; it goes straight to our office.</p>
-    </div>
-
-    <!-- 4. Fallback: our calendar didn't load, so use Calendly -->
-    <div id="view-fallback" class="hidden" style="text-align:center;">
-      <div class="paid">✓ Deposit received</div>
-      <h1>Thanks! One last step.</h1>
-      <p class="sub">Pick a date for your gutter cleaning on our scheduling calendar.</p>
-      <a id="fallback-link" class="fallback" href="https://calendly.com/gutterpros/gutter-cleaning">Pick a date</a>
-    </div>
+    <div class="paid">✓ Deposit received</div>
+    <div class="spinner" aria-hidden="true"></div>
+    <h1>Thanks! One last step.</h1>
+    <p>Sending you to our calendar to pick a date for your gutter cleaning&hellip;</p>
+    <a id="fallback" class="fallback" href="https://calendly.com/gutterpros/gutter-cleaning">Pick a date</a>
   </div>
 
   <script>
     const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
-
-    const el = (id) => document.getElementById(id);
-    const show = (id) => {
-      ['view-loading', 'view-picker', 'view-done', 'view-fallback']
-        .forEach((v) => el(v).classList.toggle('hidden', v !== id));
-    };
 
     function readLead() {
       try {
@@ -152,23 +86,21 @@
       return null;
     }
 
-    function post(payload, timeoutMs = 20000) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      return fetch(APPS_SCRIPT_URL, {
-        method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        signal: controller.signal,
-      })
-        .then((r) => r.json())
-        .finally(() => clearTimeout(timer));
+    // Prefilling name + email is what lets the Calendly webhook match this
+    // booking back to its paid row, so the Jobber job lands on the right slot.
+    function buildCalendlyUrl(lead) {
+      if (!lead || !lead.name || !lead.email) return CALENDLY_URL;
+      const params = new URLSearchParams({
+        name: lead.name,
+        email: lead.email,
+      });
+      return `${CALENDLY_URL}?${params.toString()}`;
     }
 
-    // Buyer confirmation email. Fires once per booking, and preferably AFTER
-    // they've picked a date so the email can name it.
-    function sendBuyerConfirmation(lead, visitLabel) {
+    function sendBuyerConfirmation(lead) {
       if (!lead || !lead.email) return;
+      // De-dupe: if we already fired the confirmation for this exact lead, skip.
+      // (Square can sometimes re-redirect to thanks.html, e.g. on a back button.)
       try {
         const stamp = lead.timestamp || '';
         const seen = localStorage.getItem('cgp_confirmSent');
@@ -176,13 +108,11 @@
         localStorage.setItem('cgp_confirmSent', stamp);
       } catch (_) { /* ignore */ }
 
-      const payload = Object.assign({}, lead, {
-        action: 'confirm',
-        visitLabel: visitLabel || '',
-      });
+      const payload = Object.assign({}, lead, { action: 'confirm' });
       try {
         const blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
-        if (!navigator.sendBeacon(APPS_SCRIPT_URL, blob)) {
+        const queued = navigator.sendBeacon(APPS_SCRIPT_URL, blob);
+        if (!queued) {
           fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify(payload),
@@ -193,120 +123,13 @@
       } catch (_) { /* ignore */ }
     }
 
-    function goFallback(lead) {
-      const url = (lead && lead.name && lead.email)
-        ? `${CALENDLY_URL}?${new URLSearchParams({ name: lead.name, email: lead.email })}`
-        : CALENDLY_URL;
-      el('fallback-link').href = url;
-      sendBuyerConfirmation(lead);   // they'll pick on Calendly, so send it now
-      show('view-fallback');
-    }
-
     const lead = readLead();
-    let chosenDay = null;
-    let chosenSlot = null;
-    // Safety net: if they wander off without picking a date, they still get
-    // their receipt email — just without a date in it.
-    let confirmTimer = setTimeout(() => sendBuyerConfirmation(lead), 120000);
-
-    function renderDays(days) {
-      const wrap = el('days');
-      wrap.innerHTML = '';
-      days.slice(0, 12).forEach((day) => {
-        const btn = document.createElement('button');
-        btn.className = 'chip';
-        btn.type = 'button';
-        btn.textContent = day.label;
-        btn.setAttribute('aria-pressed', 'false');
-        btn.onclick = () => {
-          chosenDay = day;
-          chosenSlot = null;
-          [...wrap.children].forEach((c) => c.setAttribute('aria-pressed', String(c === btn)));
-          renderTimes(day.slots);
-          updateCta();
-        };
-        wrap.appendChild(btn);
-      });
-    }
-
-    function renderTimes(slots) {
-      const wrap = el('times');
-      wrap.innerHTML = '';
-      slots.forEach((slot) => {
-        const btn = document.createElement('button');
-        btn.className = 'chip';
-        btn.type = 'button';
-        btn.textContent = slot.label;
-        btn.setAttribute('aria-pressed', 'false');
-        btn.onclick = () => {
-          chosenSlot = slot;
-          [...wrap.children].forEach((c) => c.setAttribute('aria-pressed', String(c === btn)));
-          updateCta();
-        };
-        wrap.appendChild(btn);
-      });
-      el('times-wrap').classList.remove('hidden');
-    }
-
-    function updateCta() {
-      const btn = el('confirm');
-      if (chosenDay && chosenSlot) {
-        btn.disabled = false;
-        btn.textContent = `Book ${chosenDay.label} at ${chosenSlot.label}`;
-      } else {
-        btn.disabled = true;
-        btn.textContent = chosenDay ? 'Choose a start time' : 'Select a day and time';
-      }
-    }
-
-    el('confirm').onclick = async () => {
-      const btn = el('confirm');
-      btn.disabled = true;
-      btn.textContent = 'Booking your spot…';
-      el('picker-error').textContent = '';
-
-      try {
-        const out = await post({
-          action: 'schedule',
-          timestamp: lead && lead.timestamp,
-          email: lead && lead.email,
-          startISO: chosenSlot.startISO,
-        });
-        if (out && out.ok) {
-          const when = `${chosenDay.label} at ${chosenSlot.label}`;
-          el('done-when').textContent = `We'll see you ${when}.`;
-          clearTimeout(confirmTimer);
-          sendBuyerConfirmation(lead, when);
-          show('view-done');
-          return;
-        }
-        throw new Error((out && out.error) || 'unknown');
-      } catch (err) {
-        // Never strand a paying customer — hand them to Calendly instead.
-        console.warn('Scheduling failed:', err);
-        el('picker-error').innerHTML =
-          'That time just filled up. <a href="#" id="retry">Refresh the openings</a> or ' +
-          `<a href="${CALENDLY_URL}">use our calendar</a>.`;
-        const retry = el('retry');
-        if (retry) retry.onclick = (e) => { e.preventDefault(); window.location.reload(); };
-        updateCta();
-      }
-    };
-
-    (async function init() {
-      try {
-        const out = await post({ action: 'availability' });
-        if (out && out.ok && out.days && out.days.length) {
-          renderDays(out.days);
-          show('view-picker');
-          return;
-        }
-        console.warn('No availability returned:', out && out.error);
-      } catch (err) {
-        console.warn('Availability request failed:', err);
-      }
-      goFallback(lead);
-    })();
+    const target = buildCalendlyUrl(lead);
+    document.getElementById('fallback').href = target;
+    sendBuyerConfirmation(lead);
+    // Small delay so the user sees the "Sending you to..." card briefly,
+    // which feels less abrupt than an instant flash-redirect.
+    setTimeout(() => { window.location.replace(target); }, 600);
   </script>
 </body>
 </html>

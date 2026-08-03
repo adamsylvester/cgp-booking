@@ -130,16 +130,6 @@ function doPost(e) {
       return jsonOutput({ ok: true });
     }
 
-    // Which days the crew still has room for — read live off Jobber.
-    if (action === 'availability') {
-      return jsonOutput(handleAvailabilityRequest_(data));
-    }
-
-    // Customer picked a date: create the Jobber job with the visit on it.
-    if (action === 'schedule') {
-      return jsonOutput(handleScheduleRequest_(data));
-    }
-
     if (action === 'checkout') {
       // Server recomputes the price from raw inputs and charges ITS number.
       var priced = computeServerPrice(data);
@@ -594,19 +584,10 @@ function buildBuyerEmailHtml(data) {
   var firstName = name.split(' ')[0];
   var deposit = depositFor(data);
 
-  var visitLabel = String(data.visitLabel || '').trim();
-
   var inner = '';
   inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit + ' deposit is in.</h2>';
-  if (visitLabel) {
-    inner += '<p style="margin:0 0 14px;padding:14px 16px;background:#ecfdf3;border:1px solid #abefc6;' +
-             'border-radius:12px;color:#067647;font-weight:700;font-size:16px;">' +
-             'You are booked for ' + escapeHtml(visitLabel) + '.</p>';
-  }
   inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">';
-  inner += visitLabel
-    ? 'We are on the books for your gutter cleaning. Our crew will take it from there - you will get a reminder before we head your way.'
-    : 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
+  inner += 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
   inner += '</p>';
   inner += sectionHead('Your quote');
   inner += '<table style="border-collapse:collapse;width:100%;">' + quoteSummaryRows(data) + '</table>';
