@@ -123,6 +123,16 @@ function doPost(e) {
       return jsonOutput({ ok: true });
     }
 
+    // Which days the crew still has room for — read live off Jobber.
+    if (action === 'availability') {
+      return jsonOutput(handleAvailabilityRequest_(data));
+    }
+
+    // Customer picked a date: create the Jobber job with the visit on it.
+    if (action === 'schedule') {
+      return jsonOutput(handleScheduleRequest_(data));
+    }
+
     if (action === 'checkout') {
       // Server recomputes the price from raw inputs and charges ITS number.
       var priced = computeServerPrice(data);
@@ -337,6 +347,11 @@ function checkPendingPayments() {
       sheet.getRange(p.sheetRow, COL.PAID_AT).setValue(new Date());
       if (receiptUrl) sheet.getRange(p.sheetRow, COL.PAYMENT_LINK).setValue(receiptUrl);
       sendPaidEmail(rowToLead(p.vals), receiptUrl);
+      // Real money in -> real records in Jobber. Failures land in the sheet's
+      // "Jobber sync" column and email the office; they never block payment.
+      if (jobberSyncEnabled_()) {
+        pushBookingToJobber_(rowToLead(p.vals), p.sheetRow, receiptUrl);
+      }
     } else if (p.status === STATUS.STARTED && (now - p.ts) > ABANDONED_AFTER_MIN * 60000) {
       sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.ABANDONED);
       sendAbandonedEmail(rowToLead(p.vals));
