@@ -911,6 +911,7 @@
       .house-opt:hover { transform:translateY(-3px); box-shadow:0 10px 20px rgba(16,24,40,.10); border-color:#c7d4f7; }
       .house-opt.selected { border-color:#1d4ed8; background:#eff4ff; box-shadow:0 8px 18px rgba(29,78,216,.18); }
       .house-opt .img-frame { aspect-ratio:4/3; border-radius:10px; overflow:hidden; background:#eef2f7; }
+      .house-opt .img-frame picture { display:block; width:100%; height:100%; }
       .house-opt .img-frame img { width:100%; height:100%; object-fit:cover; object-position:center 55%; display:block; transition:transform .2s ease; }
       .house-opt[data-house^="townhome"] .img-frame img { object-fit:contain; object-position:center; }
       .house-opt:hover .img-frame img { transform:scale(1.05); }
@@ -1064,35 +1065,35 @@
       <div class="house-grid" id="houseGrid">
         <div class="house-opt" data-house="simple">
           <div class="house-check">✓</div>
-          <div class="img-frame"><img src="house-simple.png" alt="Simple home — front and back gutter" /></div>
+          <div class="img-frame"><picture><source srcset="house-simple.webp" type="image/webp" /><img src="house-simple.png" alt="Simple home — front and back gutter" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Simple</div>
           <div class="house-opt-desc">Front and back gutter</div>
           <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Mill Creek, Greenbrier, Hollymead</div>
         </div>
         <div class="house-opt" data-house="standard">
           <div class="house-check">✓</div>
-          <div class="img-frame"><img src="house-standard.png" alt="Standard home — multiple sections of gutters" /></div>
+          <div class="img-frame"><picture><source srcset="house-standard.webp" type="image/webp" /><img src="house-standard.png" alt="Standard home — multiple sections of gutters" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Standard</div>
           <div class="house-opt-desc">Multiple sections of gutters, uppers and lowers</div>
           <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Forest Lakes, Ashcroft, and Redfields</div>
         </div>
         <div class="house-opt" data-house="complex">
           <div class="house-check">✓</div>
-          <div class="img-frame"><img src="house-complex.png" alt="Complex home — gutters with gables and wings" /></div>
+          <div class="img-frame"><picture><source srcset="house-complex.webp" type="image/webp" /><img src="house-complex.png" alt="Complex home — gutters with gables and wings" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Complex</div>
           <div class="house-opt-desc">Several sections of gutters with gables and wings</div>
           <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Glenmore, Preddy Creek, Fontana, Old Trail</div>
         </div>
         <div class="house-opt" data-house="townhome2">
           <div class="house-check">✓</div>
-          <div class="img-frame"><img src="house-townhome2.png" alt="2-story townhome" /></div>
+          <div class="img-frame"><picture><source srcset="house-townhome2.webp" type="image/webp" /><img src="house-townhome2.png" alt="2-story townhome" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">2-Story Townhome</div>
           <div class="house-opt-desc">Attached home, up to two floors</div>
           <div class="house-opt-note">🪜 1-man team &amp; 24-ft ladder</div>
         </div>
         <div class="house-opt" data-house="townhome3">
           <div class="house-check">✓</div>
-          <div class="img-frame"><img src="house-townhome3.png" alt="3-story townhome" /></div>
+          <div class="img-frame"><picture><source srcset="house-townhome3.webp" type="image/webp" /><img src="house-townhome3.png" alt="3-story townhome" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">3-Story Townhome</div>
           <div class="house-opt-desc">Attached home, three floors</div>
           <div class="house-opt-note">🪜 2-man team &amp; 40-ft ladder</div>
