@@ -109,6 +109,31 @@ it's hard to miss, but nothing can automate it.
 
 ---
 
+## ⚠️ The two files share one global scope
+
+Apps Script does not have per-file scope. `apps_script.gs` and `jobber_sync.gs`
+are compiled together as if they were one file, so **the same `const` name can
+only be declared once across both.**
+
+If a name is declared twice, the whole project stops compiling — not just the
+duplicated part. Checkout links, office emails, the payment checker, the
+Calendly webhook and the Jobber sync all die at once, while the booking page
+keeps taking money through the flat $25 fallback link.
+
+This happened on 2026-08-03: `apps_script.gs`'s contents were pasted into the
+`jobber_sync` file, re-declaring `NOTIFICATION_EMAIL`.
+
+**After any paste into the editor, check that it still compiles** by opening the
+`/exec` URL in a browser. Healthy looks like:
+
+> CGP booking endpoint is alive.
+
+Anything else — especially a `SyntaxError` page — means the funnel is down.
+The `Booking endpoint health` GitHub Action checks this every 30 minutes and
+emails on failure.
+
+---
+
 ## When something breaks
 
 Failures never block payment. The deposit is collected either way, and:

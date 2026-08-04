@@ -1740,8 +1740,11 @@
           signal: controller.signal,
         });
         clearTimeout(timer);
-        serverReached = true;
+        // Parse BEFORE claiming the server was reached. A broken Apps Script
+        // still answers 200 — with an HTML error page — so a response alone
+        // proves nothing. Only our own JSON means the lead was really logged.
         const out = await res.json();
+        serverReached = true;
         if (out && out.ok && out.checkoutUrl) {
           window.location.href = out.checkoutUrl;
           return;

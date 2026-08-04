@@ -1,0 +1,46 @@
+# Watches the Apps Script endpoint that the booking page depends on.
+#
+# Why this exists: on 2026-08-03 the Apps Script project stopped compiling
+# (a duplicate `const` pasted into the editor). Every part of the funnel that
+# runs there died at once — checkout links, office emails, the paid-payment
+# checker, the Calendly webhook, the Jobber sync — but the booking page kept
+# taking money through the flat $25 fallback link. Nobody found out until a
+# customer's payment showed up with no booking attached to it.
+#
+# A dead script cannot report that it is dead, so the check has to run from
+# outside it. A failing run emails the repo owner.
+name: Booking endpoint health
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apps Script /exec responds and compiles
+        run: |
+          URL='https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec'
+          BODY=$(curl -sS -L --max-time 45 --retry 2 --retry-delay 10 "$URL")
+
+          # doGet() returns this exact plain-text line. Anything else means the
+          # project failed to compile, the deployment moved, or Google is down.
+          if printf '%s' "$BODY" | grep -qF 'CGP booking endpoint is alive.'; then
+            echo "✅ Booking endpoint healthy."
+            exit 0
+          fi
+
+          echo "::error::Booking endpoint is DOWN — the booking page cannot create"
+          echo "::error::Square checkouts, send emails, or sync to Jobber."
+          echo "--- response ---"
+          printf '%s\n' "$BODY" | head -c 2000
+
+          # Apps Script reports a compile error inside the HTML error page.
+          if printf '%s' "$BODY" | grep -qE 'SyntaxError|ReferenceError|has already been declared'; then
+            echo "::error::This is a SCRIPT error. Fix the .gs files in the Apps"
+            echo "::error::Script editor, then redeploy (Manage deployments ->"
+            echo "::error::pencil -> Version: New version)."
+          fi
+          exit 1
