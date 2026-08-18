@@ -1032,13 +1032,16 @@
       .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
       .form-card textarea:focus { outline:none; border-color:var(--primary); }
       /* ===== Deposit meter: visual 25%-now / 75%-later split ===== */
-      .deposit-meter { margin-top:10px; padding-top:12px; border-top:1px dashed var(--border-strong); }
-      .meter-bar { display:flex; height:12px; border-radius:999px; overflow:hidden; }
+      .deposit-meter { margin-top:14px; padding:12px 14px 11px; border-radius:14px; background:#f0fdf4; border:1px solid #bbf7d0; }
+      .deposit-head { display:flex; justify-content:space-between; align-items:baseline; gap:12px; margin-bottom:9px; }
+      .deposit-head-label { font-size:14px; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+      .deposit-head-value { font-size:28px; font-weight:900; color:var(--success); letter-spacing:-.02em; line-height:1; }
+      .meter-bar { display:flex; height:12px; border-radius:999px; overflow:hidden; background:#fff; }
       .meter-bar .meter-dep { width:25%; background:var(--success); }
-      .meter-bar .meter-rest { flex:1; background:var(--border); }
-      .meter-legend { display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:700; margin-top:7px; }
+      .meter-bar .meter-rest { flex:1; background:#d7e6dc; }
+      .meter-legend { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; font-weight:700; margin-top:7px; }
       .meter-dep-label { color:var(--success); }
-      .meter-rest-label { color:var(--text-subtle); }
+      .meter-rest-label { color:var(--text-muted); }
       /* ===== Sticky pay bar ===== */
       .paybar { position:fixed; bottom:0; left:0; right:0; background:rgba(255,255,255,.92); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); border-top:1px solid var(--border); padding:12px 16px calc(12px + env(safe-area-inset-bottom)); display:flex; align-items:center; justify-content:center; gap:16px; z-index:40; }
       .paybar[hidden] { display:none; }
@@ -1149,7 +1152,7 @@
 
           <div class="field zip-field" id="zipField">
             <label for="zip">ZIP Code</label>
-            <input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="22901" />
+            <input id="zip" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="5" placeholder="" />
           </div>
           </div>
 
@@ -1204,9 +1207,13 @@
                 <span class="breakdown-value" id="outsideValue">+$50</span>
               </div>
               <div class="deposit-meter">
+                <div class="deposit-head">
+                  <span class="deposit-head-label">Due today</span>
+                  <span class="deposit-head-value" id="depositToday">$0</span>
+                </div>
                 <div class="meter-bar"><span class="meter-dep"></span><span class="meter-rest"></span></div>
                 <div class="meter-legend">
-                  <span class="meter-dep-label" id="meterDepLabel">$0 today (25%)</span>
+                  <span class="meter-dep-label" id="meterDepLabel">25% deposit</span>
                   <span class="meter-rest-label" id="meterRestLabel">$0 after the job</span>
                 </div>
               </div>
@@ -1370,6 +1377,7 @@
       planSummaryLabel: document.getElementById('planSummaryLabel'),
       planSummaryValue: document.getElementById('planSummaryValue'),
       outsideRow: document.getElementById('outsideRow'),
+      depositToday: document.getElementById('depositToday'),
       meterDepLabel: document.getElementById('meterDepLabel'),
       meterRestLabel: document.getElementById('meterRestLabel'),
       planPerFeatured: document.getElementById('planPerFeatured'),
@@ -1511,7 +1519,8 @@
       elements.planSummaryLabel.textContent = PLAN_LABELS[selectedPlan];
       elements.planSummaryValue.textContent = '$' + subtotal;
       elements.outsideRow.style.display = outside ? 'flex' : 'none';
-      elements.meterDepLabel.textContent = '$' + deposit + ' today (25%)';
+      elements.depositToday.textContent = '$' + deposit;
+      elements.meterDepLabel.textContent = '25% deposit';
       elements.meterRestLabel.textContent = '$' + balance + ' after the job';
       elements.paymentBreakdown.style.display = 'grid';
       elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
