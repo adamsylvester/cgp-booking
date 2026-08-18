@@ -728,7 +728,9 @@
 
     /* ===== Centered hero header ===== */
     .hero-head { text-align: center; margin: 6px 0 18px; }
-    .hero-logo { width: 150px; height: auto; margin-bottom: 8px; }
+    .hero-logo-link { display: inline-block; margin-bottom: 8px; }
+    .hero-logo { width: 150px; height: auto; display: block; transition: opacity .15s ease; }
+    .hero-logo-link:hover .hero-logo { opacity: .85; }
     .hero-quote { text-align: center; margin: 10px 0 18px; }
     .hero-title { margin: 0 0 8px; font-size: clamp(30px, 5.5vw, 46px); font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
     .hero-title em { font-style: normal; background: linear-gradient(100deg, var(--primary), #4f8bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
@@ -849,7 +851,9 @@
 <body>
   <div class="wrap">
     <div class="hero-head">
-      <img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+      <a class="hero-logo-link" href="https://cvillegutterpros.com" target="_blank" rel="noopener">
+        <img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
+      </a>
       <p class="hero-phone">Prefer to talk? <a href="tel:+14344224700">Call/Text 434-422-4700</a></p>
     </div>
 
