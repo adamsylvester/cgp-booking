@@ -148,6 +148,35 @@ retry can't create a second client, quote, or job.
 
 ---
 
+## Line items
+
+Online bookings write the **same Products & Services the team uses by hand**, so
+they report identically. Each line passes `productOrServiceId`, which links it to
+the real record instead of creating a one-off name — the map lives in
+`JOBBER_SERVICES` at the top of `jobber_sync.gs`.
+
+| Plan chosen online | Line items written |
+|---|---|
+| Basic Cleaning | `Single Gutter Cleaning` × 1 @ base |
+| Basic + Seasonal Touch-Ups | `Single Gutter Cleaning` × 1 @ base, plus `Touch Ups Until October 31, 2026.` × 1 @ 50% of base |
+| Gutter Protection Plan | `Complete Gutter Protection Plan` × 4 @ base, plus `Free Cleaning Applied` × −1 @ base (nets to 3× base) |
+| Outside the service area | `Trip Fee` × 1 @ $50 |
+
+Two guardrails:
+
+- **The customer's total always wins.** The lines are summed (quantity ×
+  unit price) and compared to what Square actually charged. If they disagree by
+  more than 50¢, the whole set is discarded and one plain line at the real total
+  is written instead. A mapping bug can never change the amount owed.
+- **Lines are written non-taxable** (`JOBBER_LINE_TAXABLE`), even though every
+  saved service is flagged taxable, because the online prices are what Square
+  already collected. Flipping it would add tax on top and break that match.
+
+If a service is renamed or archived in Jobber, its ID keeps working; only update
+the `name` in `JOBBER_SERVICES` so the quote reads correctly.
+
+---
+
 ## Assumptions worth revisiting
 
 - **Plans are booked as one-off jobs.** The plan tier is recorded in the title,

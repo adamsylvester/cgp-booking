@@ -38,6 +38,47 @@ const SCHED = {
   timeZone: 'America/New_York',
 };
 
+// ===== Real Jobber Products & Services =====
+// Online bookings must land as the SAME line items the team builds by hand, so
+// they report identically. Each entry is a live Product/Service in the account
+// — passing productOrServiceId links the line to that record instead of
+// inventing a one-off name. Names are kept here only so the quote still reads
+// correctly if a service is ever renamed or archived in Jobber.
+const JOBBER_SERVICES = {
+  cleaning: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvOTM0MDczNA==',
+    name: 'Single Gutter Cleaning',
+  },
+  touchUps: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvNDY0OTMxOTE=',
+    name: 'Touch Ups Until October 31, 2026.',
+  },
+  protectionPlan: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvNDM4NDQxNjE=',
+    name: '\uD83C\uDF1F Complete Gutter Protection Plan - 2 years of service / 4 cleanings - Most Popular! \uD83C\uDFC6',
+  },
+  freeCleaning: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvNDQzODQ2OTI=',
+    name: 'Free Cleaning Applied',
+  },
+  tripFee: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvNTE1MzE4MTY=',
+    name: 'Trip Fee',
+  },
+};
+
+// The Gutter Protection Plan is priced as 4 cleanings with 1 credited back,
+// which is how Todd builds it by hand — and it nets to the funnel's 3x price.
+const GPP_CLEANINGS = 4;
+const GPP_FREE_CLEANINGS = 1;
+
+// Every saved Product/Service in the account is flagged taxable, but the funnel
+// has always written non-taxable lines and Square charged the customer the
+// pre-tax total. Flipping this to true would add tax on top and the Jobber
+// total would no longer match what was collected — so it stays false until the
+// online prices are meant to be tax-inclusive.
+const JOBBER_LINE_TAXABLE = false;
+
 // Jobber user IDs to auto-assign new online-booking jobs to.
 // Leave EMPTY to create the job unassigned (safest). Fill it once you decide
 // who owns online bookings: ['Z2lkOi8vSm9iYmVyL1VzZXIvMTIzNDU='].
@@ -388,6 +429,7 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
       instructions: jobberDetailsNote_(lead),
       lineItems: jobberLineItems_(lead).map(function (li) {
         return {
+          productOrServiceId: li.productOrServiceId || null,
           name: li.name, description: li.description, quantity: li.quantity,
           unitPrice: li.unitPrice, taxable: li.taxable,
           saveToProductsAndServices: false,
@@ -483,46 +525,77 @@ function jobberLineItems_(lead) {
   var base = Number(lead.base || 0);
   var total = Number(lead.total || 0);
   var fee = lead.outside ? OUTSIDE_AREA_FEE : 0;
-  var upgrade = total - fee - base;
   var code = jobberPlanCode_(lead.plan);
 
   var items = [];
-  if (base > 0) {
-    items.push({
-      name: 'Gutter Cleaning — ' + (lead.house || 'Home'),
+
+  if (code === 'protection') {
+    // 4 cleanings on the plan, 1 credited back — nets to 3x base, and matches
+    // the structure the team quotes by hand.
+    items.push(jobberServiceLine_(JOBBER_SERVICES.protectionPlan, {
+      quantity: GPP_CLEANINGS,
+      unitPrice: base,
+      description: 'Booked online. ' + GPP_CLEANINGS + ' cleanings over 24 months.'
+        + (jobberSizeNote_(lead) ? ' Home: ' + jobberSizeNote_(lead) + '.' : ''),
+    }));
+    items.push(jobberServiceLine_(JOBBER_SERVICES.freeCleaning, {
+      quantity: -GPP_FREE_CLEANINGS,
+      unitPrice: base,
+      description: 'Free cleaning credit applied at enrollment.',
+    }));
+  } else if (base > 0) {
+    items.push(jobberServiceLine_(JOBBER_SERVICES.cleaning, {
+      quantity: 1,
+      unitPrice: base,
       description: jobberSizeNote_(lead),
-      quantity: 1, unitPrice: base, taxable: false,
-      saveToProductsAndServices: false, category: 'SERVICE',
-    });
-  }
-  if (upgrade > 0) {
-    items.push({
-      name: code === 'protection' ? 'Gutter Protection Plan' : 'Seasonal Touch-Ups',
-      description: code === 'protection'
-        ? 'Full-season protection plan as chosen online.'
-        : 'Seasonal touch-up visits as chosen online.',
-      quantity: 1, unitPrice: upgrade, taxable: false,
-      saveToProductsAndServices: false, category: 'SERVICE',
-    });
-  }
-  if (fee > 0) {
-    items.push({
-      name: 'Travel fee', description: 'Outside the Charlottesville/Albemarle service area.',
-      quantity: 1, unitPrice: fee, taxable: false,
-      saveToProductsAndServices: false, category: 'SERVICE',
-    });
+    }));
+    if (code === 'simple') {
+      // Priced off the cleaning, exactly like the manual quotes.
+      var touchUps = total - fee - base;
+      if (touchUps > 0) {
+        items.push(jobberServiceLine_(JOBBER_SERVICES.touchUps, {
+          quantity: 1,
+          unitPrice: touchUps,
+          description: 'Unlimited touch-ups through Oct. 31, as chosen online.',
+        }));
+      }
+    }
   }
 
-  var sum = items.reduce(function (a, li) { return a + li.unitPrice; }, 0);
+  if (fee > 0) {
+    items.push(jobberServiceLine_(JOBBER_SERVICES.tripFee, {
+      quantity: 1,
+      unitPrice: fee,
+      description: 'Outside the Charlottesville/Albemarle service area.',
+    }));
+  }
+
+  // Never let a mapping bug change what the customer was charged. If the lines
+  // don't reconcile to the total, fall back to one plain line at the real price.
+  var sum = items.reduce(function (a, li) { return a + li.quantity * li.unitPrice; }, 0);
   if (!items.length || Math.abs(sum - total) > 0.5) {
     return [{
       name: jobberJobTitle_(lead),
       description: jobberDetailsNote_(lead),
-      quantity: 1, unitPrice: total, taxable: false,
+      quantity: 1, unitPrice: total, taxable: JOBBER_LINE_TAXABLE,
       saveToProductsAndServices: false, category: 'SERVICE',
     }];
   }
   return items;
+}
+
+// Builds one line item linked to a real Product/Service record.
+function jobberServiceLine_(service, opts) {
+  return {
+    productOrServiceId: service.id,
+    name: service.name,
+    description: opts.description || '',
+    quantity: opts.quantity,
+    unitPrice: opts.unitPrice,
+    taxable: JOBBER_LINE_TAXABLE,
+    saveToProductsAndServices: false,
+    category: 'SERVICE',
+  };
 }
 
 function jobberSizeNote_(lead) {
