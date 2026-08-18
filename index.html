@@ -1527,7 +1527,7 @@
 
       // "only $X today" nudge on the featured plan card.
       const featuredDeposit = Math.round((planTotal(base, 'simple') + fee) * PRICING.depositRate);
-      elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' today';
+      elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
 
       elements.payBarAmt.textContent = '$' + deposit;
       elements.payBarBtn.textContent = `Pay $${deposit} Deposit →`;
