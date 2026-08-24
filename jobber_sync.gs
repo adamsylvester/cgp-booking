@@ -479,18 +479,21 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
 }
 
 // ===========================================================================
-// DAILY SWEEP — paid bookings whose quote never became a job
+// DAILY SWEEP — paid bookings whose quote is still "Awaiting response"
 // ===========================================================================
-// A quote only leaves "Awaiting response" when a job is created FROM it —
-// which normally happens when the customer picks a slot in Calendly. If they
-// skip that step (close the tab, call the office instead), the quote sits in
-// "Awaiting response" forever, even though they already paid. This ran real:
-// quote #11145 (2026-08-24) — customer paid, office scheduled by phone and
-// typed a brand-new request, quote never converted.
+// A paid booking's quote SHOULD read Approved. Jobber's GraphQL API cannot set
+// that: there is no approve/accept/transition mutation, `quoteEdit` has no
+// status field, and `transitionQuoteTo` accepts only AWAITING_RESPONSE at
+// create time (verified against API versions 2025-01-20 and 2025-04-16, the
+// only two that exist). So approval has to be a human click — either the
+// office in Jobber, or the customer in their Client Hub.
 //
-// Runs from checkPendingPayments but does real work once a day. Emails the
-// office every PAID row older than ~a day that has a quote and no job, and
-// keeps nagging daily until each one is fixed.
+// This ran real: quote #11145 (2026-08-24) — customer paid, quote sat in
+// Awaiting response.
+//
+// Runs from checkPendingPayments but does real work once a day. It asks Jobber
+// for each paid quote's actual status and emails the office only the ones
+// still sitting in Awaiting response, with a one-click link to each.
 function jobberDailyStuckSweep_() {
   if (!jobberSyncEnabled_()) return;
   var props = PropertiesService.getScriptProperties();
@@ -505,43 +508,43 @@ function jobberDailyStuckSweep_() {
   var vals = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, JOBBER_LAST_COL).getValues();
   var now = new Date();
 
-  var stuck = [];
+  var candidates = [];
   vals.forEach(function (v, i) {
     if (String(v[COL.STATUS - 1]) !== STATUS.PAID) return;
     if (!String(v[JCOL.QUOTE - 1] || '')) return; // no quote = create failed; that already emailed
-    if (String(v[JCOL.JOB - 1] || '')) return;    // scheduled — healthy
     var paidAt = new Date(v[COL.PAID_AT - 1] || v[COL.TIMESTAMP - 1]);
-    if (isNaN(paidAt) || (now - paidAt) < 20 * 3600000) return; // give Calendly a day
-    stuck.push({ sheetRow: firstRow + i, lead: rowToLead(v), quoteId: String(v[JCOL.QUOTE - 1]), paidAt: paidAt });
+    if (isNaN(paidAt) || (now - paidAt) < 20 * 3600000) return; // give the office a day
+    candidates.push({ sheetRow: firstRow + i, lead: rowToLead(v), quoteId: String(v[JCOL.QUOTE - 1]), paidAt: paidAt });
   });
 
-  // The sheet only knows about jobs the funnel itself created. If the office
-  // already fixed one by hand (Convert to Job in the Jobber UI), learn that
-  // from Jobber and backfill the sheet instead of nagging about it — this also
-  // re-arms the webhook's "already scheduled" guard for that row.
-  stuck = stuck.filter(function (s) {
+  // Jobber, not the sheet, is the authority on whether a quote still needs a
+  // human. Anything already approved (or converted/archived) drops out, so the
+  // office is never nagged about a quote somebody already handled.
+  var stuck = candidates.filter(function (s) {
     try {
       var data = jobberGql_(
-        'query($id: EncodedId!) { quote(id: $id) { jobs { nodes { id jobNumber } } } }',
+        'query($id: EncodedId!) { quote(id: $id) { quoteStatus clientHubUri } }',
         { id: s.quoteId }
       );
-      var jobs = (data.quote && data.quote.jobs && data.quote.jobs.nodes) || [];
-      if (!jobs.length) return true;
-      sheet.getRange(s.sheetRow, JCOL.JOB).setValue(jobs[0].id);
-      sheet.getRange(s.sheetRow, JCOL.SYNC).setValue('✅ Scheduled outside the funnel — job #' + jobs[0].jobNumber);
-      return false;
+      var status = String(((data.quote || {}).quoteStatus) || '');
+      if (status && status !== 'awaiting_response' && status !== 'draft') {
+        sheet.getRange(s.sheetRow, JCOL.SYNC).setValue('✅ Quote ' + status.replace(/_/g, ' '));
+        return false;
+      }
+      s.clientHubUri = (data.quote || {}).clientHubUri || '';
+      return true;
     } catch (err) {
-      return true; // can't reach Jobber — keep the nag, it's the safe default
+      return false; // can't reach Jobber — stay quiet rather than cry wolf
     }
   });
   if (!stuck.length) return;
 
-  var inner = statusBanner('#f59e0b', '⏰ ' + stuck.length +
-    ' paid booking' + (stuck.length > 1 ? 's' : '') + ' still not on the Jobber calendar.') +
-    '<p style="margin:0 0 12px;line-height:1.5;">Each customer below paid their deposit but never picked a ' +
-    'time in Calendly, so their quote is stuck in <strong>Awaiting response</strong>. ' +
-    'Call them to set a date, then open the quote and use <strong>Convert to Job</strong> — ' +
-    'do <strong>not</strong> create a new request, or the quote stays stuck and the deposit note is lost.</p>';
+  var inner = statusBanner('#f59e0b', '⏰ ' + stuck.length + ' paid quote' +
+    (stuck.length > 1 ? 's are' : ' is') + ' still sitting in “Awaiting response”.') +
+    '<p style="margin:0 0 12px;line-height:1.5;">Each customer below already paid their deposit, so their ' +
+    'quote should read <strong>Approved</strong>. Jobber\'s API cannot set that status — it has to be a ' +
+    'click. Open each quote and mark it <strong>Approved</strong> (or send them the Client Hub link and let ' +
+    'them approve it themselves).</p>';
 
   stuck.forEach(function (s) {
     var link = jobberQuoteWebLink_(s.quoteId);
@@ -549,14 +552,15 @@ function jobberDailyStuckSweep_() {
       contactRows(s.lead.name, s.lead.phone, s.lead.email, s.lead.address) +
       row('Paid on', Utilities.formatDate(s.paidAt, SCHED.timeZone, 'EEE, MMM d h:mm a')) +
       row('Deposit / total', '$' + s.lead.deposit + ' / $' + s.lead.total) +
-      row('Quote', link ? '<a href="' + link + '">Open in Jobber</a>' : s.quoteId) +
+      row('Quote', link ? '<a href="' + link + '">Approve in Jobber</a>' : s.quoteId) +
+      (s.clientHubUri ? row('Client Hub', '<a href="' + s.clientHubUri + '">Customer approval link</a>') : '') +
       '</table>';
   });
 
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
     subject: '⏰ Paid online booking' + (stuck.length > 1 ? 's' : '') +
-             ' with no job scheduled — quote still “Awaiting response”',
+             ' — quote still “Awaiting response”, needs approving',
     htmlBody: emailShell(inner),
     from: FROM_ADDRESS,
     name: FROM_NAME,

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CGP — Pick Your Home (preview)</title>
+<style>
+  :root { --blue:#1d4ed8; --blue-soft:#eff4ff; --ink:#101828; --muted:#667085; --line:#e4e7ec; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; background:#f6f8fc; color:var(--ink); padding:40px 16px; }
+  .wrap { max-width:860px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 6px; text-align:center; }
+  .sub { text-align:center; color:var(--muted); margin:0 0 26px; font-size:15px; }
+  .houses { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media (max-width:620px){ .houses{ grid-template-columns:1fr; } }
+
+  .house-card { background:#fff; border:2px solid var(--line); border-radius:18px; padding:10px 10px 16px; cursor:pointer; text-align:center; transition:transform .15s ease,box-shadow .15s ease,border-color .15s ease; position:relative; user-select:none; overflow:hidden; }
+  .house-card:hover { transform:translateY(-4px); box-shadow:0 12px 24px rgba(16,24,40,.10); border-color:#c7d4f7; }
+  .house-card.selected { border-color:var(--blue); box-shadow:0 10px 22px rgba(29,78,216,.18); background:var(--blue-soft); }
+
+  .img-frame { aspect-ratio:4/3; border-radius:12px; overflow:hidden; background:#eef2f7; }
+  .img-frame img { width:100%; height:100%; object-fit:cover; object-position:center 55%; display:block; transition:transform .2s ease; }
+  .house-card:hover .img-frame img { transform:scale(1.04); }
+
+  .house-name { font-weight:700; font-size:15px; margin-top:10px; }
+  .house-desc { font-size:12.5px; color:var(--muted); margin-top:3px; line-height:1.4; min-height:34px; }
+  .house-price { font-weight:800; font-size:17px; color:var(--blue); margin-top:8px; }
+  .check { position:absolute; top:14px; right:14px; width:26px; height:26px; border-radius:50%; background:var(--blue); color:#fff; display:none; align-items:center; justify-content:center; font-size:15px; font-weight:700; box-shadow:0 2px 6px rgba(29,78,216,.4); z-index:2; }
+  .house-card.selected .check { display:flex; }
+
+  .result { margin-top:28px; text-align:center; background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; }
+  .result .label { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.06em; }
+  .result .big { font-size:36px; font-weight:800; margin-top:4px; }
+  .result .hint { color:var(--muted); font-size:13px; margin-top:6px; }
+  .note { margin-top:22px; font-size:12.5px; color:var(--muted); text-align:center; line-height:1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Which home looks most like yours?</h1>
+  <p class="sub">Tap the closest match — we'll price it instantly.</p>
+
+  <div class="houses" id="houses">
+
+    <div class="house-card" data-key="simple" data-price="149">
+      <div class="check">✓</div>
+      <div class="img-frame"><img src="house-simple.png" alt="Simple brick colonial home" /></div>
+      <div class="house-name">Simple</div>
+      <div class="house-desc">Classic 2-story with one main roofline</div>
+      <div class="house-price">$149</div>
+    </div>
+
+    <div class="house-card" data-key="standard" data-price="199">
+      <div class="check">✓</div>
+      <div class="img-frame"><img src="house-standard.png" alt="Standard home with front porch and gable" /></div>
+      <div class="house-name">Standard</div>
+      <div class="house-desc">Porch &amp; a couple extra rooflines</div>
+      <div class="house-price">$199</div>
+    </div>
+
+    <div class="house-card" data-key="complex" data-price="269">
+      <div class="check">✓</div>
+      <div class="img-frame"><img src="house-complex.png" alt="Large home with multiple gables and dormers" /></div>
+      <div class="house-name">Complex</div>
+      <div class="house-desc">Multiple gables, dormers &amp; wings</div>
+      <div class="house-price">$269</div>
+    </div>
+
+  </div>
+
+  <div class="result">
+    <div class="label">Your instant price</div>
+    <div class="big" id="priceOut">—</div>
+    <div class="hint" id="hintOut">Pick the home above that's closest to yours</div>
+  </div>
+
+  <p class="note">
+    Preview only — your real artwork, framed uniformly. Prices ($149 / $199 / $269) are placeholders;
+    tell me the real numbers and I'll set them.
+  </p>
+</div>
+
+<script>
+  const cards = document.querySelectorAll('.house-card');
+  const priceOut = document.getElementById('priceOut');
+  const hintOut = document.getElementById('hintOut');
+  cards.forEach(card => {
+    card.addEventListener('click', () => {
+      cards.forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      priceOut.textContent = '$' + card.dataset.price;
+      hintOut.textContent = card.querySelector('.house-name').textContent + ' selected — a $25 deposit holds your spot.';
+    });
+  });
+</script>
+</body>
+</html>

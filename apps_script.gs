@@ -547,8 +547,8 @@ function sendPaidEmail(lead, receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
   inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re being sent to Calendly to pick their date — watch for the calendar invite. ' +
-           'If you schedule this one by phone instead, open the quote in Jobber and use <strong>Convert to Job</strong> — ' +
-           'don\'t create a new request, or the quote will sit in “Awaiting response” forever.</p>';
+           'They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — ' +
+           'the API can\'t set that status, so it stays “Awaiting response” until someone clicks it.</p>';
   inner += metaFooter(lead);
 
   MailApp.sendEmail({

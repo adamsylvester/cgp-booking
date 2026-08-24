@@ -134,32 +134,39 @@ emails on failure.
 
 ---
 
-## When the customer skips the Calendly step
+## Approving a paid quote — the API cannot do it
 
-The quote only leaves **Awaiting response** when a job is created *from* it —
-the API has no "approve quote" mutation, so conversion-by-job is the only
-lever. Normally the Calendly webhook does this. If the customer never picks a
-slot (closes the tab, calls the office instead), the quote sits in Awaiting
-response even though they paid.
+A paid booking's quote should read **Approved**. **Jobber's GraphQL API has no
+way to set that**, verified by schema introspection against both API versions
+that exist (2025-01-20 and 2025-04-16):
 
-Happened for real with quote #11145 (2026-08-24): customer paid at 2:59pm,
-office scheduled by phone at 3:08pm and typed a **new request** — so the quote
-never converted and the deposit note wasn't on the job.
+- The only quote mutations are `quoteCreate`, `quoteEdit`, the line-item and
+  note ones. None touch status.
+- `QuoteEditAttributes` has no status field.
+- `transitionQuoteTo` on create accepts exactly one value: `AWAITING_RESPONSE`.
+- `approved` is a real value of `QuoteStatusTypeEnum` — it just isn't settable.
 
-Two defenses now exist:
+So approval must be a human click, by one of two people:
 
-- **The office rule** (also printed in every PAID email): if you schedule by
-  phone, open the quote and **Convert to Job**. Never create a new request for
-  a paid online booking.
-- **Daily sweep** — `jobberDailyStuckSweep_` piggybacks on the payment checker
-  (no extra trigger needed) and emails the office once a day listing every
-  PAID row older than ~a day that has a quote but no job, with a direct link
-  to each stuck quote. It keeps nagging daily until the row gets a job.
+- **The office**, on the quote in Jobber (`jobberWebUri`).
+- **The customer**, in their Client Hub — every quote exposes a `clientHubUri`
+  where they can approve it themselves. Worth considering for the funnel: send
+  the buyer there after payment instead of relying on the office.
 
-The sweep is self-healing: before nagging, it asks Jobber whether each stuck
-quote already has a job (e.g. the office did Convert to Job by hand). If so, it
-backfills the sheet's "Jobber job" column itself and stays quiet — which also
-re-arms the Calendly webhook's "already scheduled" guard for that row.
+Note that *converting a quote to a job* also moves it out of Awaiting response
+(to `converted`), but that schedules work — it is not a substitute for
+approving, and shouldn't be used as one.
+
+**Daily sweep** — `jobberDailyStuckSweep_` piggybacks on the payment checker
+(no extra trigger needed). Once a day it asks Jobber for the real status of
+every paid quote older than ~a day and emails the office only those still in
+Awaiting response, with both an "Approve in Jobber" link and the customer's
+Client Hub link. Anything already approved, converted or archived drops out
+silently and is written back to the sheet's "Jobber sync" column, so nobody is
+nagged about a quote somebody already handled.
+
+Happened for real with quote #11145 (2026-08-24): customer paid at 2:59pm and
+the quote sat in Awaiting response.
 
 ---
 
