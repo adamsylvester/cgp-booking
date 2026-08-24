@@ -297,6 +297,13 @@ function toE164(raw) {
 // or to Abandoned after ABANDONED_AFTER_MIN minutes — each with an instant email.
 
 function checkPendingPayments() {
+  // Once a day, nag the office about paid bookings whose quote never became a
+  // job (customer skipped Calendly). Lives in jobber_sync.gs; the typeof guard
+  // keeps this file working if that file is ever removed.
+  if (typeof jobberDailyStuckSweep_ === 'function') {
+    try { jobberDailyStuckSweep_(); } catch (e) { /* never block payments */ }
+  }
+
   var token = PropertiesService.getScriptProperties().getProperty('SQUARE_ACCESS_TOKEN');
   if (!token) return;
 
@@ -539,7 +546,9 @@ function sendPaidEmail(lead, receiptUrl) {
   if (receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
-  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re being sent to Calendly to pick their date — watch for the calendar invite.</p>';
+  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re being sent to Calendly to pick their date — watch for the calendar invite. ' +
+           'If you schedule this one by phone instead, open the quote in Jobber and use <strong>Convert to Job</strong> — ' +
+           'don\'t create a new request, or the quote will sit in “Awaiting response” forever.</p>';
   inner += metaFooter(lead);
 
   MailApp.sendEmail({

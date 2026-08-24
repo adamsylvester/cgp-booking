@@ -479,6 +479,103 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
 }
 
 // ===========================================================================
+// DAILY SWEEP — paid bookings whose quote never became a job
+// ===========================================================================
+// A quote only leaves "Awaiting response" when a job is created FROM it —
+// which normally happens when the customer picks a slot in Calendly. If they
+// skip that step (close the tab, call the office instead), the quote sits in
+// "Awaiting response" forever, even though they already paid. This ran real:
+// quote #11145 (2026-08-24) — customer paid, office scheduled by phone and
+// typed a brand-new request, quote never converted.
+//
+// Runs from checkPendingPayments but does real work once a day. Emails the
+// office every PAID row older than ~a day that has a quote and no job, and
+// keeps nagging daily until each one is fixed.
+function jobberDailyStuckSweep_() {
+  if (!jobberSyncEnabled_()) return;
+  var props = PropertiesService.getScriptProperties();
+  var today = Utilities.formatDate(new Date(), SCHED.timeZone, 'yyyy-MM-dd');
+  if (props.getProperty('JOBBER_SWEEP_LAST') === today) return;
+  props.setProperty('JOBBER_SWEEP_LAST', today);
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var firstRow = Math.max(2, lastRow - 299);
+  var vals = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, JOBBER_LAST_COL).getValues();
+  var now = new Date();
+
+  var stuck = [];
+  vals.forEach(function (v, i) {
+    if (String(v[COL.STATUS - 1]) !== STATUS.PAID) return;
+    if (!String(v[JCOL.QUOTE - 1] || '')) return; // no quote = create failed; that already emailed
+    if (String(v[JCOL.JOB - 1] || '')) return;    // scheduled — healthy
+    var paidAt = new Date(v[COL.PAID_AT - 1] || v[COL.TIMESTAMP - 1]);
+    if (isNaN(paidAt) || (now - paidAt) < 20 * 3600000) return; // give Calendly a day
+    stuck.push({ sheetRow: firstRow + i, lead: rowToLead(v), quoteId: String(v[JCOL.QUOTE - 1]), paidAt: paidAt });
+  });
+
+  // The sheet only knows about jobs the funnel itself created. If the office
+  // already fixed one by hand (Convert to Job in the Jobber UI), learn that
+  // from Jobber and backfill the sheet instead of nagging about it — this also
+  // re-arms the webhook's "already scheduled" guard for that row.
+  stuck = stuck.filter(function (s) {
+    try {
+      var data = jobberGql_(
+        'query($id: EncodedId!) { quote(id: $id) { jobs { nodes { id jobNumber } } } }',
+        { id: s.quoteId }
+      );
+      var jobs = (data.quote && data.quote.jobs && data.quote.jobs.nodes) || [];
+      if (!jobs.length) return true;
+      sheet.getRange(s.sheetRow, JCOL.JOB).setValue(jobs[0].id);
+      sheet.getRange(s.sheetRow, JCOL.SYNC).setValue('✅ Scheduled outside the funnel — job #' + jobs[0].jobNumber);
+      return false;
+    } catch (err) {
+      return true; // can't reach Jobber — keep the nag, it's the safe default
+    }
+  });
+  if (!stuck.length) return;
+
+  var inner = statusBanner('#f59e0b', '⏰ ' + stuck.length +
+    ' paid booking' + (stuck.length > 1 ? 's' : '') + ' still not on the Jobber calendar.') +
+    '<p style="margin:0 0 12px;line-height:1.5;">Each customer below paid their deposit but never picked a ' +
+    'time in Calendly, so their quote is stuck in <strong>Awaiting response</strong>. ' +
+    'Call them to set a date, then open the quote and use <strong>Convert to Job</strong> — ' +
+    'do <strong>not</strong> create a new request, or the quote stays stuck and the deposit note is lost.</p>';
+
+  stuck.forEach(function (s) {
+    var link = jobberQuoteWebLink_(s.quoteId);
+    inner += '<table style="border-collapse:collapse;width:100%;margin-top:10px;">' +
+      contactRows(s.lead.name, s.lead.phone, s.lead.email, s.lead.address) +
+      row('Paid on', Utilities.formatDate(s.paidAt, SCHED.timeZone, 'EEE, MMM d h:mm a')) +
+      row('Deposit / total', '$' + s.lead.deposit + ' / $' + s.lead.total) +
+      row('Quote', link ? '<a href="' + link + '">Open in Jobber</a>' : s.quoteId) +
+      '</table>';
+  });
+
+  MailApp.sendEmail({
+    to: NOTIFICATION_EMAIL,
+    subject: '⏰ Paid online booking' + (stuck.length > 1 ? 's' : '') +
+             ' with no job scheduled — quote still “Awaiting response”',
+    htmlBody: emailShell(inner),
+    from: FROM_ADDRESS,
+    name: FROM_NAME,
+  });
+}
+
+// "Z2lkOi8vSm9iYmVyL1F1b3RlLzY0NTE2NjA4" decodes to gid://Jobber/Quote/64516608,
+// whose trailing number is the web URL id.
+function jobberQuoteWebLink_(encodedId) {
+  try {
+    var decoded = Utilities.newBlob(Utilities.base64Decode(encodedId)).getDataAsString();
+    var num = decoded.split('/').pop();
+    return /^\d+$/.test(num) ? 'https://secure.getjobber.com/quotes/' + num : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+// ===========================================================================
 // SHARED HELPERS
 // ===========================================================================
 

@@ -134,6 +134,35 @@ emails on failure.
 
 ---
 
+## When the customer skips the Calendly step
+
+The quote only leaves **Awaiting response** when a job is created *from* it —
+the API has no "approve quote" mutation, so conversion-by-job is the only
+lever. Normally the Calendly webhook does this. If the customer never picks a
+slot (closes the tab, calls the office instead), the quote sits in Awaiting
+response even though they paid.
+
+Happened for real with quote #11145 (2026-08-24): customer paid at 2:59pm,
+office scheduled by phone at 3:08pm and typed a **new request** — so the quote
+never converted and the deposit note wasn't on the job.
+
+Two defenses now exist:
+
+- **The office rule** (also printed in every PAID email): if you schedule by
+  phone, open the quote and **Convert to Job**. Never create a new request for
+  a paid online booking.
+- **Daily sweep** — `jobberDailyStuckSweep_` piggybacks on the payment checker
+  (no extra trigger needed) and emails the office once a day listing every
+  PAID row older than ~a day that has a quote but no job, with a direct link
+  to each stuck quote. It keeps nagging daily until the row gets a job.
+
+The sweep is self-healing: before nagging, it asks Jobber whether each stuck
+quote already has a job (e.g. the office did Convert to Job by hand). If so, it
+backfills the sheet's "Jobber job" column itself and stays quiet — which also
+re-arms the Calendly webhook's "already scheduled" guard for that row.
+
+---
+
 ## When something breaks
 
 Failures never block payment. The deposit is collected either way, and:
