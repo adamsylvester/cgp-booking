@@ -146,12 +146,26 @@ that exist (2025-01-20 and 2025-04-16):
 - `transitionQuoteTo` on create accepts exactly one value: `AWAITING_RESPONSE`.
 - `approved` is a real value of `QuoteStatusTypeEnum` — it just isn't settable.
 
+This is deliberate, not an oversight: **approving a quote is a signature
+event.** The client clicks Approve in Client Hub and then signs by drawing or
+typing their name; staff can bypass that with More > Approved for verbal
+approvals. An approved quote is a signed agreement, so Jobber won't let an API
+assert that consent on the customer's behalf. Independently corroborated:
+Zapier exposes "Quote Approved" as a *trigger* but has no action to approve a
+quote or change its status.
+
 So approval must be a human click, by one of two people:
 
-- **The office**, on the quote in Jobber (`jobberWebUri`).
+- **The office** — More > Approved on the quote (`jobberWebUri`).
 - **The customer**, in their Client Hub — every quote exposes a `clientHubUri`
-  where they can approve it themselves. Worth considering for the funnel: send
-  the buyer there after payment instead of relying on the office.
+  where they approve and sign. Worth considering for the funnel: send the buyer
+  there after payment instead of relying on the office.
+
+Client Hub also offers **"Approve and Pay Deposit"**, a single flow that both
+approves the quote and records the deposit *natively in Jobber* — which would
+also retire the manual deposit-application step below. Adopting it would mean
+collecting the deposit in Jobber rather than Square, which is a business
+decision, not a code change.
 
 Note that *converting a quote to a job* also moves it out of Awaiting response
 (to `converted`), but that schedules work — it is not a substitute for
