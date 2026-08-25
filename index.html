@@ -714,18 +714,6 @@
       }
     }
 
-    .top-options {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      align-items: stretch;
-      margin-bottom: 22px;
-    }
-
-    @media (max-width: 900px) {
-      .top-options { grid-template-columns: 1fr; }
-    }
-
     /* ===== Centered hero header ===== */
     .hero-head { text-align: center; margin: 6px 0 18px; }
     .hero-logo-link { display: inline-block; margin-bottom: 8px; }
@@ -738,8 +726,6 @@
     .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
     .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
     .hero-phone a:hover { text-decoration: underline; }
-    .chooser-title { margin: 0 0 6px; text-align: center; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
-    .chooser-sub { margin: 0 0 18px; text-align: center; font-size: 14.5px; line-height: 1.45; color: var(--text-muted); }
     /* ===== Progress rail (quote flow) ===== */
     .rail { display: flex; justify-content: center; gap: 6px; margin: 0 0 18px; flex-wrap: wrap; }
     .rail .seg { display: flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--text-muted); background: #fff; border: 1.5px solid var(--border); padding: 8px 15px; border-radius: 999px; transition: all .2s ease; }
@@ -785,46 +771,40 @@
       50% { transform: translateY(10px); }
     }
 
-    .callback-panel,
-    .assessment-panel {
-      position: relative;
-      overflow: hidden;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      box-shadow: var(--shadow-lg);
-      padding: 28px;
-      transition: transform .18s ease, box-shadow .18s ease;
-    }
-    .callback-panel:hover,
-    .assessment-panel:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 24px 60px rgba(29, 78, 216, 0.16);
-    }
-    /* Colored accent bar across the top of each white tile. */
-    .callback-panel::before,
-    .assessment-panel::before {
-      content: "";
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 5px;
-    }
-    .callback-panel::before { background: linear-gradient(100deg, #16a34a, #4ade80); }
-    .assessment-panel::before { background: linear-gradient(100deg, var(--primary), #4f8bff); }
-
-    .callback-panel h2,
-    .assessment-panel h2 {
-      margin: 0 0 16px;
-      font-size: 22px;
-      line-height: 1.3;
-      text-align: center;
-      letter-spacing: -0.02em;
-      color: var(--text);
-    }
 
     .calendly-inline-widget { border-radius: 8px; overflow: hidden; }
 
-    .panel-sub { margin: -8px 0 16px; text-align: center; font-size: 14px; line-height: 1.45; color: var(--text-muted); }
+    /* Subtle exits to the other two paths, directly under the hero. */
+    .alt-paths { margin: 0 0 18px; text-align: center; font-size: 14px; color: var(--text-subtle); }
+    .alt-paths a { color: var(--text-subtle); font-weight: 500; text-decoration: underline;
+                   text-underline-offset: 3px; text-decoration-color: #d7dde5; }
+    .alt-paths a:hover { color: var(--primary); text-decoration-color: currentColor; }
+    .alt-dot { margin: 0 6px; color: #cbd5e1; }
+
+    /* ===== "Rather not book online?" — collapsed, lazy-loaded ===== */
+    .other-ways { max-width: 640px; margin: 34px auto 8px; }
+    .other-ways-h { margin: 0 0 4px; text-align: center; font-size: 19px; font-weight: 800;
+                    letter-spacing: -0.02em; color: var(--text); }
+    .other-ways-sub { margin: 0 0 16px; text-align: center; font-size: 14px; color: var(--text-muted); }
+    .other-ways-sub a { color: var(--primary); font-weight: 700; text-decoration: none; white-space: nowrap; }
+    .ow-item { border: 1.5px solid var(--border); border-radius: 14px; background: #fff;
+               margin-bottom: 10px; overflow: hidden; }
+    .ow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between;
+                 gap: 14px; padding: 16px 18px; background: none; border: 0; cursor: pointer;
+                 text-align: left; font: inherit; color: var(--text); }
+    .ow-toggle:hover { background: #f8fafc; }
+    .ow-label { display: flex; flex-direction: column; gap: 2px; }
+    .ow-label strong { font-size: 15.5px; font-weight: 800; letter-spacing: -0.01em; }
+    .ow-hint { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .ow-chev { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: #eef2f7;
+               color: var(--text-muted); font-size: 17px; font-weight: 700; line-height: 26px;
+               text-align: center; transition: transform .2s ease, background .2s ease, color .2s ease; }
+    .ow-toggle[aria-expanded="true"] .ow-chev { transform: rotate(45deg); background: var(--primary); color: #fff; }
+    /* Contain any stubbornly wide embed (Calendly hard-codes min-width:320px)
+       so it scrolls inside its own card instead of the whole page. */
+    .ow-body { padding: 0 14px 16px; overflow-x: auto; }
+    .ow-body[hidden] { display: none; }
+    @media (max-width: 420px) { .ow-body { padding: 0 8px 14px; } }
 
     .callback-iframe-wrap {
       width: 100%;
@@ -840,12 +820,6 @@
       display: block;
     }
 
-    @media (max-width: 520px) {
-      .callback-panel,
-      .assessment-panel { padding: 20px; }
-      .callback-panel h2,
-      .assessment-panel h2 { font-size: 19px; }
-    }
   </style>
 </head>
 <body>
@@ -857,55 +831,8 @@
       <p class="hero-phone">Prefer to talk? <a href="tel:+14344224700">Call/Text 434-422-4700</a></p>
     </div>
 
-    <h1 class="chooser-title">How would you like to get started?</h1>
-    <p class="chooser-sub">Fill out a quick form for a callback, schedule an appointment for a repair, or purchase a gutter cleaning service.</p>
-
-    <div class="top-options">
-    <!-- Path 1: quick callback (LeadConnector form). -->
-    <section class="callback-panel">
-      <h2>Request a Callback</h2>
-      <p class="panel-sub">Best if you're in a hurry now but want to take care of the gutters later.</p>
-      <div class="callback-iframe-wrap">
-        <iframe
-          src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
-          style="width:100%;height:100%;border:none;border-radius:4px"
-          id="inline-x37UvG0xSxSkPto8JMce"
-          data-layout="{'id':'INLINE'}"
-          data-trigger-type="alwaysShow"
-          data-trigger-value=""
-          data-activation-type="alwaysActivated"
-          data-activation-value=""
-          data-deactivation-type="neverDeactivate"
-          data-deactivation-value=""
-          data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
-          data-height="undefined"
-          data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
-          data-form-id="x37UvG0xSxSkPto8JMce"
-          title="Gutter Cleaning Booking Form Lead - LIVE">
-        </iframe>
-      </div>
-    </section>
-
-    <!-- Path 2: schedule a gutter assessment (Calendly). -->
-    <section class="assessment-panel">
-      <h2>Book an Assessment</h2>
-      <p class="panel-sub">Best if you have a known gutter issue you want to fix.</p>
-      <!-- Calendly inline widget begin -->
-      <div class="calendly-inline-widget" data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1" style="min-width:320px;height:350px;"></div>
-      <script type="text/javascript" src="https://assets.calendly.com/assets/external/widget.js" async></script>
-      <!-- Calendly inline widget end -->
-    </section>
-
-    <!-- Path 3: instant quote (reveals the full quote flow when clicked). -->
-    <button class="quote-tile" id="quoteTile" type="button">
-      <span class="tile-badge">⚡ Instant Quote</span>
-      <h2>Schedule Gutter Cleaning</h2>
-      <p class="panel-sub">Best if you just need to get your gutters cleaned.</p>
-      <img class="quote-tile-icon" src="gutter-cleaning-icon.png" alt="Gutter cleaning" />
-      <p class="quote-tile-text">Answer a few questions and then checkout in 2 minutes.</p>
-      <span class="quote-tile-cta">Quote ➡ Pay ➡ Schedule</span>
-    </button>
-    </div>
+    <!-- Gutter cleaning is ~all of the volume on this page, so the quote flow
+         is the page. The other two paths live below, behind subtle links. -->
 
     <style>
       /* ===== Step 1: "which home looks like yours" picker ===== */
@@ -936,20 +863,6 @@
       #bookingCard[hidden] { display:none; }
       #bookingCard { animation: cgpReveal .35s ease; }
       @keyframes cgpReveal { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-      /* Third tile: gradient hero card (portal-style) that reveals the quote flow */
-      .quote-tile { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:12px; text-align:center; cursor:pointer;
-        background: radial-gradient(circle at top right, rgba(147,197,253,.4), transparent 40%),
-                    linear-gradient(135deg, #1536a0 0%, #2f66e0 100%);
-        border:none; border-radius:var(--radius-xl); box-shadow:0 18px 50px rgba(29,78,216,.3); padding:32px 28px 28px; font:inherit; color:#fff; transition:box-shadow .18s ease, transform .18s ease; }
-      .quote-tile:hover { box-shadow:0 26px 60px rgba(29,78,216,.4); transform:translateY(-4px); }
-      .tile-badge { position:absolute; top:-11px; left:50%; transform:translateX(-50%); background:linear-gradient(100deg,#f59e0b,#fbbf24); color:#451a03; font-size:10.5px; font-weight:900; letter-spacing:.05em; padding:4px 12px; border-radius:999px; text-transform:uppercase; white-space:nowrap; }
-      .quote-tile-icon { display:block; width:110px; height:auto; background:#fff; border-radius:18px; padding:10px; box-shadow:0 10px 24px rgba(0,0,0,.22); }
-      .quote-tile h2 { margin:0; font-size:22px; line-height:1.3; letter-spacing:-0.02em; color:#fff; }
-      .quote-tile-text { font-size:15px; color:rgba(255,255,255,.88); margin:0; line-height:1.45; max-width:240px; }
-      .quote-tile .panel-sub { margin:0; max-width:240px; color:rgba(255,255,255,.82); }
-      .quote-tile-cta { display:inline-block; margin-top:4px; padding:13px 24px; border-radius:999px; background:#fff; color:var(--primary-dark); font-size:15px; font-weight:800; box-shadow:0 8px 20px rgba(0,0,0,.2); transition:transform .15s ease; }
-      .quote-tile:hover .quote-tile-cta { transform:scale(1.04); }
-      .quote-tile.active { box-shadow:0 0 0 3px rgba(147,197,253,.65), 0 18px 50px rgba(29,78,216,.35); }
       .quote-reveal[hidden] { display:none; }
       .quote-reveal { animation:cgpReveal .35s ease; }
       @media (max-width:420px) { .house-opt-desc { font-size:11px; } }
@@ -1057,11 +970,16 @@
       .paybar .paybar-go:active { transform:translateY(1px); }
     </style>
 
-    <div class="quote-reveal" id="quoteReveal" hidden>
+    <div class="quote-reveal" id="quoteReveal">
     <div class="hero-quote">
-      <h2 class="hero-title">Your price in <em>10 seconds.</em></h2>
+      <h1 class="hero-title">Gutter cleaning &mdash; your price in <em>10 seconds.</em></h1>
       <p class="hero-sub">Instant quote · 25% deposit · pick your date online</p>
     </div>
+    <p class="alt-paths">
+      Not ready to book? <a href="#other-ways" data-jump>Request a callback</a>
+      <span class="alt-dot">·</span>
+      <a href="#other-ways" data-jump>Book an assessment</a>
+    </p>
     <div class="rail">
       <span class="seg on">1 · Home</span>
       <span class="seg" id="railPlan">2 · Plan</span>
@@ -1314,6 +1232,57 @@
         </div>
       </div>
     </div>
+
+    <!-- The other two paths. Kept below the fold and behind a click so their
+         third-party iframes don't compete with (or slow down) the quote flow —
+         both load lazily the first time someone opens one. -->
+    <section class="other-ways" id="other-ways">
+      <h2 class="other-ways-h">Rather not book online?</h2>
+      <p class="other-ways-sub">Two other ways to reach us &mdash; or just call/text
+        <a href="tel:+14344224700">434-422-4700</a>.</p>
+
+      <div class="ow-item">
+        <button class="ow-toggle" type="button" data-panel="owCallback" aria-expanded="false" aria-controls="owCallback">
+          <span class="ow-label"><strong>Request a Callback</strong>
+            <span class="ow-hint">In a hurry now, gutters later.</span></span>
+          <span class="ow-chev" aria-hidden="true">+</span>
+        </button>
+        <div class="ow-body" id="owCallback" hidden>
+          <div class="callback-iframe-wrap">
+            <iframe
+              data-src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
+              style="width:100%;height:100%;border:none;border-radius:4px"
+              id="inline-x37UvG0xSxSkPto8JMce"
+              data-layout="{'id':'INLINE'}"
+              data-trigger-type="alwaysShow"
+              data-trigger-value=""
+              data-activation-type="alwaysActivated"
+              data-activation-value=""
+              data-deactivation-type="neverDeactivate"
+              data-deactivation-value=""
+              data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
+              data-height="undefined"
+              data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
+              data-form-id="x37UvG0xSxSkPto8JMce"
+              title="Gutter Cleaning Booking Form Lead - LIVE">
+            </iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="ow-item">
+        <button class="ow-toggle" type="button" data-panel="owAssess" aria-expanded="false" aria-controls="owAssess">
+          <span class="ow-label"><strong>Book an Assessment</strong>
+            <span class="ow-hint">A known gutter problem to look at.</span></span>
+          <span class="ow-chev" aria-hidden="true">+</span>
+        </button>
+        <div class="ow-body" id="owAssess" hidden>
+          <div class="calendly-inline-widget"
+               data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1"
+               style="min-width:320px;height:350px;"></div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <script>
@@ -1892,15 +1861,53 @@
     console.assert(/^2[234]\d{3}$/.test('90210') === false, 'far ZIP is unserved');
   </script>
 
+
   <script>
+    // The two secondary paths. Their iframes are inert (data-src / no Calendly
+    // script) until first opened, so neither third party blocks the quote flow.
     (function () {
-      var tile = document.getElementById('quoteTile');
-      var reveal = document.getElementById('quoteReveal');
-      if (!tile || !reveal) return;
-      tile.addEventListener('click', function () {
-        reveal.hidden = false;
-        tile.classList.add('active');
-        reveal.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      var calendlyLoaded = false;
+
+      function loadCalendly() {
+        if (calendlyLoaded) return;
+        calendlyLoaded = true;
+        var s = document.createElement('script');
+        s.src = 'https://assets.calendly.com/assets/external/widget.js';
+        s.async = true;
+        document.head.appendChild(s);   // widget.js initialises .calendly-inline-widget on load
+      }
+
+      function open_(btn) {
+        var body = document.getElementById(btn.getAttribute('data-panel'));
+        if (!body) return;
+        body.hidden = false;
+        btn.setAttribute('aria-expanded', 'true');
+        var frame = body.querySelector('iframe[data-src]');
+        if (frame) { frame.src = frame.getAttribute('data-src'); frame.removeAttribute('data-src'); }
+        if (body.querySelector('.calendly-inline-widget')) loadCalendly();
+      }
+
+      Array.prototype.forEach.call(document.querySelectorAll('.ow-toggle'), function (btn) {
+        btn.addEventListener('click', function () {
+          var body = document.getElementById(btn.getAttribute('data-panel'));
+          if (body && !body.hidden) {
+            body.hidden = true;
+            btn.setAttribute('aria-expanded', 'false');
+          } else {
+            open_(btn);
+          }
+        });
+      });
+
+      // The subtle hero links scroll down AND open the first option for them.
+      Array.prototype.forEach.call(document.querySelectorAll('.alt-paths a[data-jump]'), function (link, i) {
+        link.addEventListener('click', function (e) {
+          e.preventDefault();
+          var section = document.getElementById('other-ways');
+          var btn = document.querySelectorAll('.ow-toggle')[i] || null;
+          if (btn && document.getElementById(btn.getAttribute('data-panel')).hidden) open_(btn);
+          if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
       });
     })();
   </script>
