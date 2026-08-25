@@ -1928,6 +1928,113 @@
     })();
   </script>
 
+  <script>
+    // ===== Funnel analytics =====
+    // Answers the question the leads sheet can't: of everyone who lands here,
+    // how far do they get before they leave? A row only reaches the leads sheet
+    // at checkout, so everything above that was previously invisible.
+    //
+    // Written as INDEPENDENT listeners on purpose — it observes the booking
+    // flow from the outside and never calls into it, so a bug in here cannot
+    // affect pricing, validation or payment. Every send is fire-and-forget.
+    (function () {
+      if (!window.APPS_SCRIPT_URL_FOR_EVENTS && typeof APPS_SCRIPT_URL === 'undefined') return;
+      var ENDPOINT = (typeof APPS_SCRIPT_URL !== 'undefined') ? APPS_SCRIPT_URL : window.APPS_SCRIPT_URL_FOR_EVENTS;
+      if (!ENDPOINT || ENDPOINT.indexOf('PASTE_') === 0) return;
+
+      // One id per visit (not per person) so a journey can be stitched together
+      // without storing anything identifying.
+      var session;
+      try {
+        session = sessionStorage.getItem('cgp_sid');
+        if (!session) {
+          session = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          sessionStorage.setItem('cgp_sid', session);
+        }
+      } catch (e) { session = 'nostorage'; }
+
+      var device = matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop';
+      var fired = {};
+
+      function send(event, extra) {
+        var payload = {
+          action: 'event', event: event, session: session, device: device,
+          page: location.pathname + location.search, referrer: document.referrer || '',
+        };
+        if (extra) for (var k in extra) if (extra[k] !== undefined) payload[k] = extra[k];
+        try {
+          var blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
+          if (!navigator.sendBeacon(ENDPOINT, blob)) {
+            fetch(ENDPOINT, { method: 'POST', body: JSON.stringify(payload),
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' }, keepalive: true }).catch(function () {});
+          }
+        } catch (e) { /* analytics must never surface to the customer */ }
+      }
+      function once(event, extra) { if (fired[event]) return; fired[event] = 1; send(event, extra); }
+      window.cgpTrack = send;   // so thanks.html-style pages can reuse it
+
+      send('page_view');
+
+      // 1. Picked a house — the first real signal of intent.
+      var grid = document.getElementById('houseGrid');
+      if (grid) grid.addEventListener('click', function (ev) {
+        var opt = ev.target.closest ? ev.target.closest('.house-opt') : null;
+        if (opt) once('quote_started', { house: opt.dataset.house || '' });
+      });
+
+      // 2. A real price appeared. Watched rather than hooked, so the pricing
+      //    code stays untouched.
+      var priceEl = document.getElementById('price');
+      if (priceEl && window.MutationObserver) {
+        new MutationObserver(function () {
+          var t = (priceEl.innerText || '').trim();
+          if (/^\$[1-9]/.test(t)) once('price_shown', { price: t.replace(/[^0-9.]/g, '') });
+        }).observe(priceEl, { childList: true, subtree: true, characterData: true });
+      }
+
+      // 3. Started typing contact details.
+      ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.addEventListener('input', function () { once('details_started'); });
+      });
+
+      // 4. Clicked through to payment. The button is disabled until the form is
+      //    valid, so this only fires on a genuine attempt.
+      var book = document.getElementById('bookBtn');
+      if (book) book.addEventListener('click', function () {
+        if (book.disabled) return;
+        var p = document.getElementById('price');
+        send('checkout_clicked', { price: p ? (p.innerText || '').replace(/[^0-9.]/g, '') : '' });
+      });
+
+      // 5. Opened one of the secondary paths.
+      Array.prototype.forEach.call(document.querySelectorAll('.ow-toggle'), function (btn) {
+        btn.addEventListener('click', function () {
+          setTimeout(function () {
+            if (btn.getAttribute('aria-expanded') !== 'true') return;
+            once(btn.getAttribute('data-panel') === 'owCallback' ? 'callback_opened' : 'assessment_opened');
+          }, 0);
+        });
+      });
+
+      // 6. Completions inside the third-party embeds. Calendly documents this
+      //    message; LeadConnector's is matched loosely, so it may simply never
+      //    fire — in which case callback volume still comes from GHL itself.
+      window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (d && typeof d === 'object' && typeof d.event === 'string' &&
+            d.event.indexOf('calendly.') === 0) {
+          if (d.event === 'calendly.event_scheduled') once('assessment_booked');
+          return;
+        }
+        if (String(ev.origin || '').indexOf('leadconnectorhq.com') === -1) return;
+        var s = '';
+        try { s = typeof d === 'string' ? d : JSON.stringify(d); } catch (e) { return; }
+        if (/submit|submission|form-?sent|thank/i.test(s)) once('callback_submitted');
+      });
+    })();
+  </script>
+
   <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
   <script src="https://link.msgsndr.com/js/form_embed.js"></script>
 </body>

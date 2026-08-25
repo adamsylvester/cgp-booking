@@ -125,6 +125,13 @@ function doPost(e) {
 
     var action = data.action || 'lead';
 
+    // Funnel analytics. Deliberately first and self-contained: a tracking
+    // failure must never touch checkout, so it can't throw past this block.
+    if (action === 'event') {
+      try { logEvent_(data); } catch (err) { /* analytics is never load-bearing */ }
+      return jsonOutput({ ok: true });
+    }
+
     if (action === 'confirm') {
       sendBuyerConfirmationEmail(data);
       return jsonOutput({ ok: true });
@@ -162,6 +169,14 @@ function doPost(e) {
     }
 
     // 'lead' — fallback beacon fired when the page couldn't reach this script.
+    // Guard: only an actual lead gets logged and emailed. Without this, ANY
+    // unrecognised action (e.g. a newer page sending an action this deployment
+    // doesn't know yet) falls in here and fabricates a lead row plus an email.
+    // That is exactly what happens during the window where the site has been
+    // updated but this script hasn't — so fail quietly instead.
+    if (!data.name && !data.email && !data.phone) {
+      return jsonOutput({ ok: false, ignored: String(action || '').slice(0, 40) });
+    }
     logLead(data, STATUS.FALLBACK, '', '');
     sendCheckoutStartedEmail(data, 'Fallback path — customer sent to flat $25 link');
     return jsonOutput({ ok: true });
@@ -176,6 +191,46 @@ function doGet() {
 
 function jsonOutput(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ===========================================================================
+// FUNNEL ANALYTICS
+// ===========================================================================
+// The leads sheet only gets a row once someone reaches checkout, so it can
+// answer "how many bought?" but never "how many looked and left, and where
+// did they stop?". These events fill in everything above checkout.
+//
+// One row per event, stitched by a per-visit session id generated in the
+// browser. No names, emails, phones or addresses are recorded here — this
+// tab is about counts and drop-off, not people.
+const EVENTS_SHEET_NAME = 'Events';
+
+function logEvent_(data) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(EVENTS_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(EVENTS_SHEET_NAME);
+    sheet.appendRow(['Timestamp', 'Event', 'Session', 'Device', 'Page', 'Referrer',
+                     'House', 'Plan', 'Price', 'Detail']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 10).setFontWeight('bold')
+         .setFontColor('#ffffff').setBackground('#0f766e');
+    sheet.setColumnWidth(1, 160);
+    sheet.setColumnWidth(2, 150);
+  }
+
+  sheet.appendRow([
+    new Date(),
+    String(data.event || '').slice(0, 60),
+    String(data.session || '').slice(0, 40),
+    String(data.device || '').slice(0, 20),
+    String(data.page || '').slice(0, 200),
+    String(data.referrer || '').slice(0, 200),
+    String(data.house || '').slice(0, 40),
+    String(data.plan || '').slice(0, 60),
+    data.price === undefined || data.price === null || data.price === '' ? '' : Number(data.price),
+    String(data.detail || '').slice(0, 200),
+  ]);
 }
 
 function logLead(data, status, orderId, priceCheck) {

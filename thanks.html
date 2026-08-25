@@ -179,6 +179,24 @@
     const target = buildCalendlyUrl(lead);
     document.getElementById('fallback').href = target;
     sendBuyerConfirmation(lead);
+
+    // Funnel analytics: Square only sends people here after a successful
+    // payment, so this is the client-side end of the funnel. The authoritative
+    // paid count is still the leads sheet (Square is polled directly) — this
+    // exists so the event trail has a matching finish line. sendBeacon because
+    // we redirect to Calendly a moment later.
+    try {
+      const sid = sessionStorage.getItem('cgp_sid') || '';
+      const evt = {
+        action: 'event', event: 'deposit_paid', session: sid,
+        device: matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop',
+        page: location.pathname, price: lead && lead.finalPrice ? lead.finalPrice : '',
+        plan: lead && (lead.planName || lead.plan) ? (lead.planName || lead.plan) : '',
+      };
+      navigator.sendBeacon(APPS_SCRIPT_URL,
+        new Blob([JSON.stringify(evt)], { type: 'text/plain;charset=utf-8' }));
+    } catch (e) { /* never block the redirect */ }
+
     // Small delay so the user sees the "Sending you to..." card briefly,
     // which feels less abrupt than an instant flash-redirect.
     setTimeout(() => { window.location.replace(target); }, 600);
