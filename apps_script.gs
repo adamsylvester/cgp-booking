@@ -185,8 +185,64 @@ function doPost(e) {
   }
 }
 
-function doGet() {
+function doGet(e) {
+  var p = (e && e.parameter) || {};
+
+  // Read the funnel events. The leads spreadsheet stays PRIVATE — it holds
+  // customer names, emails, phones and addresses — so the dashboard can't use
+  // the public-CSV trick the other sheets use. It asks this endpoint instead,
+  // which only ever exposes the Events tab (counts and drop-off, no people).
+  if (p.events === '1' || p.action === 'events') {
+    try {
+      return jsonOutput(readEvents_(p));
+    } catch (err) {
+      return jsonOutput({ ok: false, error: String(err) });
+    }
+  }
+
   return ContentService.createTextOutput('CGP booking endpoint is alive.');
+}
+
+// Optional lock: set Script Property EVENTS_READ_KEY and callers must pass
+// ?key=... . Left unset it stays open, which is fine for counts with no PII —
+// this exists so it can be hardened later without a code change.
+function readEvents_(p) {
+  var wanted = PropertiesService.getScriptProperties().getProperty('EVENTS_READ_KEY');
+  if (wanted && String(p.key || '') !== wanted) return { ok: false, error: 'bad_key' };
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(EVENTS_SHEET_NAME);
+  if (!sheet) return { ok: true, columns: [], rows: [] };
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: true, columns: [], rows: [] };
+
+  // Newest-last. Cap the payload so a busy month can't time the request out.
+  var limit = Math.min(Number(p.limit) || EVENTS_MAX_ROWS, EVENTS_MAX_ROWS);
+  var firstRow = Math.max(2, lastRow - limit + 1);
+  var width = sheet.getLastColumn();
+
+  var header = sheet.getRange(1, 1, 1, width).getValues()[0];
+  var vals = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, width).getValues();
+
+  var since = null;
+  if (p.since) {
+    var d = new Date(p.since);
+    if (!isNaN(d)) since = d;
+  }
+
+  var rows = [];
+  for (var i = 0; i < vals.length; i++) {
+    var ts = vals[i][0];
+    if (since && ts instanceof Date && ts < since) continue;
+    rows.push([
+      ts instanceof Date ? Utilities.formatDate(ts, SCHED_TZ_FOR_EVENTS, "yyyy-MM-dd'T'HH:mm:ss") : String(ts),
+      String(vals[i][1] || ''), String(vals[i][2] || ''), String(vals[i][3] || ''),
+      String(vals[i][4] || ''), String(vals[i][5] || ''), String(vals[i][6] || ''),
+      String(vals[i][7] || ''), vals[i][8] === '' ? null : Number(vals[i][8]),
+      String(vals[i][9] || ''),
+    ]);
+  }
+  return { ok: true, columns: header, rows: rows, returned: rows.length, sheetRows: lastRow - 1 };
 }
 
 function jsonOutput(obj) {
@@ -204,6 +260,10 @@ function jsonOutput(obj) {
 // browser. No names, emails, phones or addresses are recorded here — this
 // tab is about counts and drop-off, not people.
 const EVENTS_SHEET_NAME = 'Events';
+const EVENTS_MAX_ROWS = 5000;
+// jobber_sync.gs owns SCHED.timeZone, but this file must work even if that
+// file is absent, so the timezone is named here independently.
+const SCHED_TZ_FOR_EVENTS = 'America/New_York';
 
 function logEvent_(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
