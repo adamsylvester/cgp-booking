@@ -776,33 +776,45 @@
 
     /* Subtle exits to the other two paths, directly under the hero. */
     .alt-paths { margin: 0 0 18px; text-align: center; font-size: 14px; color: var(--text-subtle); }
-    .alt-paths a { color: var(--text-subtle); font-weight: 500; text-decoration: underline;
-                   text-underline-offset: 3px; text-decoration-color: #d7dde5; }
+    .alt-paths a { color: var(--primary); font-weight: 700; text-decoration: underline;
+                   text-underline-offset: 3px; text-decoration-color: #b9cdf0; }
     .alt-paths a:hover { color: var(--primary); text-decoration-color: currentColor; }
     .alt-dot { margin: 0 6px; color: #cbd5e1; }
 
     /* ===== "Rather not book online?" — collapsed, lazy-loaded ===== */
-    .other-ways { max-width: 640px; margin: 34px auto 8px; }
-    .other-ways-h { margin: 0 0 4px; text-align: center; font-size: 19px; font-weight: 800;
+    .other-ways { max-width: 900px; margin: 40px auto 8px; }
+    .other-ways-h { margin: 0 0 4px; text-align: center; font-size: 22px; font-weight: 800;
                     letter-spacing: -0.02em; color: var(--text); }
+    .ow-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
+    @media (max-width: 760px) { .ow-grid { grid-template-columns: 1fr; } }
+    /* An open panel takes the full width so the embed isn't squeezed. */
+    .ow-item:has(.ow-body:not([hidden])),
+    .ow-item.is-open { grid-column: 1 / -1; }
     .other-ways-sub { margin: 0 0 16px; text-align: center; font-size: 14px; color: var(--text-muted); }
     .other-ways-sub a { color: var(--primary); font-weight: 700; text-decoration: none; white-space: nowrap; }
-    .ow-item { border: 1.5px solid var(--border); border-radius: 14px; background: #fff;
-               margin-bottom: 10px; overflow: hidden; }
-    .ow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between;
-                 gap: 14px; padding: 16px 18px; background: none; border: 0; cursor: pointer;
+    .ow-item { border: 1.5px solid #d9e2ef; border-radius: 16px; background: #fff;
+               overflow: hidden; box-shadow: 0 4px 14px rgba(16,24,40,.05);
+               transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+    .ow-item:hover { border-color: #b9cdf0; box-shadow: 0 12px 28px rgba(29,78,216,.12);
+                     transform: translateY(-2px); }
+    .ow-toggle { width: 100%; display: flex; flex-direction: column; align-items: flex-start;
+                 gap: 12px; padding: 20px; background: none; border: 0; cursor: pointer;
                  text-align: left; font: inherit; color: var(--text); }
-    .ow-toggle:hover { background: #f8fafc; }
     .ow-label { display: flex; flex-direction: column; gap: 2px; }
-    .ow-label strong { font-size: 15.5px; font-weight: 800; letter-spacing: -0.01em; }
+    .ow-label strong { font-size: 17px; font-weight: 800; letter-spacing: -0.01em; }
     .ow-hint { font-size: 13px; color: var(--text-muted); font-weight: 500; }
-    .ow-chev { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; background: #eef2f7;
-               color: var(--text-muted); font-size: 17px; font-weight: 700; line-height: 26px;
-               text-align: center; transition: transform .2s ease, background .2s ease, color .2s ease; }
-    .ow-toggle[aria-expanded="true"] .ow-chev { transform: rotate(45deg); background: var(--primary); color: #fff; }
+    /* A visible call to action — the faint "+" read as decoration, not a control. */
+    .ow-cta { display: inline-flex; align-items: center; gap: 7px; padding: 11px 18px;
+              border-radius: 999px; background: #eef4ff; color: var(--primary-dark);
+              font-size: 14.5px; font-weight: 800; letter-spacing: -0.01em;
+              transition: background .18s ease, color .18s ease; }
+    .ow-item:hover .ow-cta { background: var(--primary); color: #fff; }
+    .ow-chev { font-size: 17px; font-weight: 700; transition: transform .2s ease; }
+    .ow-toggle[aria-expanded="true"] .ow-cta { background: var(--primary); color: #fff; }
+    .ow-toggle[aria-expanded="true"] .ow-chev { transform: rotate(90deg); }
     /* Contain any stubbornly wide embed (Calendly hard-codes min-width:320px)
        so it scrolls inside its own card instead of the whole page. */
-    .ow-body { padding: 0 14px 16px; overflow-x: auto; }
+    .ow-body { padding: 0 20px 20px; overflow-x: auto; }
     .ow-body[hidden] { display: none; }
     @media (max-width: 420px) { .ow-body { padding: 0 8px 14px; } }
 
@@ -1204,6 +1216,60 @@
     </div>
     </div><!-- /quote-reveal -->
 
+    <!-- Secondary paths. Directly under the quote flow so they're actually found,
+         but collapsed: their third-party iframes load only when opened, so neither
+         competes with the booking flow on page load. -->
+    <section class="other-ways" id="other-ways">
+      <h2 class="other-ways-h">Not booking a cleaning today?</h2>
+      <p class="other-ways-sub">We'll come to you &mdash; or just call/text
+        <a href="tel:+14344224700">434-422-4700</a>.</p>
+
+      <div class="ow-grid">
+
+      <div class="ow-item">
+        <button class="ow-toggle" type="button" data-panel="owCallback" aria-expanded="false" aria-controls="owCallback">
+          <span class="ow-label"><strong>Request a Callback</strong>
+            <span class="ow-hint">In a hurry now, gutters later.</span></span>
+          <span class="ow-cta">Request a callback <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
+        </button>
+        <div class="ow-body" id="owCallback" hidden>
+          <div class="callback-iframe-wrap">
+            <iframe
+              data-src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
+              style="width:100%;height:100%;border:none;border-radius:4px"
+              id="inline-x37UvG0xSxSkPto8JMce"
+              data-layout="{'id':'INLINE'}"
+              data-trigger-type="alwaysShow"
+              data-trigger-value=""
+              data-activation-type="alwaysActivated"
+              data-activation-value=""
+              data-deactivation-type="neverDeactivate"
+              data-deactivation-value=""
+              data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
+              data-height="undefined"
+              data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
+              data-form-id="x37UvG0xSxSkPto8JMce"
+              title="Gutter Cleaning Booking Form Lead - LIVE">
+            </iframe>
+          </div>
+        </div>
+      </div>
+
+      <div class="ow-item">
+        <button class="ow-toggle" type="button" data-panel="owAssess" aria-expanded="false" aria-controls="owAssess">
+          <span class="ow-label"><strong>Book an Assessment</strong>
+            <span class="ow-hint">A known gutter problem to look at.</span></span>
+          <span class="ow-cta">Pick a time <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
+        </button>
+        <div class="ow-body" id="owAssess" hidden>
+          <div class="calendly-inline-widget"
+               data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1"
+               style="min-width:320px;height:350px;"></div>
+        </div>
+      </div>
+      </div><!-- /ow-grid -->
+    </section>
+
     <div class="reviews-section">
       <h2 class="reviews-heading">What Homeowners Are Saying</h2>
       <div class="reviews-grid">
@@ -1233,56 +1299,6 @@
       </div>
     </div>
 
-    <!-- The other two paths. Kept below the fold and behind a click so their
-         third-party iframes don't compete with (or slow down) the quote flow —
-         both load lazily the first time someone opens one. -->
-    <section class="other-ways" id="other-ways">
-      <h2 class="other-ways-h">Rather not book online?</h2>
-      <p class="other-ways-sub">Two other ways to reach us &mdash; or just call/text
-        <a href="tel:+14344224700">434-422-4700</a>.</p>
-
-      <div class="ow-item">
-        <button class="ow-toggle" type="button" data-panel="owCallback" aria-expanded="false" aria-controls="owCallback">
-          <span class="ow-label"><strong>Request a Callback</strong>
-            <span class="ow-hint">In a hurry now, gutters later.</span></span>
-          <span class="ow-chev" aria-hidden="true">+</span>
-        </button>
-        <div class="ow-body" id="owCallback" hidden>
-          <div class="callback-iframe-wrap">
-            <iframe
-              data-src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
-              style="width:100%;height:100%;border:none;border-radius:4px"
-              id="inline-x37UvG0xSxSkPto8JMce"
-              data-layout="{'id':'INLINE'}"
-              data-trigger-type="alwaysShow"
-              data-trigger-value=""
-              data-activation-type="alwaysActivated"
-              data-activation-value=""
-              data-deactivation-type="neverDeactivate"
-              data-deactivation-value=""
-              data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
-              data-height="undefined"
-              data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
-              data-form-id="x37UvG0xSxSkPto8JMce"
-              title="Gutter Cleaning Booking Form Lead - LIVE">
-            </iframe>
-          </div>
-        </div>
-      </div>
-
-      <div class="ow-item">
-        <button class="ow-toggle" type="button" data-panel="owAssess" aria-expanded="false" aria-controls="owAssess">
-          <span class="ow-label"><strong>Book an Assessment</strong>
-            <span class="ow-hint">A known gutter problem to look at.</span></span>
-          <span class="ow-chev" aria-hidden="true">+</span>
-        </button>
-        <div class="ow-body" id="owAssess" hidden>
-          <div class="calendly-inline-widget"
-               data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1"
-               style="min-width:320px;height:350px;"></div>
-        </div>
-      </div>
-    </section>
   </div>
 
   <script>
@@ -1882,6 +1898,7 @@
         if (!body) return;
         body.hidden = false;
         btn.setAttribute('aria-expanded', 'true');
+        if (btn.parentNode) btn.parentNode.classList.add('is-open');
         var frame = body.querySelector('iframe[data-src]');
         if (frame) { frame.src = frame.getAttribute('data-src'); frame.removeAttribute('data-src'); }
         if (body.querySelector('.calendly-inline-widget')) loadCalendly();
@@ -1893,6 +1910,7 @@
           if (body && !body.hidden) {
             body.hidden = true;
             btn.setAttribute('aria-expanded', 'false');
+            if (btn.parentNode) btn.parentNode.classList.remove('is-open');
           } else {
             open_(btn);
           }
