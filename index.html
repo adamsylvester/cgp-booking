@@ -818,14 +818,18 @@
     .ow-body[hidden] { display: none; }
     @media (max-width: 420px) { .ow-body { padding: 0 8px 14px; } }
 
+    /* No fixed height: form_embed.js sets the iframe to the form's real height
+       (393px today) and the wrapper follows it. The min-height is only a floor
+       so the card doesn't collapse before that script reports back — set high,
+       it just becomes dead space under the Submit button. */
     .callback-iframe-wrap {
       width: 100%;
-      min-height: 480px;   /* room for name/phone/email/address without scrolling */
+      min-height: 260px;
     }
 
     .callback-iframe-wrap iframe {
       width: 100%;
-      min-height: 480px;   /* form_embed.js grows this to fit the real content */
+      min-height: 260px;
       border: 0;
       display: block;
     }
