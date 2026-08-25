@@ -134,6 +134,33 @@ emails on failure.
 
 ---
 
+## Funnel analytics (Events tab)
+
+The leads sheet only gains a row at checkout, so it can say how many bought but
+not how many looked and where they stopped. An **Events** tab on the same
+spreadsheet fills that in, fed by `action: 'event'` on this same web app.
+
+Events: `page_view`, `quote_started`, `price_shown`, `details_started`,
+`checkout_clicked`, `callback_opened`, `assessment_opened`, `assessment_booked`
+(Calendly's documented postMessage), `callback_submitted` (LeadConnector's is
+matched loosely and may never fire), and `deposit_paid` from `thanks.html`.
+
+Rows are stitched by a per-visit session id from `sessionStorage`. **No names,
+emails, phones or addresses are written to this tab** — it is counts and
+drop-off, not people.
+
+The page-side tracker is written as independent listeners plus a
+MutationObserver on the price element, so it observes the booking flow from the
+outside and never calls into pricing, validation or payment.
+
+> ⚠️ **Deploy the Apps Script BEFORE pushing the site.** The page must never
+> send an action this deployment doesn't understand. `doPost` now guards the
+> `lead` fallback — an unrecognised action with no name/email/phone is ignored
+> instead of fabricating a lead row and an office email. That guard exists
+> because exactly this happened during development.
+
+---
+
 ## Approving a paid quote — the API cannot do it
 
 A paid booking's quote should read **Approved**. **Jobber's GraphQL API has no
