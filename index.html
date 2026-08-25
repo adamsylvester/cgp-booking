@@ -820,14 +820,12 @@
 
     .callback-iframe-wrap {
       width: 100%;
-      height: 350px;
-      overflow: auto;
+      min-height: 480px;   /* room for name/phone/email/address without scrolling */
     }
 
     .callback-iframe-wrap iframe {
       width: 100%;
-      height: 100% !important;
-      min-height: 350px;
+      min-height: 480px;   /* form_embed.js grows this to fit the real content */
       border: 0;
       display: block;
     }
@@ -1264,7 +1262,7 @@
         <div class="ow-body" id="owAssess" hidden>
           <div class="calendly-inline-widget"
                data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1"
-               style="min-width:320px;height:350px;"></div>
+               style="min-width:280px;height:700px;"></div>
         </div>
       </div>
       </div><!-- /ow-grid -->
