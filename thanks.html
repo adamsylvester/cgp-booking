@@ -195,6 +195,20 @@
       };
       navigator.sendBeacon(APPS_SCRIPT_URL,
         new Blob([JSON.stringify(evt)], { type: 'text/plain;charset=utf-8' }));
+
+      // Supabase — the copy the admin app reads. Publishable key: RLS allows
+      // INSERT only, so it can add this row but never read the funnel back.
+      fetch('https://wmmhvguajkeiyhmfmilu.supabase.co/rest/v1/booking_events', {
+        method: 'POST', keepalive: true,
+        headers: { 'apikey': 'sb_publishable_qTRQ_ECvykQgCBHWReXC7w_nt1HUv8Z',
+                   'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          event: 'deposit_paid', session: sid,
+          device: evt.device, page: location.pathname,
+          price: evt.price === '' ? null : Number(evt.price),
+          plan: evt.plan || null,
+        }),
+      }).catch(function () {});
     } catch (e) { /* never block the redirect */ }
 
     // Small delay so the user sees the "Sending you to..." card briefly,

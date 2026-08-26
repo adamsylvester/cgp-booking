@@ -1960,12 +1960,43 @@
       var device = matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop';
       var fired = {};
 
+      // Supabase is where the admin app reads from. The key below is the
+      // PUBLISHABLE key and is meant to be public: row-level security lets it
+      // INSERT a funnel row and nothing else — it cannot read the funnel back
+      // out, so page source doesn't leak volume or conversion.
+      var SB_URL = 'https://wmmhvguajkeiyhmfmilu.supabase.co/rest/v1/booking_events';
+      var SB_KEY = 'sb_publishable_qTRQ_ECvykQgCBHWReXC7w_nt1HUv8Z';
+
       function send(event, extra) {
         var payload = {
           action: 'event', event: event, session: session, device: device,
           page: location.pathname + location.search, referrer: document.referrer || '',
         };
         if (extra) for (var k in extra) if (extra[k] !== undefined) payload[k] = extra[k];
+
+        // 1. Supabase — what the admin app reads.
+        try {
+          var row = {
+            event: event, session: session, device: device,
+            page: payload.page, referrer: payload.referrer,
+            house: extra && extra.house ? String(extra.house) : null,
+            plan: extra && extra.plan ? String(extra.plan) : null,
+            price: extra && extra.price !== undefined && extra.price !== ''
+                   ? Number(extra.price) : null,
+            detail: extra && extra.detail ? String(extra.detail) : null,
+          };
+          // sendBeacon can't set headers, and Supabase needs an apikey — so
+          // fetch with keepalive, which still completes across a navigation.
+          fetch(SB_URL, {
+            method: 'POST', keepalive: true,
+            headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json',
+                       'Prefer': 'return=minimal' },
+            body: JSON.stringify(row),
+          }).catch(function () {});
+        } catch (e) { /* never surface to the customer */ }
+
+        // 2. Apps Script / Sheet — kept as a second copy while the app view
+        //    beds in. Safe to drop once the admin funnel is trusted.
         try {
           var blob = new Blob([JSON.stringify(payload)], { type: 'text/plain;charset=utf-8' });
           if (!navigator.sendBeacon(ENDPOINT, blob)) {
