@@ -23,6 +23,21 @@ project** as `apps_script.gs`.
 Repeat customers are matched by email → phone → street, so they don't get
 duplicated.
 
+### How the admin can tell it came from the online funnel
+
+Every record the sync creates is marked so it can't be mistaken for a
+hand-entered one (added 2026-08-26):
+
+- **Titles** of the request, quote and job all start with **`📅 CALENDLY — `**,
+  so it jumps out in every list and on the calendar.
+- The **client** gets a **`📅 Calendly Booking` tag** (new *and* repeat
+  clients) — visible as a chip on their page, filterable in client lists.
+- New clients also get referral source "Online booking
+  (book.cvillegutterpros.com)".
+
+Tagging is best-effort: if it ever fails, the booking still goes through and
+the failure only shows in the execution log.
+
 ### How a Calendly booking finds its paid row
 
 `thanks.html` prefills the Calendly form with the customer's name and email.
