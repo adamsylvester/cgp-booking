@@ -1693,6 +1693,225 @@
       }
     }
 
+    // ===== CompanyCam booking snapshots =====
+    // At pay-click we capture two images — a literal screenshot of the filled
+    // quote card and a drawn "Order Summary" card — and POST them to the Apps
+    // Script (action:'snapshot'). It parks them until the deposit is PAID and
+    // a CompanyCam project exists at the address, then attaches them to the
+    // project so the crew sees what the customer ordered. Everything here is
+    // best-effort: failures are swallowed, and checkout is never held up more
+    // than SNAPSHOT_EXTRA_WAIT_MS past the checkout response.
+    const SNAPSHOT_EXTRA_WAIT_MS = 2500;
+    const HTML2CANVAS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    const SNAPSHOT_HOUSE_LABELS = {
+      simple: 'Simple house', standard: 'Standard house', complex: 'Complex house',
+      townhome2: '2-Story Townhome', townhome3: '3-Story Townhome',
+    };
+
+    let html2canvasLoading = null;
+    function loadHtml2Canvas() {
+      if (window.html2canvas) return Promise.resolve(window.html2canvas);
+      if (!html2canvasLoading) {
+        html2canvasLoading = new Promise((resolve, reject) => {
+          const s = document.createElement('script');
+          s.src = HTML2CANVAS_URL;
+          s.onload = () => resolve(window.html2canvas);
+          s.onerror = () => reject(new Error('html2canvas failed to load'));
+          document.head.appendChild(s);
+        });
+      }
+      return html2canvasLoading;
+    }
+
+    function snapshotTimeout(ms) {
+      return new Promise((resolve) => setTimeout(() => resolve(null), ms));
+    }
+
+    // Literal screenshot of the quote card, sized to keep the upload small.
+    async function captureBookingCard() {
+      const h2c = await loadHtml2Canvas();
+      const card = document.getElementById('bookingCard');
+      const scale = Math.min(1.5, 1100 / Math.max(1, card.offsetWidth));
+      // html2canvas clones the DOM, which restarts the cgpReveal entry
+      // animation at its first keyframe (opacity 0) and captures a blank
+      // card. This style tag is copied into the clone and pins everything at
+      // its final state for the duration of the capture.
+      const freeze = document.createElement('style');
+      freeze.textContent = '#bookingCard, #bookingCard * { animation: none !important; transition: none !important; }';
+      document.head.appendChild(freeze);
+      try {
+        const canvas = await h2c(card, {
+          scale, backgroundColor: '#ffffff', logging: false, useCORS: true,
+        });
+        return canvas.toDataURL('image/jpeg', 0.82);
+      } finally {
+        freeze.remove();
+      }
+    }
+
+    function snapshotWrapText(ctx, text, maxWidth) {
+      const words = String(text).split(/\s+/);
+      const lines = [];
+      let line = '';
+      words.forEach((w) => {
+        const test = line ? line + ' ' + w : w;
+        if (ctx.measureText(test).width > maxWidth && line) {
+          lines.push(line);
+          line = w;
+        } else {
+          line = test;
+        }
+      });
+      if (line) lines.push(line);
+      return lines;
+    }
+
+    // Hand-drawn "Order Summary" card — the tech-readable version of the order.
+    function drawOrderSummaryCard(payload) {
+      const W = 1000, PAD = 56, LH = 44, VALUE_X = PAD + 320;
+      const FONT = 'px -apple-system, "Segoe UI", Arial, sans-serif';
+      const total = Number(payload.finalPrice || 0);
+      const deposit = Number(payload.deposit || 0);
+      const base = Number(payload.basePrice || 0);
+      const fee = payload.outsideArea ? PRICING.outsideAreaFee : 0;
+      const upgrade = Math.max(0, total - fee - base);
+
+      const houseBits = [SNAPSHOT_HOUSE_LABELS[payload.houseType] || payload.houseType];
+      if (payload.sqft) houseBits.push(Number(payload.sqft).toLocaleString() + ' sq ft');
+      if (payload.stories) {
+        houseBits.push(payload.stories + (String(payload.stories) === '1' ? ' story' : ' stories'));
+      }
+
+      const rows = [
+        { head: 'CUSTOMER' },
+        { label: 'Name', value: payload.name },
+        { label: 'Address', value: payload.address + (payload.zip ? ', ' + payload.zip : '') },
+        { label: 'Phone', value: payload.phone },
+        { head: 'WHAT THEY PICKED' },
+        { label: 'Home', value: houseBits.join(' · ') },
+        { label: 'Plan', value: payload.planName },
+        { head: 'PRICE' },
+        { label: 'Base cleaning', value: '$' + base },
+      ];
+      if (upgrade > 0) rows.push({ label: 'Plan upgrade', value: '+$' + upgrade });
+      if (fee > 0) rows.push({ label: 'Trip fee', value: '+$' + fee });
+      rows.push({ label: 'Total', value: '$' + total, bold: true });
+      rows.push({ label: 'Deposit paid (25%)', value: '$' + deposit });
+      rows.push({ label: 'Due on completion', value: '$' + Math.max(0, total - deposit), bold: true });
+
+      // Measure pass: values and notes may wrap, so height is computed first.
+      const measure = document.createElement('canvas').getContext('2d');
+      const valueWidth = W - PAD - VALUE_X;
+      rows.forEach((r) => {
+        if (r.head) return;
+        measure.font = (r.bold ? '700 ' : '') + '26' + FONT;
+        r.lines = snapshotWrapText(measure, String(r.value || '—'), valueWidth).slice(0, 3);
+      });
+      measure.font = '26' + FONT;
+      const notes = (payload.notes || '').trim();
+      const noteLines = notes
+        ? snapshotWrapText(measure, 'Customer notes: ' + notes, W - PAD * 2).slice(0, 6)
+        : [];
+
+      const headerH = 150;
+      const bodyH = rows.reduce((h, r) => h + (r.head ? 64 : LH + (r.lines.length - 1) * 34), 0);
+      const notesH = noteLines.length ? noteLines.length * 36 + 30 : 0;
+      const H = headerH + 56 + bodyH + notesH + 90;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#1d4ed8';
+      ctx.fillRect(0, 0, W, headerH);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '700 40' + FONT;
+      ctx.fillText('Charlottesville Gutter Pros', PAD, 66);
+      ctx.fillStyle = '#dbeafe';
+      ctx.font = '26' + FONT;
+      const bookedOn = new Date().toLocaleDateString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      });
+      ctx.fillText('Online booking — what the customer ordered · ' + bookedOn, PAD, 112);
+
+      let y = headerH + 56;
+      rows.forEach((r) => {
+        if (r.head) {
+          y += 18;
+          ctx.fillStyle = '#475467';
+          ctx.font = '700 22' + FONT;
+          ctx.fillText(r.head, PAD, y);
+          ctx.strokeStyle = '#e4e7ec';
+          ctx.beginPath();
+          ctx.moveTo(PAD, y + 12);
+          ctx.lineTo(W - PAD, y + 12);
+          ctx.stroke();
+          y += 46;
+          return;
+        }
+        ctx.fillStyle = '#475467';
+        ctx.font = '26' + FONT;
+        ctx.fillText(r.label, PAD, y);
+        ctx.fillStyle = '#101828';
+        ctx.font = (r.bold ? '700 ' : '') + '26' + FONT;
+        r.lines.forEach((line, i) => {
+          ctx.fillText(line, VALUE_X, y + i * 34);
+        });
+        y += LH + (r.lines.length - 1) * 34;
+      });
+
+      if (noteLines.length) {
+        y += 12;
+        ctx.fillStyle = '#b42318';
+        ctx.font = '26' + FONT;
+        noteLines.forEach((line) => {
+          ctx.fillText(line, PAD, y);
+          y += 36;
+        });
+      }
+
+      ctx.fillStyle = '#98a2b3';
+      ctx.font = '22' + FONT;
+      ctx.fillText('Booked at book.cvillegutterpros.com', PAD, H - 40);
+      return canvas.toDataURL('image/jpeg', 0.9);
+    }
+
+    async function sendBookingSnapshots(payload) {
+      try {
+        if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.startsWith('PASTE_')) return;
+        const images = [];
+        try {
+          images.push({ name: 'order-summary', data: drawOrderSummaryCard(payload) });
+        } catch (err) {
+          console.warn('Order card draw failed:', err);
+        }
+        try {
+          const shot = await Promise.race([captureBookingCard(), snapshotTimeout(4000)]);
+          if (shot) images.push({ name: 'booking-page', data: shot });
+        } catch (err) {
+          console.warn('Page screenshot failed:', err);
+        }
+        if (!images.length) return;
+        // No name/email/phone here on purpose: the Apps Script matches this to
+        // the paid lead by address, and an older script deployment ignores an
+        // address-only payload instead of logging a phantom lead.
+        await fetch(APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({
+            action: 'snapshot',
+            address: payload.address,
+            zip: payload.zip,
+            images,
+          }),
+        });
+      } catch (err) {
+        console.warn('Snapshot upload failed:', err);
+      }
+    }
+
     async function handleSubmit() {
       clearFormError();
       const firstBad = validateAndMark();
@@ -1731,6 +1950,10 @@
       const originalLabel = elements.bookBtn.textContent;
       elements.bookBtn.textContent = 'Preparing secure checkout…';
 
+      // CompanyCam snapshots capture + upload in parallel with the checkout
+      // request; the redirects below wait for it only briefly.
+      const snapshotUpload = sendBookingSnapshots(payload);
+
       let serverReached = false;
       try {
         const controller = new AbortController();
@@ -1748,6 +1971,7 @@
         const out = await res.json();
         serverReached = true;
         if (out && out.ok && out.checkoutUrl) {
+          await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
           window.location.href = out.checkoutUrl;
           return;
         }
@@ -1762,6 +1986,7 @@
       if (!serverReached) sendLead(payload);
       elements.bookBtn.textContent = originalLabel;
       elements.bookBtn.disabled = false;
+      await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
       window.location.href = SQUARE_FALLBACK_URL;
     }
 
@@ -1773,6 +1998,12 @@
           el.style.display = 'none';
         });
       }
+
+      // Prewarm the screenshot library once someone starts filling the form,
+      // so pay-click capture doesn't wait on a script download.
+      elements.custName.addEventListener('focus', () => {
+        loadHtml2Canvas().catch(() => {});
+      }, { once: true });
 
       elements.sqftInput.addEventListener('input', calculatePrice);
       elements.storiesSelect.addEventListener('change', calculatePrice);

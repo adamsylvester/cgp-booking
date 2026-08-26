@@ -132,6 +132,18 @@ function doPost(e) {
       return jsonOutput({ ok: true });
     }
 
+    // CompanyCam booking snapshots. Self-contained like analytics: a snapshot
+    // failure must never touch checkout. The payload deliberately carries no
+    // name/email/phone, so a deployment older than this code ignores it via
+    // the lead guard below instead of fabricating a lead row.
+    if (action === 'snapshot') {
+      try {
+        return jsonOutput(ccSaveSnapshot_(data));
+      } catch (err) {
+        return jsonOutput({ ok: false, error: String(err) });
+      }
+    }
+
     if (action === 'confirm') {
       sendBuyerConfirmationEmail(data);
       return jsonOutput({ ok: true });
@@ -418,6 +430,10 @@ function checkPendingPayments() {
   if (typeof jobberDailyStuckSweep_ === 'function') {
     try { jobberDailyStuckSweep_(); } catch (e) { /* never block payments */ }
   }
+
+  // Self-installs the hourly CompanyCam snapshot sync the first minute this
+  // code runs (property-guarded, so the steady-state cost is one property read).
+  try { ccEnsureSnapshotTrigger_(); } catch (e) { /* never block payments */ }
 
   var token = PropertiesService.getScriptProperties().getProperty('SQUARE_ACCESS_TOKEN');
   if (!token) return;
@@ -791,4 +807,290 @@ function setupSheet() {
   for (var c = 1; c <= LAST_COL; c++) {
     sheet.autoResizeColumn(c);
   }
+}
+
+// ===========================================================================
+// COMPANYCAM BOOKING SNAPSHOTS
+// ===========================================================================
+// At pay-click the booking page captures two images — a literal screenshot of
+// the filled-out quote card and a drawn "Order Summary" card — and POSTs them
+// here (action:'snapshot'). The images are stored in the public Supabase
+// bucket `booking-snapshots` (CompanyCam ingests photos by public URL, and its
+// image proxy keeps referencing the source URL afterwards, so objects must
+// stay put) and a row is queued in the CC Photo Queue tab.
+//
+// Every hour ccSyncSnapshots() attaches the queued photos to the customer's
+// CompanyCam project — but only once the deposit is PAID (an abandoned
+// checkout must never drop "what they ordered" photos into an existing
+// client's project) and a CompanyCam project exists at that address.
+//
+// Script Properties used: SUPABASE_URL (shared with SpecialNotes.gs),
+// SUPABASE_SERVICE_KEY, CC_ACCESS_TOKEN.
+
+const CC_API_BASE = 'https://api.companycam.com/v2';
+const CC_BUCKET = 'booking-snapshots';
+const CC_QUEUE_SHEET_NAME = 'CC Photo Queue';
+const CC_QUEUE_MAX_AGE_DAYS = 45;
+const CC_QUEUE_SCAN_ROWS = 200;  // pending queue rows examined per hourly run
+const CC_LEAD_SCAN_ROWS = 600;   // recent lead rows searched for the PAID match
+
+const CC_STATUS = {
+  WAITING: '⏳ Waiting',
+  DONE: '✅ Uploaded',
+  EXPIRED: '⌛ Expired (never matched)',
+};
+
+// Queue sheet columns (1-based).
+const CC_QCOL = { TS: 1, ADDRESS: 2, ZIP: 3, IMAGES: 4, STATUS: 5, PROJECT: 6,
+                  UPLOADED: 7, NOTE: 8 };
+
+// Street suffixes vary between systems ("Drive" vs "Dr"), so the address key
+// drops them: house number + first 6 chars of the street name + ZIP. Ported
+// from companycam_labels.py in the jobber-dashboard repo — keep them in step.
+const CC_ADDR_SUFFIXES = { street: 1, st: 1, road: 1, rd: 1, drive: 1, dr: 1,
+  lane: 1, ln: 1, avenue: 1, ave: 1, court: 1, ct: 1, circle: 1, cir: 1,
+  place: 1, pl: 1, trail: 1, trl: 1, boulevard: 1, blvd: 1, highway: 1,
+  hwy: 1, way: 1, terrace: 1, ter: 1, run: 1 };
+
+function ccAddrKey_(street, postal) {
+  var s = String(street || '').toLowerCase().replace(/[^a-z0-9 ]+/g, ' ')
+            .replace(/ +/g, ' ').trim();
+  if (!s) return null;
+  var parts = s.split(' ');
+  var num = /^\d+$/.test(parts[0]) ? parts[0] : '';
+  var words = parts.slice(1).filter(function(w) {
+    return !CC_ADDR_SUFFIXES[w] && !/^\d+$/.test(w);
+  });
+  var stem = words.length ? words[0].slice(0, 6) : '';
+  var zip5 = String(postal || '').replace(/[^0-9]/g, '').slice(0, 5);
+  return (num && stem) ? num + '|' + stem + '|' + zip5 : null;
+}
+
+function ccQueueSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(CC_QUEUE_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(CC_QUEUE_SHEET_NAME);
+    sheet.appendRow(['Timestamp', 'Address', 'ZIP', 'Images', 'Status',
+                     'CC project', 'Uploaded', 'Note']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 8).setFontWeight('bold')
+         .setFontColor('#ffffff').setBackground('#1d4ed8');
+  }
+  return sheet;
+}
+
+// doPost action:'snapshot' — store the images, queue the row.
+function ccSaveSnapshot_(data) {
+  var address = String(data.address || '').trim().slice(0, 200);
+  var zip = String(data.zip || '').replace(/\D/g, '').slice(0, 5);
+  var images = (data.images || []).slice(0, 2);
+  if (!address || !images.length) return { ok: false, error: 'missing address or images' };
+
+  var stored = [];
+  for (var i = 0; i < images.length; i++) {
+    var img = images[i] || {};
+    var m = /^data:image\/(png|jpeg);base64,(.+)$/.exec(String(img.data || ''));
+    if (!m || m[2].length > 4000000) continue; // ~3MB decoded cap per image
+    var name = String(img.name || 'photo').replace(/[^a-z0-9-]/gi, '').slice(0, 40) || 'photo';
+    var path = Utilities.formatDate(new Date(), SCHED_TZ_FOR_EVENTS, 'yyyy-MM') + '/' +
+               Utilities.getUuid() + '-' + name + (m[1] === 'png' ? '.png' : '.jpg');
+    var url = ccStorageUpload_(path, Utilities.base64Decode(m[2]), 'image/' + m[1]);
+    stored.push({ n: name, u: url });
+  }
+  if (!stored.length) return { ok: false, error: 'no valid images' };
+
+  ccQueueSheet_().appendRow([new Date(), address, zip, JSON.stringify(stored),
+                             CC_STATUS.WAITING, '', 0, '']);
+  return { ok: true, saved: stored.length };
+}
+
+// Upload bytes to the public Supabase bucket; returns the public URL.
+function ccStorageUpload_(path, bytes, contentType) {
+  var props = PropertiesService.getScriptProperties();
+  var base = String(props.getProperty('SUPABASE_URL') || '').replace(/\/$/, '');
+  var key = props.getProperty('SUPABASE_SERVICE_KEY');
+  if (!base || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY not set');
+
+  var res = UrlFetchApp.fetch(base + '/storage/v1/object/' + CC_BUCKET + '/' + path, {
+    method: 'post',
+    headers: { 'Authorization': 'Bearer ' + key, 'apikey': key },
+    contentType: contentType,
+    payload: bytes,
+    muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() >= 300) {
+    throw new Error('Storage upload failed: ' + res.getResponseCode() + ' ' +
+                    res.getContentText().slice(0, 200));
+  }
+  return base + '/storage/v1/object/public/' + CC_BUCKET + '/' + path;
+}
+
+// Hourly trigger: attach queued snapshots to their CompanyCam projects.
+function ccSyncSnapshots() {
+  var token = PropertiesService.getScriptProperties().getProperty('CC_ACCESS_TOKEN');
+  if (!token) return;
+
+  var sheet = ccQueueSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var firstRow = Math.max(2, lastRow - CC_QUEUE_SCAN_ROWS + 1);
+  var rows = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, 8).getValues();
+  var paidByKey = null; // built lazily — most runs have nothing waiting
+  var now = new Date();
+
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][CC_QCOL.STATUS - 1]) !== CC_STATUS.WAITING) continue;
+    var sheetRow = firstRow + i;
+    var ts = new Date(rows[i][CC_QCOL.TS - 1]);
+
+    var key = ccAddrKey_(rows[i][CC_QCOL.ADDRESS - 1], rows[i][CC_QCOL.ZIP - 1]);
+    var tooOld = isNaN(ts) || (now - ts) > CC_QUEUE_MAX_AGE_DAYS * 86400000;
+    if (!key || tooOld) {
+      sheet.getRange(sheetRow, CC_QCOL.STATUS).setValue(CC_STATUS.EXPIRED);
+      if (!key) sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue('unusable address');
+      continue;
+    }
+
+    if (!paidByKey) paidByKey = ccPaidLeadsByAddrKey_();
+    var lead = paidByKey[key];
+    if (!lead) {
+      sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue('waiting for payment');
+      continue;
+    }
+
+    var project;
+    try {
+      project = ccFindProject_(token, key);
+    } catch (err) {
+      sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue(String(err).slice(0, 200));
+      continue;
+    }
+    if (!project) {
+      sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue('paid — waiting for CompanyCam project');
+      continue;
+    }
+
+    var imgs;
+    try { imgs = JSON.parse(rows[i][CC_QCOL.IMAGES - 1]) || []; } catch (e) { imgs = []; }
+    var done = Number(rows[i][CC_QCOL.UPLOADED - 1]) || 0;
+    var failed = false;
+    for (var j = done; j < imgs.length; j++) {
+      try {
+        // The description goes on the first photo (the Order Summary card)
+        // only, so the project feed doesn't show the same text twice.
+        ccUploadPhoto_(token, project.id, imgs[j], ts,
+                       j === 0 ? ccPhotoDescription_(lead) : '');
+        done++;
+        sheet.getRange(sheetRow, CC_QCOL.UPLOADED).setValue(done);
+      } catch (err) {
+        sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue(String(err).slice(0, 200));
+        failed = true;
+        break;
+      }
+    }
+    if (!failed && done >= imgs.length) {
+      sheet.getRange(sheetRow, CC_QCOL.STATUS).setValue(CC_STATUS.DONE);
+      sheet.getRange(sheetRow, CC_QCOL.PROJECT)
+           .setValue((project.name || '') + ' (' + project.id + ')');
+      sheet.getRange(sheetRow, CC_QCOL.NOTE).setValue('');
+    }
+  }
+}
+
+// Newest PAID lead row per address key, from the recent slice of the leads sheet.
+function ccPaidLeadsByAddrKey_() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  var map = {};
+  if (lastRow < 2) return map;
+  var firstRow = Math.max(2, lastRow - CC_LEAD_SCAN_ROWS + 1);
+  var values = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, LAST_COL).getValues();
+  values.forEach(function(vals) {
+    if (String(vals[COL.STATUS - 1]) !== STATUS.PAID) return;
+    var k = ccAddrKey_(vals[COL.ADDRESS - 1], vals[COL.ZIP - 1]);
+    if (k) map[k] = rowToLead(vals); // later rows overwrite → newest wins
+  });
+  return map;
+}
+
+// Search CompanyCam for the project at this address. Tries "number stem",
+// then the stem alone; candidates are exact-matched on the full address key.
+// Multiple projects at one address → the most recently created wins.
+function ccFindProject_(token, addrKey) {
+  var parts = addrKey.split('|');
+  var queries = [parts[0] + ' ' + parts[1], parts[1]];
+  for (var q = 0; q < queries.length; q++) {
+    var res = ccRequest_(token, 'get',
+        '/projects?per_page=50&query=' + encodeURIComponent(queries[q]), null) || [];
+    var newest = null;
+    for (var i = 0; i < res.length; i++) {
+      var a = res[i].address || {};
+      if (ccAddrKey_(a.street_address_1, a.postal_code) !== addrKey) continue;
+      if (!newest || Number(res[i].created_at || 0) > Number(newest.created_at || 0)) {
+        newest = res[i];
+      }
+    }
+    if (newest) return newest;
+  }
+  return null;
+}
+
+function ccUploadPhoto_(token, projectId, img, capturedAt, description) {
+  var when = (capturedAt instanceof Date && !isNaN(capturedAt)) ? capturedAt : new Date();
+  var body = { photo: {
+    uri: img.u,
+    captured_at: Math.floor(when.getTime() / 1000),
+  } };
+  if (description) body.photo.description = description;
+  ccRequest_(token, 'post', '/projects/' + projectId + '/photos', body);
+}
+
+function ccPhotoDescription_(lead) {
+  var deposit = Number(lead.deposit || 0);
+  var balance = Math.max(0, Number(lead.total || 0) - deposit);
+  var bits = ['Booked online — ' + String(lead.plan || 'gutter cleaning')];
+  bits.push('$' + lead.total + ' total · $' + deposit + ' deposit paid · $' +
+            balance + ' due on completion');
+  var home = [String(lead.house || '')];
+  if (lead.sqft) home.push(lead.sqft + ' sq ft');
+  if (lead.stories) home.push(lead.stories + ' stories');
+  bits.push(home.filter(String).join(', '));
+  var notes = String(lead.notes || '').trim();
+  if (notes) bits.push('Customer notes: ' + notes);
+  return bits.join('\n').slice(0, 900);
+}
+
+function ccRequest_(token, method, path, body) {
+  var options = {
+    method: method,
+    headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+    muteHttpExceptions: true,
+  };
+  if (body) {
+    options.contentType = 'application/json';
+    options.payload = JSON.stringify(body);
+  }
+  var res = UrlFetchApp.fetch(CC_API_BASE + path, options);
+  var code = res.getResponseCode();
+  if (code < 200 || code >= 300) {
+    throw new Error('CompanyCam API ' + code + ' — ' + res.getContentText().slice(0, 200));
+  }
+  var text = res.getContentText();
+  return text ? JSON.parse(text) : null;
+}
+
+// Bootstrap, called from the every-minute payment checker: installs the hourly
+// sync trigger the first minute this code is live — no editor visit needed.
+function ccEnsureSnapshotTrigger_() {
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('CC_SNAPSHOT_TRIGGER_V1')) return;
+  var exists = ScriptApp.getProjectTriggers().some(function(t) {
+    return t.getHandlerFunction() === 'ccSyncSnapshots';
+  });
+  if (!exists) {
+    ScriptApp.newTrigger('ccSyncSnapshots').timeBased().everyHours(1).create();
+  }
+  props.setProperty('CC_SNAPSHOT_TRIGGER_V1', '1');
 }
