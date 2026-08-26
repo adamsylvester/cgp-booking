@@ -30,6 +30,14 @@
 const JOBBER_GRAPHQL_URL = 'https://api.getjobber.com/api/graphql';
 const JOBBER_API_VERSION = '2025-01-20';
 
+// ===== Online-booking markers =====
+// The admin should be able to tell at a glance — from any list, the calendar,
+// or the client page — that a record came through Calendly/the booking site
+// rather than being entered by the team. The prefix leads every title; the tag
+// shows as a chip on the client and is filterable in client lists.
+const JOBBER_TITLE_PREFIX = '📅 CALENDLY — ';
+const JOBBER_CLIENT_TAG = '📅 Calendly Booking';
+
 // ===== Scheduling config =====
 // Calendly decides WHEN. These only fill gaps Calendly doesn't tell us.
 const SCHED = {
@@ -244,6 +252,7 @@ function jobberEnsureClient_(lead) {
   if (!found && phone) found = jobberFindClient_(phone, 'PHONES');
 
   if (found) {
+    jobberTagClient_(found.id);
     return {
       clientId: found.id,
       propertyId: jobberEnsureProperty_(found, lead),
@@ -278,7 +287,23 @@ function jobberEnsureClient_(lead) {
   var props = (client.clientProperties && client.clientProperties.nodes) || [];
   if (!props.length) throw new Error('Client created but no property came back.');
 
+  jobberTagClient_(client.id);
   return { clientId: client.id, propertyId: props[0].id };
+}
+
+// Puts the Calendly chip on the client. Best-effort: a tagging hiccup must
+// never block the booking itself. Re-adding an existing tag is a no-op.
+function jobberTagClient_(clientId) {
+  try {
+    jobberGql_(
+      'mutation($id: EncodedId!, $input: ClientEditInput!) {' +
+      '  clientEdit(clientId: $id, input: $input) { userErrors { message } }' +
+      '}',
+      { id: clientId, input: { tagsToAdd: [JOBBER_CLIENT_TAG] } }
+    );
+  } catch (err) {
+    Logger.log('Client tag failed (booking unaffected): ' + err);
+  }
 }
 
 function jobberFindClient_(term, field) {
@@ -616,7 +641,7 @@ function jobberPlanCode_(planLabel) {
 }
 
 function jobberJobTitle_(lead) {
-  return 'Gutter Cleaning — ' + (lead.plan || 'Basic') + ' (online booking)';
+  return JOBBER_TITLE_PREFIX + 'Gutter Cleaning — ' + (lead.plan || 'Basic');
 }
 
 // Rebuilds the quote as real line items so Jobber shows the same math the
@@ -899,7 +924,7 @@ function jobberCreateAssessmentRequest_(clientId, propertyId, lead, ev) {
       input: {
         clientId: clientId,
         propertyId: propertyId,
-        title: (ev.name || 'Gutter assessment') + ' (booked online)',
+        title: JOBBER_TITLE_PREFIX + (ev.name || 'Gutter assessment'),
         assessment: {
           instructions: calendlyInstructions_(lead, ev),
           schedule: {
