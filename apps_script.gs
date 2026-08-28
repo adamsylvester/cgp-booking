@@ -212,6 +212,24 @@ function doGet(e) {
     }
   }
 
+  // Read-only pricing config for the admin quote calculator in the team app.
+  // No PII — the same tables the page and the checkout verifier already use.
+  // Serving them from here keeps one source of truth: change PRICING above
+  // and the admin tool follows on its next load.
+  if (p.pricing === '1' || p.action === 'pricing') {
+    return jsonOutput({
+      ok: true,
+      pricing: PRICING,
+      inAreaZips: Object.keys(IN_AREA_ZIPS),
+      depositRate: DEPOSIT_RATE,
+      outsideAreaFee: OUTSIDE_AREA_FEE,
+      houseLabels: HOUSE_LABELS,
+      planLabels: { basic: 'Basic Cleaning',
+                    simple: 'Basic + Seasonal Touch-Ups',
+                    protection: 'Gutter Protection Plan' },
+    });
+  }
+
   return ContentService.createTextOutput('CGP booking endpoint is alive.');
 }
 
