@@ -186,7 +186,12 @@
     // exists so the event trail has a matching finish line. sendBeacon because
     // we redirect to Calendly a moment later.
     try {
-      const sid = sessionStorage.getItem('cgp_sid') || '';
+      // The session id lives in sessionStorage, which some browsers drop across
+      // the trip to Square and back (2 of 7 deposits in Sep 2026 came back with
+      // none). The lead record and localStorage carry a copy. (2026-09-30)
+      let sid = '';
+      try { sid = sessionStorage.getItem('cgp_sid') || ''; } catch (_) {}
+      if (!sid) { try { sid = (lead && lead.session) || localStorage.getItem('cgp_sid') || ''; } catch (_) {} }
       const evt = {
         action: 'event', event: 'deposit_paid', session: sid,
         device: matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop',

@@ -1402,6 +1402,7 @@
     let selectedHouse = null;
     // Plan selection: 'basic' | 'simple' | 'protection'.
     let selectedPlan = 'simple';
+    window.selectedPlan = selectedPlan;
 
     const PLAN_LABELS = {
       basic: 'Basic Cleaning',
@@ -1939,9 +1940,20 @@
 
       const payload = buildLeadPayload();
 
+      // Funnel: a genuine pay attempt (every check above passed). Fired here,
+      // not from a second click listener: that listener ran AFTER this one had
+      // disabled the button and skipped itself, so "Clicked to pay" logged
+      // nothing for a month. (Fixed 2026-09-30.)
+      try {
+        if (window.cgpTrack) window.cgpTrack('checkout_clicked', {
+          price: currentQuote.finalPrice, plan: selectedPlan, house: selectedHouse || '' });
+        payload.session = window.cgpSession || '';
+      } catch (_) { /* analytics never blocks a booking */ }
+
       // Stash on this device so the post-Square "thanks" page can prefill Calendly.
       try {
         localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
+        if (window.cgpSession) localStorage.setItem('cgp_sid', window.cgpSession);
       } catch (_) { /* ignore quota / private-mode errors */ }
 
       // Ask the Apps Script to log the lead AND create a Square checkout for
@@ -2025,6 +2037,7 @@
       document.querySelectorAll('input[name="plan"]').forEach((radio) => {
         radio.addEventListener('change', () => {
           selectedPlan = radio.value;
+          window.selectedPlan = selectedPlan;
           document.querySelectorAll('.plan-opt').forEach((p) => {
             p.classList.toggle('selected', p.dataset.plan === selectedPlan);
           });
@@ -2055,6 +2068,7 @@
           houseGrid.querySelectorAll('.house-opt').forEach((o) => o.classList.remove('selected'));
           opt.classList.add('selected');
           selectedHouse = opt.dataset.house;
+          window.selectedHouse = selectedHouse;
           elements.formCard.classList.remove('is-locked');
 
           // Townhomes are flat-priced — hide square footage + stories for them.
@@ -2238,6 +2252,7 @@
       }
       function once(event, extra) { if (fired[event]) return; fired[event] = 1; send(event, extra); }
       window.cgpTrack = send;   // so thanks.html-style pages can reuse it
+      window.cgpSession = session;
 
       send('page_view');
 
@@ -2250,11 +2265,20 @@
 
       // 2. A real price appeared. Watched rather than hooked, so the pricing
       //    code stays untouched.
+      //    Records the plan and house size with the price (2026-09-30), and
+      //    when a later price is for a different plan, a plan_<name> row: the
+      //    plan on screen when someone leaves is the one they were weighing.
       var priceEl = document.getElementById('price');
+      var lastPlanSeen = null;
       if (priceEl && window.MutationObserver) {
         new MutationObserver(function () {
           var t = (priceEl.innerText || '').trim();
-          if (/^\$[1-9]/.test(t)) once('price_shown', { price: t.replace(/[^0-9.]/g, '') });
+          if (!/^\$[1-9]/.test(t)) return;
+          var plan = window.selectedPlan || '';
+          var extra = { price: t.replace(/[^0-9.]/g, ''), plan: plan, house: window.selectedHouse || '' };
+          if (!fired.price_shown) once('price_shown', extra);
+          else if (plan && plan !== lastPlanSeen) once('plan_' + plan, extra);
+          lastPlanSeen = plan;
         }).observe(priceEl, { childList: true, subtree: true, characterData: true });
       }
 
@@ -2264,14 +2288,8 @@
         if (el) el.addEventListener('input', function () { once('details_started'); });
       });
 
-      // 4. Clicked through to payment. The button is disabled until the form is
-      //    valid, so this only fires on a genuine attempt.
-      var book = document.getElementById('bookBtn');
-      if (book) book.addEventListener('click', function () {
-        if (book.disabled) return;
-        var p = document.getElementById('price');
-        send('checkout_clicked', { price: p ? (p.innerText || '').replace(/[^0-9.]/g, '') : '' });
-      });
+      // 4. Clicked through to payment: sent from handleSubmit itself, once
+      //    every check has passed (see the note there).
 
       // 5. Opened one of the secondary paths.
       Array.prototype.forEach.call(document.querySelectorAll('.ow-toggle'), function (btn) {
