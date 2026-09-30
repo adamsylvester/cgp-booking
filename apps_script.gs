@@ -27,16 +27,38 @@ const AFTER_PAYMENT_URL = 'https://book.cvillegutterpros.com/thanks.html';
 // This mirrors the PRICING config in index.html. The server recomputes every
 // quote from raw inputs and charges ITS number — the browser's number is only
 // used to detect mismatches. If you change pricing, change BOTH places.
+// Busy-season price increase: every base price (floors, per-sqft rates,
+// townhome flats) is multiplied by this. Set to 1 to end it. MUST match
+// SEASONAL_MULTIPLIER in index.html. The admin quote tool in the team app
+// reads the scaled tables from ?pricing=1, so it follows automatically.
+const SEASONAL_MULTIPLIER = 1.5;
+
+// Whole-dollar floors/flats; per-sqft rates kept to 4 decimals so the page
+// and the server round identically.
+function scaleHouses_(houses, m) {
+  var out = {};
+  Object.keys(houses).forEach(function (k) {
+    var h = houses[k];
+    if (h.flat != null) { out[k] = { flat: Math.round(h.flat * m) }; return; }
+    var mod = {};
+    Object.keys(h.modifier).forEach(function (s) { mod[s] = Math.round(h.modifier[s] * m * 10000) / 10000; });
+    out[k] = { floor: Math.round(h.floor * m), modifier: mod };
+  });
+  return out;
+}
+
 const PRICING = {
   addonMultiplier: 0.5,
   protectionMultiplier: 3,
-  houses: {
+  seasonalMultiplier: SEASONAL_MULTIPLIER,
+  // BASE prices, before the seasonal multiplier.
+  houses: scaleHouses_({
     simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
     standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
     complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.18 } },
     townhome2: { flat: 195 },
     townhome3: { flat: 325 },
-  },
+  }, SEASONAL_MULTIPLIER),
 };
 
 // Charlottesville + Albemarle ZIPs (no trip fee). Mirrors index.html.

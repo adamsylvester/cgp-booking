@@ -1200,7 +1200,6 @@
 
           <p class="microcopy">After payment, you'll pick your service date on the next screen.</p>
           <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
-          <p class="microcopy" id="urgency" style="display:none; font-weight:600; color:var(--success);">Only 1–2 spots left tomorrow 🔥</p>
           <p class="microcopy">
             Need something else?
             <a class="contact-link" href="https://cvillegutterpros.com/contact/">Contact us</a>
@@ -1334,9 +1333,30 @@
       '24590', // Scottsville
     ]);
 
+    // Busy-season price increase. Every base price (floors, per-sqft rates,
+    // townhome flats) is multiplied by this at load. Set to 1 to end it.
+    // MUST match SEASONAL_MULTIPLIER in apps_script.gs — the server recomputes
+    // every quote and charges ITS number.
+    const SEASONAL_MULTIPLIER = 1.5;
+
+    // Scale a house table by a multiplier: whole-dollar floors/flats,
+    // per-sqft rates kept to 4 decimals so both sides round identically.
+    function scaleHouses(houses, m) {
+      const out = {};
+      Object.keys(houses).forEach((k) => {
+        const h = houses[k];
+        if (h.flat != null) { out[k] = { flat: Math.round(h.flat * m) }; return; }
+        const mod = {};
+        Object.keys(h.modifier).forEach((s) => { mod[s] = Math.round(h.modifier[s] * m * 10000) / 10000; });
+        out[k] = { floor: Math.round(h.floor * m), modifier: mod };
+      });
+      return out;
+    }
+
     const PRICING = {
       // Promo badge toggle (the red "$25 SAVINGS ONLINE" chip). Off for now.
       promoEnabled: false,
+      seasonalMultiplier: SEASONAL_MULTIPLIER,
       // Deposit charged today = this fraction of the total, rounded to a whole dollar.
       depositRate: 0.25,
       // Simple upsell add-on = this fraction of the base cleaning price.
@@ -1345,16 +1365,16 @@
       protectionMultiplier: 3,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
       outsideAreaFee: 50,
-      // Per-house pricing.
+      // Per-house pricing (BASE, before the seasonal multiplier).
       //   Regular homes: price = max(floor, modifier[stories] × square footage)
       //   Townhomes:     flat price (square footage + stories ignored)
-      houses: {
+      houses: scaleHouses({
         simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
         standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
         complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.18 } },
         townhome2: { flat: 195 },
         townhome3: { flat: 325 },
-      },
+      }, SEASONAL_MULTIPLIER),
     };
 
     const elements = {
@@ -1365,7 +1385,6 @@
       zipInput: document.getElementById('zip'),
       zipNote: document.getElementById('zipNote'),
       price: document.getElementById('price'),
-      urgency: document.getElementById('urgency'),
       paymentBreakdown: document.getElementById('paymentBreakdown'),
       planSummaryLabel: document.getElementById('planSummaryLabel'),
       planSummaryValue: document.getElementById('planSummaryValue'),
@@ -2089,10 +2108,6 @@
         });
       });
 
-      if (isWeekdayEligible()) {
-        elements.urgency.style.display = 'block';
-      }
-
       renderEmptyPrice();
     }
 
@@ -2100,12 +2115,13 @@
 
     console.assert(roundWhole(220.4) === 220, 'roundWhole should round down under .5');
     console.assert(roundWhole(220.5) === 221, 'roundWhole should round up at .5');
-    console.assert(getBasePrice('simple', 2000, '1') === 140, 'simple 1-story = max(99, .07*2000) = 140');
-    console.assert(getBasePrice('simple', 500, '1') === 99, 'small home hits the $99 floor');
-    console.assert(getBasePrice('standard', 2000, '2') === 280, 'standard 2-story = .14*2000 = 280');
-    console.assert(getBasePrice('complex', 2000, '3') === 360, 'complex 3-story = .18*2000 = 360');
-    console.assert(getBasePrice('townhome2') === 195, '2-story townhome flat $195');
-    console.assert(getBasePrice('townhome3') === 325, '3-story townhome flat $325');
+    const M = SEASONAL_MULTIPLIER;
+    console.assert(getBasePrice('simple', 2000, '1') === Math.round(0.07 * M * 10000) / 10000 * 2000, 'simple 1-story = .07×M×2000');
+    console.assert(getBasePrice('simple', 500, '1') === Math.round(99 * M), 'small home hits the floor');
+    console.assert(getBasePrice('standard', 2000, '2') === Math.round(0.14 * M * 10000) / 10000 * 2000, 'standard 2-story = .14×M×2000');
+    console.assert(getBasePrice('complex', 2000, '3') === Math.round(0.18 * M * 10000) / 10000 * 2000, 'complex 3-story = .18×M×2000');
+    console.assert(getBasePrice('townhome2') === Math.round(195 * M), '2-story townhome flat');
+    console.assert(getBasePrice('townhome3') === Math.round(325 * M), '3-story townhome flat');
     console.assert(getAddonCost(200) === 100, 'addon cost should be 50 percent of base');
     console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
