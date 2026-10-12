@@ -57,6 +57,11 @@ const JOBBER_SERVICES = {
     id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvOTM0MDczNA==',
     name: 'Single Gutter Cleaning',
   },
+  gutterSeal: {
+    id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvMTc1ODUxOTc=',
+    name: 'Gutter Seal',
+  },
+  // Retired upsell (through Oct 31, 2026); kept so old rows re-sync faithfully.
   touchUps: {
     id: 'Z2lkOi8vSm9iYmVyL1Byb2R1Y3RPclNlcnZpY2UvNDY0OTMxOTE=',
     name: 'Touch Ups Until October 31, 2026.',
@@ -632,12 +637,24 @@ function jobberNormalizeStreet_(s) {
 }
 
 // Which plan tier this row is, worked back from the friendly label the sheet
-// stores ("Basic + Seasonal Touch-Ups", "Gutter Protection Plan", ...).
+// stores ("Basic + Gutter Seal", "Gutter Protection Plan", ...). Old rows
+// still say "Basic + Seasonal Touch-Ups"; they map to the same tier and
+// jobberAddonService_ picks the matching Jobber product.
 function jobberPlanCode_(planLabel) {
   var s = String(planLabel || '').toLowerCase();
   if (s.indexOf('protection') !== -1) return 'protection';
-  if (s.indexOf('touch') !== -1 || s.indexOf('seasonal') !== -1) return 'simple';
+  if (s.indexOf('seal') !== -1 || s.indexOf('touch') !== -1 || s.indexOf('seasonal') !== -1) return 'simple';
   return 'basic';
+}
+
+// The add-on product for a 'simple' row: Gutter Seal today, Touch Ups for
+// rows booked before the Oct 2026 swap so a re-sync never rewrites history.
+function jobberAddonService_(planLabel) {
+  var s = String(planLabel || '').toLowerCase();
+  if (s.indexOf('touch') !== -1 || s.indexOf('seasonal') !== -1) {
+    return { product: JOBBER_SERVICES.touchUps, description: 'Unlimited touch-ups through Oct. 31, as chosen online.' };
+  }
+  return { product: JOBBER_SERVICES.gutterSeal, description: 'Reseal leaking seams and end caps, as chosen online.' };
 }
 
 function jobberJobTitle_(lead) {
@@ -676,13 +693,14 @@ function jobberLineItems_(lead) {
       description: jobberSizeNote_(lead),
     }));
     if (code === 'simple') {
-      // Priced off the cleaning, exactly like the manual quotes.
-      var touchUps = total - fee - base;
-      if (touchUps > 0) {
-        items.push(jobberServiceLine_(JOBBER_SERVICES.touchUps, {
+      // Flat add-on; whatever the page charged above the cleaning is the seal.
+      var addon = total - fee - base;
+      if (addon > 0) {
+        var svc = jobberAddonService_(lead.plan);
+        items.push(jobberServiceLine_(svc.product, {
           quantity: 1,
-          unitPrice: touchUps,
-          description: 'Unlimited touch-ups through Oct. 31, as chosen online.',
+          unitPrice: addon,
+          description: svc.description,
         }));
       }
     }
@@ -1098,11 +1116,11 @@ function testEndToEnd() {
     houseType: 'standard',
     sqft: 2000,
     stories: '2',
-    planName: 'Basic + Seasonal Touch-Ups',
+    planName: 'Basic + Gutter Seal',
     zip: '22901',
     notes: 'Automated end-to-end test. Safe to delete.',
-    basePrice: 280,
-    finalPrice: 420,
+    basePrice: 420,
+    finalPrice: 569,
     deposit: 105,
   };
   logLead(lead, STATUS.PAID, 'TEST-ORDER', '✓ verified (test)');

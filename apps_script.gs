@@ -48,14 +48,14 @@ function scaleHouses_(houses, m) {
 }
 
 const PRICING = {
-  addonMultiplier: 0.5,
+  addonFlat: 149,       // Gutter Seal add-on, flat dollars (not seasonal)
   protectionMultiplier: 3,
   seasonalMultiplier: SEASONAL_MULTIPLIER,
   // BASE prices, before the seasonal multiplier.
   houses: scaleHouses_({
     simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
     standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
-    complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.18 } },
+    complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.23 } },
     townhome2: { flat: 195 },
     townhome3: { flat: 325 },
   }, SEASONAL_MULTIPLIER),
@@ -117,7 +117,7 @@ function computeServerPrice(data) {
   }
 
   var subtotal = base;
-  if (data.plan === 'simple') subtotal = base + Math.round(base * PRICING.addonMultiplier);
+  if (data.plan === 'simple') subtotal = base + PRICING.addonFlat;
   else if (data.plan === 'protection') subtotal = Math.round(base * PRICING.protectionMultiplier);
 
   var zip = String(data.zip || '').replace(/\D/g, '');
@@ -247,7 +247,7 @@ function doGet(e) {
       outsideAreaFee: OUTSIDE_AREA_FEE,
       houseLabels: HOUSE_LABELS,
       planLabels: { basic: 'Basic Cleaning',
-                    simple: 'Basic + Seasonal Touch-Ups',
+                    simple: 'Basic + Gutter Seal',
                     protection: 'Gutter Protection Plan' },
     });
   }

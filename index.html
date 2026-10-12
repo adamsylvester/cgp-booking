@@ -1113,8 +1113,8 @@
               <input type="radio" name="plan" value="simple" checked />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
-                <span class="plan-name">Basic + Seasonal Touch-Ups</span>
-                <span class="plan-sub">This cleaning, plus free touch-ups through Oct. 31.</span>
+                <span class="plan-name">Basic + Gutter Seal</span>
+                <span class="plan-sub">This cleaning, plus we reseal leaking seams &amp; end caps while we're up there.</span>
               </span>
               <span class="plan-price-wrap"><span class="plan-price" data-plan-price="simple">$0</span><span class="plan-per" id="planPerFeatured"></span></span>
             </label>
@@ -1359,8 +1359,9 @@
       seasonalMultiplier: SEASONAL_MULTIPLIER,
       // Deposit charged today = this fraction of the total, rounded to a whole dollar.
       depositRate: 0.25,
-      // Simple upsell add-on = this fraction of the base cleaning price.
-      addonMultiplier: 0.5,
+      // Upsell add-on (Gutter Seal) = flat dollars on top of the base cleaning.
+      // Matches the Jobber 'Gutter Seal' default price. Not scaled by season.
+      addonFlat: 149,
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
       protectionMultiplier: 3,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
@@ -1371,7 +1372,7 @@
       houses: scaleHouses({
         simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
         standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
-        complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.18 } },
+        complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.23 } },
         townhome2: { flat: 195 },
         townhome3: { flat: 325 },
       }, SEASONAL_MULTIPLIER),
@@ -1425,7 +1426,7 @@
 
     const PLAN_LABELS = {
       basic: 'Basic Cleaning',
-      simple: 'Basic + Seasonal Touch-Ups',
+      simple: 'Basic + Gutter Seal',
       protection: 'Gutter Protection Plan',
     };
 
@@ -1457,7 +1458,7 @@
     }
 
     function getAddonCost(basePrice) {
-      return roundWhole(basePrice * PRICING.addonMultiplier);
+      return PRICING.addonFlat;
     }
 
     function isWeekdayEligible(dayIndex = new Date().getDay()) {
@@ -2119,10 +2120,11 @@
     console.assert(getBasePrice('simple', 2000, '1') === Math.round(0.07 * M * 10000) / 10000 * 2000, 'simple 1-story = .07×M×2000');
     console.assert(getBasePrice('simple', 500, '1') === Math.round(99 * M), 'small home hits the floor');
     console.assert(getBasePrice('standard', 2000, '2') === Math.round(0.14 * M * 10000) / 10000 * 2000, 'standard 2-story = .14×M×2000');
-    console.assert(getBasePrice('complex', 2000, '3') === Math.round(0.18 * M * 10000) / 10000 * 2000, 'complex 3-story = .18×M×2000');
+    console.assert(getBasePrice('complex', 2000, '3') === Math.round(0.23 * M * 10000) / 10000 * 2000, 'complex 3-story = .23×M×2000');
+    console.assert(getBasePrice('complex', 2000, '3') > getBasePrice('standard', 2000, '3'), 'complex must never price below standard');
     console.assert(getBasePrice('townhome2') === Math.round(195 * M), '2-story townhome flat');
     console.assert(getBasePrice('townhome3') === Math.round(325 * M), '3-story townhome flat');
-    console.assert(getAddonCost(200) === 100, 'addon cost should be 50 percent of base');
+    console.assert(getAddonCost(200) === 149, 'addon cost is the flat Gutter Seal price');
     console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
     console.assert(isHouseFlat('simple') === false, 'simple home is not flat-priced');
