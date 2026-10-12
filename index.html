@@ -891,7 +891,7 @@
       .form-card.is-locked .contact-panel,
       .form-card.is-locked .cta { opacity:.4; pointer-events:none; }
       .plan-heading { margin:18px 0 10px; font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--primary); }
-      .plan-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+      .plan-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
       .plan-opt { flex-direction:column; align-items:flex-start; }
       .plan-opt .plan-price, .plan-opt .plan-price-wrap { align-self:flex-end; margin-top:auto; }
       .plan-price-wrap { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; }
@@ -1098,25 +1098,15 @@
 
           <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
           <div class="plan-grid" id="planGrid">
-            <label class="plan-opt" data-plan="basic">
-              <input type="radio" name="plan" value="basic" />
+            <label class="plan-opt plan-featured selected" data-plan="basic">
+              <span class="plan-badge">★ Most popular</span>
+              <input type="radio" name="plan" value="basic" checked />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Basic Cleaning</span>
                 <span class="plan-sub">One-time gutter &amp; downspout cleaning.</span>
               </span>
-              <span class="plan-price" data-plan-price="basic">$0</span>
-            </label>
-
-            <label class="plan-opt plan-featured selected" data-plan="simple">
-              <span class="plan-badge">★ Most popular</span>
-              <input type="radio" name="plan" value="simple" checked />
-              <span class="plan-radio" aria-hidden="true"></span>
-              <span class="plan-body">
-                <span class="plan-name">Basic + Gutter Seal</span>
-                <span class="plan-sub">This cleaning, plus we reseal leaking seams &amp; end caps while we're up there.</span>
-              </span>
-              <span class="plan-price-wrap"><span class="plan-price" data-plan-price="simple">$0</span><span class="plan-per" id="planPerFeatured"></span></span>
+              <span class="plan-price-wrap"><span class="plan-price" data-plan-price="basic">$0</span><span class="plan-per" id="planPerFeatured"></span></span>
             </label>
 
             <label class="plan-opt" data-plan="protection">
@@ -1337,7 +1327,7 @@
     // townhome flats) is multiplied by this at load. Set to 1 to end it.
     // MUST match SEASONAL_MULTIPLIER in apps_script.gs — the server recomputes
     // every quote and charges ITS number.
-    const SEASONAL_MULTIPLIER = 1.5;
+    const SEASONAL_MULTIPLIER = 1.125;
 
     // Scale a house table by a multiplier: whole-dollar floors/flats,
     // per-sqft rates kept to 4 decimals so both sides round identically.
@@ -1359,9 +1349,6 @@
       seasonalMultiplier: SEASONAL_MULTIPLIER,
       // Deposit charged today = this fraction of the total, rounded to a whole dollar.
       depositRate: 0.25,
-      // Upsell add-on (Gutter Seal) = flat dollars on top of the base cleaning.
-      // Matches the Jobber 'Gutter Seal' default price. Not scaled by season.
-      addonFlat: 149,
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
       protectionMultiplier: 3,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
@@ -1414,19 +1401,17 @@
     // handler can capture them without re-running the pricing math.
     let currentQuote = {
       basePrice: 0,
-      addonCost: 0,
       finalPrice: 0,
     };
 
     // Step 1 selection: 'simple' | 'standard' | 'complex' | null.
     let selectedHouse = null;
-    // Plan selection: 'basic' | 'simple' | 'protection'.
-    let selectedPlan = 'simple';
+    // Plan selection: 'basic' | 'protection'. ('simple' was the retired add-on tier.)
+    let selectedPlan = 'basic';
     window.selectedPlan = selectedPlan;
 
     const PLAN_LABELS = {
       basic: 'Basic Cleaning',
-      simple: 'Basic + Gutter Seal',
       protection: 'Gutter Protection Plan',
     };
 
@@ -1436,7 +1421,6 @@
 
     // Total for a given plan, derived from the base cleaning price.
     function planTotal(base, plan) {
-      if (plan === 'simple') return base + getAddonCost(base);
       if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
       return base; // basic
     }
@@ -1457,9 +1441,6 @@
       return !!(cfg && cfg.flat != null);
     }
 
-    function getAddonCost(basePrice) {
-      return PRICING.addonFlat;
-    }
 
     function isWeekdayEligible(dayIndex = new Date().getDay()) {
       return dayIndex >= 0 && dayIndex <= 4;
@@ -1540,7 +1521,7 @@
       elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
 
       // "only $X today" nudge on the featured plan card.
-      const featuredDeposit = Math.round((planTotal(base, 'simple') + fee) * PRICING.depositRate);
+      const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * PRICING.depositRate);
       elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
 
       elements.payBarAmt.textContent = '$' + deposit;
@@ -2124,7 +2105,6 @@
     console.assert(getBasePrice('complex', 2000, '3') > getBasePrice('standard', 2000, '3'), 'complex must never price below standard');
     console.assert(getBasePrice('townhome2') === Math.round(195 * M), '2-story townhome flat');
     console.assert(getBasePrice('townhome3') === Math.round(325 * M), '3-story townhome flat');
-    console.assert(getAddonCost(200) === 149, 'addon cost is the flat Gutter Seal price');
     console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
     console.assert(isHouseFlat('simple') === false, 'simple home is not flat-priced');

@@ -250,7 +250,7 @@ the real record instead of creating a one-off name — the map lives in
 | Plan chosen online | Line items written |
 |---|---|
 | Basic Cleaning | `Single Gutter Cleaning` × 1 @ base |
-| Basic + Gutter Seal | `Single Gutter Cleaning` × 1 @ base, plus `Gutter Seal` × 1 @ flat $149 (`addonFlat`) |
+| (retired add-on tier, pre-2026-10-12 rows only) | `Single Gutter Cleaning` × 1 @ base, plus `Touch Ups…` or `Gutter Seal` × 1 @ whatever was charged above base |
 | Gutter Protection Plan | `Complete Gutter Protection Plan` × 4 @ base, plus `Free Cleaning Applied` × −1 @ base (nets to 3× base) |
 | Outside the service area | `Trip Fee` × 1 @ $50 |
 

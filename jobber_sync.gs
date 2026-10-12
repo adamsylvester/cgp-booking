@@ -637,9 +637,9 @@ function jobberNormalizeStreet_(s) {
 }
 
 // Which plan tier this row is, worked back from the friendly label the sheet
-// stores ("Basic + Gutter Seal", "Gutter Protection Plan", ...). Old rows
-// still say "Basic + Seasonal Touch-Ups"; they map to the same tier and
-// jobberAddonService_ picks the matching Jobber product.
+// stores ("Basic Cleaning", "Gutter Protection Plan", ...). The add-on tier
+// ('simple') was retired 2026-10-12 but old rows still carry its labels, so
+// they map to it and jobberAddonService_ picks the matching Jobber product.
 function jobberPlanCode_(planLabel) {
   var s = String(planLabel || '').toLowerCase();
   if (s.indexOf('protection') !== -1) return 'protection';
@@ -1116,12 +1116,12 @@ function testEndToEnd() {
     houseType: 'standard',
     sqft: 2000,
     stories: '2',
-    planName: 'Basic + Gutter Seal',
+    planName: 'Basic Cleaning',
     zip: '22901',
     notes: 'Automated end-to-end test. Safe to delete.',
-    basePrice: 420,
-    finalPrice: 569,
-    deposit: 105,
+    basePrice: 315,
+    finalPrice: 315,
+    deposit: 79,
   };
   logLead(lead, STATUS.PAID, 'TEST-ORDER', '✓ verified (test)');
   var row = sheet.getLastRow();

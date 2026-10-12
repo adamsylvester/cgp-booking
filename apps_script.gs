@@ -31,7 +31,7 @@ const AFTER_PAYMENT_URL = 'https://book.cvillegutterpros.com/thanks.html';
 // townhome flats) is multiplied by this. Set to 1 to end it. MUST match
 // SEASONAL_MULTIPLIER in index.html. The admin quote tool in the team app
 // reads the scaled tables from ?pricing=1, so it follows automatically.
-const SEASONAL_MULTIPLIER = 1.5;
+const SEASONAL_MULTIPLIER = 1.125;
 
 // Whole-dollar floors/flats; per-sqft rates kept to 4 decimals so the page
 // and the server round identically.
@@ -48,7 +48,6 @@ function scaleHouses_(houses, m) {
 }
 
 const PRICING = {
-  addonFlat: 149,       // Gutter Seal add-on, flat dollars (not seasonal)
   protectionMultiplier: 3,
   seasonalMultiplier: SEASONAL_MULTIPLIER,
   // BASE prices, before the seasonal multiplier.
@@ -117,8 +116,7 @@ function computeServerPrice(data) {
   }
 
   var subtotal = base;
-  if (data.plan === 'simple') subtotal = base + PRICING.addonFlat;
-  else if (data.plan === 'protection') subtotal = Math.round(base * PRICING.protectionMultiplier);
+  if (data.plan === 'protection') subtotal = Math.round(base * PRICING.protectionMultiplier);
 
   var zip = String(data.zip || '').replace(/\D/g, '');
   var fee = IN_AREA_ZIPS[zip] ? 0 : OUTSIDE_AREA_FEE;
@@ -247,7 +245,6 @@ function doGet(e) {
       outsideAreaFee: OUTSIDE_AREA_FEE,
       houseLabels: HOUSE_LABELS,
       planLabels: { basic: 'Basic Cleaning',
-                    simple: 'Basic + Gutter Seal',
                     protection: 'Gutter Protection Plan' },
     });
   }
