@@ -1115,7 +1115,7 @@
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Gutter Protection Plan</span>
-                <span class="plan-sub">4 cleanings over 2 years — for the price of 3.</span>
+                <span class="plan-sub">4 cleanings over 2 years — for the price of 3. Paid in full today.</span>
               </span>
               <span class="plan-price" data-plan-price="protection">$0</span>
             </label>
@@ -1349,6 +1349,9 @@
       seasonalMultiplier: SEASONAL_MULTIPLIER,
       // Deposit charged today = this fraction of the total, rounded to a whole dollar.
       depositRate: 0.25,
+      // Plans paid 100% up front (no balance on completion). Must match
+      // FULL_PAY_PLANS in apps_script.gs — the server charges its own number.
+      fullPayPlans: { protection: true },
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
       protectionMultiplier: 3,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
@@ -1378,6 +1381,7 @@
       planSummaryValue: document.getElementById('planSummaryValue'),
       outsideRow: document.getElementById('outsideRow'),
       depositToday: document.getElementById('depositToday'),
+      meterDep: document.querySelector('.meter-bar .meter-dep'),
       meterDepLabel: document.getElementById('meterDepLabel'),
       meterRestLabel: document.getElementById('meterRestLabel'),
       planPerFeatured: document.getElementById('planPerFeatured'),
@@ -1423,6 +1427,11 @@
     function planTotal(base, plan) {
       if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
       return base; // basic
+    }
+
+    // 25% deposit for most plans; 100% for plans in PRICING.fullPayPlans.
+    function depositRateFor(plan) {
+      return PRICING.fullPayPlans[plan] ? 1 : PRICING.depositRate;
     }
 
     // Base cleaning price for the selected house.
@@ -1507,7 +1516,9 @@
 
       const subtotal = planTotal(base, selectedPlan);
       const total = subtotal + fee;
-      const deposit = Math.round(total * PRICING.depositRate);
+      const rate = depositRateFor(selectedPlan);
+      const payInFull = rate >= 1;
+      const deposit = Math.round(total * rate);
       const balance = Math.max(0, total - deposit);
 
       elements.price.textContent = '$' + total;
@@ -1515,17 +1526,18 @@
       elements.planSummaryValue.textContent = '$' + subtotal;
       elements.outsideRow.style.display = outside ? 'flex' : 'none';
       elements.depositToday.textContent = '$' + deposit;
-      elements.meterDepLabel.textContent = '25% deposit';
-      elements.meterRestLabel.textContent = '$' + balance + ' after the job';
+      elements.meterDepLabel.textContent = payInFull ? 'Paid in full today' : '25% deposit';
+      elements.meterRestLabel.textContent = payInFull ? 'Nothing due after the job' : '$' + balance + ' after the job';
+      elements.meterDep.style.width = Math.round(rate * 100) + '%';
       elements.paymentBreakdown.style.display = 'grid';
-      elements.bookBtn.textContent = `Pay $${deposit} Deposit`;
+      elements.bookBtn.textContent = payInFull ? `Pay $${deposit} Now` : `Pay $${deposit} Deposit`;
 
       // "only $X today" nudge on the featured plan card.
-      const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * PRICING.depositRate);
+      const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * depositRateFor('basic'));
       elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
 
       elements.payBarAmt.textContent = '$' + deposit;
-      elements.payBarBtn.textContent = `Pay $${deposit} Deposit →`;
+      elements.payBarBtn.textContent = payInFull ? `Pay $${deposit} Now →` : `Pay $${deposit} Deposit →`;
 
       currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
@@ -1798,7 +1810,7 @@
       if (upgrade > 0) rows.push({ label: 'Plan upgrade', value: '+$' + upgrade });
       if (fee > 0) rows.push({ label: 'Trip fee', value: '+$' + fee });
       rows.push({ label: 'Total', value: '$' + total, bold: true });
-      rows.push({ label: 'Deposit paid (25%)', value: '$' + deposit });
+      rows.push({ label: deposit >= total ? 'Paid in full (100%)' : 'Deposit paid (25%)', value: '$' + deposit });
       rows.push({ label: 'Due on completion', value: '$' + Math.max(0, total - deposit), bold: true });
 
       // Measure pass: values and notes may wrap, so height is computed first.
@@ -2106,6 +2118,8 @@
     console.assert(getBasePrice('townhome2') === Math.round(195 * M), '2-story townhome flat');
     console.assert(getBasePrice('townhome3') === Math.round(325 * M), '3-story townhome flat');
     console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
+    console.assert(depositRateFor('protection') === 1, 'protection plan is paid in full');
+    console.assert(depositRateFor('basic') === 0.25, 'basic plan keeps the 25% deposit');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
     console.assert(isHouseFlat('simple') === false, 'simple home is not flat-priced');
     console.assert(isWeekdayEligible(0) === true, 'Sunday should be eligible');

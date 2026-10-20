@@ -6,8 +6,20 @@ const FROM_NAME = 'Charlottesville Gutter Pros';
 // Calendly event used to schedule the PAID cleaning (post-deposit). This is the
 // gutter-cleaning calendar, NOT the assessment calendar on the booking page.
 const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
-// Deposit = 25% of the quoted total, rounded to a whole dollar.
+// Deposit = 25% of the quoted total, rounded to a whole dollar...
 const DEPOSIT_RATE = 0.25;
+// ...except these plans, which are paid 100% up front (2026-10-20: the
+// Gutter Protection Plan is prepaid in full, so no balance on completion).
+const FULL_PAY_PLANS = { protection: true };
+
+function depositRateFor(plan) {
+  return FULL_PAY_PLANS[String(plan || '')] ? 1 : DEPOSIT_RATE;
+}
+// "Deposit (25%)" or "Paid in full (100%)" — the label every email/note uses.
+function depositLabel(plan) {
+  var rate = depositRateFor(plan);
+  return rate >= 1 ? 'Paid in full (100%)' : 'Deposit (' + Math.round(rate * 100) + '%)';
+}
 const OUTSIDE_AREA_FEE = 50;
 // A checkout still unpaid after this many minutes is marked Abandoned and the
 // office gets a follow-up email (once). If they pay later it flips to PAID.
@@ -122,13 +134,13 @@ function computeServerPrice(data) {
   var fee = IN_AREA_ZIPS[zip] ? 0 : OUTSIDE_AREA_FEE;
 
   var total = subtotal + fee;
-  return { base: base, total: total, fee: fee, deposit: Math.round(total * DEPOSIT_RATE) };
+  return { base: base, total: total, fee: fee, deposit: Math.round(total * depositRateFor(data.plan)) };
 }
 
 function depositFor(data) {
   var explicit = Number(data.deposit);
   if (explicit > 0) return Math.round(explicit);
-  return Math.round(Number(data.finalPrice || 0) * DEPOSIT_RATE);
+  return Math.round(Number(data.finalPrice || 0) * depositRateFor(data.plan));
 }
 
 // ===== Web app entry points =====
@@ -242,6 +254,7 @@ function doGet(e) {
       pricing: PRICING,
       inAreaZips: Object.keys(IN_AREA_ZIPS),
       depositRate: DEPOSIT_RATE,
+      fullPayPlans: Object.keys(FULL_PAY_PLANS),
       outsideAreaFee: OUTSIDE_AREA_FEE,
       houseLabels: HOUSE_LABELS,
       planLabels: { basic: 'Basic Cleaning',
@@ -384,8 +397,11 @@ function createSquareCheckout(data) {
   var body = {
     idempotency_key: Utilities.getUuid(),
     quick_pay: {
-      name: 'Gutter Cleaning Deposit — ' + (data.planName || 'Booking') +
-            ' (25% of $' + Number(data.finalPrice || 0) + ')',
+      name: (depositRateFor(data.plan) >= 1 ? 'Gutter Cleaning — ' : 'Gutter Cleaning Deposit — ') +
+            (data.planName || 'Booking') +
+            (depositRateFor(data.plan) >= 1
+              ? ' (paid in full, $' + Number(data.finalPrice || 0) + ')'
+              : ' (25% of $' + Number(data.finalPrice || 0) + ')'),
       price_money: { amount: deposit * 100, currency: 'USD' },
       location_id: getSquareLocationId(token),
     },
@@ -595,7 +611,7 @@ function quoteSummaryRows(data) {
   if (data.zip) html += row('ZIP code', escapeHtml(String(data.zip)));
   if (data.outsideArea) html += row('Trip fee (outside area)', '+$' + OUTSIDE_AREA_FEE);
   html += rowBold('Total price', '$' + total);
-  html += row('Deposit (25%)', '$' + deposit);
+  html += row(depositLabel(data.plan), '$' + deposit);
   html += rowBold('Balance on completion', '$' + balance);
   return html;
 }
@@ -625,7 +641,7 @@ function fullBreakdownRows(o) {
   if (planUpgrade > 0) html += row('Plan upgrade', '+$' + planUpgrade);
   html += row('Trip fee', fee ? '+$' + fee : '$0');
   html += rowBold('Total price', '$' + total);
-  html += row('Deposit (25%)', '$' + deposit);
+  html += row(deposit >= total && total > 0 ? 'Paid in full (100%)' : 'Deposit (25%)', '$' + deposit);
   html += rowBold('Balance on completion', '$' + balance);
   html += '</table>';
   return html;
@@ -669,7 +685,8 @@ function sendCheckoutStartedEmail(data, priceCheck) {
   var deposit = depositFor(data);
 
   var inner = '';
-  inner += statusBanner('#f59e0b', '⏳ Checkout started — NOT paid yet. You\'ll get a ✅ PAID email the moment the $' + deposit + ' deposit lands.');
+  var payWord = depositRateFor(data.plan) >= 1 ? ' full payment' : ' deposit';
+  inner += statusBanner('#f59e0b', '⏳ Checkout started — NOT paid yet. You\'ll get a ✅ PAID email the moment the $' + deposit + payWord + ' lands.');
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(name) + ' — $' + Number(data.finalPrice || 0) + ' quote</h2>';
   inner += sectionHead('Customer');
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(data.name, data.phone, data.email, data.address) + '</table>';
@@ -699,16 +716,17 @@ function sendCheckoutStartedEmail(data, priceCheck) {
 // --- "PAID" (instant, from the payment checker) ---
 function sendPaidEmail(lead, receiptUrl) {
   var balance = Math.max(0, Number(lead.total || 0) - Number(lead.deposit || 0));
+  var paidInFull = balance === 0 && Number(lead.total || 0) > 0;
 
   var inner = '';
-  inner += statusBanner('#16a34a', '✅ PAID — $' + lead.deposit + ' deposit received. This booking is real.');
+  inner += statusBanner('#16a34a', '✅ PAID — $' + lead.deposit + (paidInFull ? ' PAID IN FULL. ' : ' deposit received. ') + 'This booking is real.');
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(lead.name) + ' — $' + lead.total + ' ' + escapeHtml(String(lead.plan)) + '</h2>';
   inner += sectionHead('Customer');
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(lead.name, lead.phone, lead.email, lead.address) + '</table>';
   inner += fullBreakdownRows(lead);
   inner += sectionHead('Money status');
   inner += '<table style="border-collapse:collapse;width:100%;">';
-  inner += rowBold('Deposit paid today', '$' + lead.deposit);
+  inner += rowBold(paidInFull ? 'Paid in full today' : 'Deposit paid today', '$' + lead.deposit);
   inner += rowBold('Balance to collect on completion', '$' + balance);
   inner += '</table>';
   if (receiptUrl) {
@@ -721,7 +739,7 @@ function sendPaidEmail(lead, receiptUrl) {
 
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
-    subject: '✅ PAID: ' + lead.name + ' — $' + lead.deposit + ' deposit in ($' + lead.total + ' total)',
+    subject: '✅ PAID: ' + lead.name + ' — $' + lead.deposit + (paidInFull ? ' PAID IN FULL' : ' deposit in ($' + lead.total + ' total)'),
     htmlBody: emailShell(inner),
     replyTo: lead.email || undefined,
     from: FROM_ADDRESS,
@@ -762,7 +780,8 @@ function buildBuyerEmailHtml(data) {
   var deposit = depositFor(data);
 
   var inner = '';
-  inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit + ' deposit is in.</h2>';
+  inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit +
+           (depositRateFor(data.plan) >= 1 ? ' payment is in — you\'re paid in full.' : ' deposit is in.') + '</h2>';
   inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">';
   inner += 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
   inner += '</p>';
@@ -1088,8 +1107,9 @@ function ccPhotoDescription_(lead) {
   var deposit = Number(lead.deposit || 0);
   var balance = Math.max(0, Number(lead.total || 0) - deposit);
   var bits = ['Booked online — ' + String(lead.plan || 'gutter cleaning')];
-  bits.push('$' + lead.total + ' total · $' + deposit + ' deposit paid · $' +
-            balance + ' due on completion');
+  bits.push(balance === 0 && deposit > 0
+    ? '$' + lead.total + ' total · PAID IN FULL online · $0 due on completion'
+    : '$' + lead.total + ' total · $' + deposit + ' deposit paid · $' + balance + ' due on completion');
   var home = [String(lead.house || '')];
   if (lead.sqft) home.push(lead.sqft + ' sq ft');
   if (lead.stories) home.push(lead.stories + ' stories');

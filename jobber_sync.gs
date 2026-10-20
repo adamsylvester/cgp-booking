@@ -766,10 +766,12 @@ function jobberDepositNote_(lead, receiptUrl) {
   var deposit = Number(lead.deposit || 0);
   var total = Number(lead.total || 0);
   var balance = Math.max(0, total - deposit);
+  var paidInFull = balance === 0 && deposit > 0;
   var lines = [
-    '💵 DEPOSIT ALREADY PAID — $' + deposit + ' collected through Square when they booked online.',
+    (paidInFull ? '💵 PAID IN FULL — $' : '💵 DEPOSIT ALREADY PAID — $') + deposit +
+      ' collected through Square when they booked online.',
     'Quoted total: $' + total,
-    'BALANCE TO COLLECT ON COMPLETION: $' + balance,
+    'BALANCE TO COLLECT ON COMPLETION: $' + balance + (paidInFull ? ' (nothing — fully prepaid)' : ''),
     '',
     'Apply the $' + deposit + ' as a payment on the invoice by hand — it is in Square, not in Jobber.',
   ];
