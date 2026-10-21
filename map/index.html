@@ -73,6 +73,25 @@ h1 b{color:var(--brand)}
 .leaflet-popup-content{margin:10px 12px;font-size:14px}
 .leaflet-popup-content img{display:block;width:260px;max-width:70vw;border-radius:8px;cursor:zoom-in}
 .leaflet-popup-content .cap{margin-top:6px;color:var(--muted);font-size:13px}
+/* controls under the map: work filter + year slider; a tech banner above it */
+.controls{display:flex;flex-wrap:wrap;gap:10px 22px;align-items:center;padding:4px 2px 10px;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:7px 12px;font:inherit;font-size:13px;font-weight:500;color:var(--ink);cursor:pointer}
+.seg button.on{background:var(--brand);color:var(--brand-ink)}
+.seg button:focus-visible{outline:3px solid var(--amber);outline-offset:-3px}
+.grow{display:flex;align-items:center;gap:8px;flex:1 1 260px;min-width:220px}
+.grow input[type=range]{flex:1;accent-color:var(--brand);min-width:120px}
+.grow b{font-family:var(--display);font-size:18px;color:var(--ink);min-width:3.2ch;text-align:right}
+.grow .play{border:1px solid var(--line);background:var(--card);border-radius:999px;width:30px;height:30px;cursor:pointer;font-size:13px;color:var(--ink)}
+.techbar[hidden]{display:none}
+.techbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 16px;background:#fff7e6;border:1px solid #fde68a;border-radius:12px;padding:10px 14px;margin-bottom:10px;font-size:14px}
+.techbar b{font-family:var(--display);font-size:18px}
+.techbar a{color:var(--brand)}
+.rsearch{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--card)}
+.rsearch input{border:0;padding:7px 12px;font:inherit;font-size:13px;min-width:0;width:200px;outline:none;background:transparent;color:var(--ink)}
+.rsearch button{border:0;background:none;padding:0 10px;cursor:pointer;color:var(--muted);font-size:15px}
+.strip-h .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.empty{color:var(--muted);font-size:14px;padding:10px 2px}
 /* strip */
 .strip-h{display:flex;align-items:baseline;justify-content:space-between;margin:22px 0 8px}
 .strip-h h2{font-family:var(--display);font-size:22px;margin:0;font-weight:600}
@@ -94,11 +113,11 @@ h1 b{color:var(--brand)}
 .lb .x{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:18px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;width:42px;height:42px;border-radius:50%;cursor:pointer}
 footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;color:var(--muted);font-size:13px;padding-block:14px 32px;border-top:1px solid var(--line);margin-top:8px}
 footer b{color:var(--ink)}
-@media (max-width:640px){#map{height:62vh} .stat .n{font-size:24px} .tools{right:12px} .chip{display:none}}
+@media (max-width:640px){#map{height:62vh} .stat .n{font-size:24px} .tools{right:12px} .chip{display:none} .rsearch input{width:140px}}
 @media print{
   @page{size:letter landscape;margin:.4in}
   body{background:#fff}
-  .tools,.near,.chip,footer .noprint,.leaflet-control{display:none!important}
+  .tools,.near,.chip,.controls,.rsearch,footer .noprint,.leaflet-control{display:none!important}
   .mapcard{box-shadow:none;border-radius:0;break-inside:avoid}
   #map{height:5.6in;min-height:0}
   .strip{overflow:visible;flex-wrap:wrap;gap:6px}
@@ -127,6 +146,7 @@ footer b{color:var(--ink)}
   </div>
 </header>
 
+<div class="techbar" id="techbar" hidden></div>
 <div class="mapcard">
   <div class="tools">
     <form class="search" id="near-form" autocomplete="off">
@@ -144,9 +164,13 @@ footer b{color:var(--ink)}
     <small id="near-s"></small>
   </div>
 </div>
+<div class="controls" id="controls">
+  <span class="seg" id="kind" role="group" aria-label="Kind of work"><button type="button" class="on" data-kind="0">All work</button><button type="button" data-kind="1">Gutter installs</button><button type="button" data-kind="2">Drains</button></span>
+  <label class="grow" id="grow"><span>Watch us grow</span><button type="button" class="play" id="play" aria-label="Play">▶</button><input type="range" id="year" min="2022" max="2026" step="1" value="2026" aria-label="Through year"><b id="year-n">2026</b></label>
+</div>
 <div class="legend"><span><i></i>Home we've worked on</span><span><i class="rv"></i>5-star review from that home (tap it)</span><span><i class="ph"></i>Crew photo at that home (tap it)</span><span id="built"></span></div>
 
-<div class="strip-h"><h2>What your neighbors say</h2><span>Newest 5-star reviews · tap to find the home on the map</span></div>
+<div class="strip-h"><h2>What your neighbors say</h2><div class="right"><form class="rsearch" id="rsearch"><input id="rq" type="search" placeholder="Search reviews: drains, install, a name…" aria-label="Search reviews" data-1p-ignore><button type="button" id="rq-x" aria-label="Clear" hidden>×</button></form><span>Tap one to find the home</span></div></div>
 <div class="strip" id="rstrip"></div>
 
 <div class="strip-h"><h2>Our crew, at homes near you</h2><span>Newest first · tap to find it on the map</span></div>
@@ -179,15 +203,29 @@ footer b{color:var(--ink)}
   try {
   const D = window.CGP_MAP;
   const fmt = n => n.toLocaleString('en-US');
-  const totalPhotos = D.selfies.reduce((a,s)=>a+s.ph.length,0);
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const yearOf = ts => new Date(ts*1000).getUTCFullYear();
   const thisYear = new Date().getFullYear();
-  document.getElementById('s-jobs').textContent = fmt(D.jobs.length);
-  document.getElementById('s-selfies').textContent = fmt(totalPhotos);
-  const RV = D.reviews||[]; const totalReviews = RV.reduce((a,s)=>a+s.rv.length,0);
-  document.getElementById('s-reviews').textContent = fmt(D.reviews_total||totalReviews);
-  document.getElementById('s-year').textContent = fmt(D.years[thisYear]||0);
-  document.getElementById('h-count').textContent = fmt(Math.floor(D.jobs.length/100)*100)+'+';
+  const RV = D.reviews||[];
+  const years = Object.keys(D.years).map(Number);
+  const minYear = Math.min(...years), maxYear = Math.max(thisYear, ...years);
   document.getElementById('built').textContent = 'Updated '+new Date(D.built+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  // Filters: kind of work (bit on each job), year ("watch us grow"), review search, and ?tech=Name.
+  const params = new URLSearchParams(location.search);
+  const F = { kind:+(params.get('kind')||0)||0, year:maxYear, q:(params.get('q')||'').trim().toLowerCase(), tech:(params.get('tech')||'').trim() };
+  if(F.kind){ document.querySelectorAll('#kind button').forEach(x=>x.classList.toggle('on', +x.dataset.kind===F.kind)); }
+  if(F.q){ const i=document.getElementById('rq'); i.value=F.q; document.getElementById('rq-x').hidden=false; }
+  const hasKinds = D.jobs.some(j => j.length > 3);
+  if(!hasKinds) document.getElementById('kind').hidden = true;
+  const whoHas = (who, name) => !!who && who.split(',').map(x=>x.trim().toLowerCase()).includes(name.toLowerCase());
+  const jobOk = j => j[2] <= F.year && (!F.kind || ((j[3]||0) & F.kind));
+  // A photo or review site inherits the kinds of the job at the same spot, so the
+  // Drains filter shows drains reviews and photos too.
+  const kindAt = new Map(); D.jobs.forEach(j => { if(j[3]) kindAt.set(j[0]+','+j[1], (kindAt.get(j[0]+','+j[1])||0) | j[3]); });
+  const siteOk = s => !F.kind || ((kindAt.get(s.lat+','+s.lon)||0) & F.kind);
+  const photoOk = p => yearOf(p.ts) <= F.year && (!F.tech || p.who.toLowerCase() === F.tech.toLowerCase());
+  const reviewOk = r => yearOf(r.ts) <= F.year && (!F.q || (r.q||'').toLowerCase().includes(F.q)) && (!F.tech || whoHas(r.who, F.tech));
 
   const map = L.map('map',{preferCanvas:true, zoomControl:true, attributionControl:true, tap:false}).setView([38.04,-78.49],12);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
@@ -196,15 +234,14 @@ footer b{color:var(--ink)}
   }).addTo(map);
   map.zoomControl.setPosition('bottomright');
 
-  // Homes: thousands of light dots on canvas. One layer group.
-  const dots = L.layerGroup();
-  D.jobs.forEach(j => L.circleMarker([j[0],j[1]],{radius:4,stroke:false,fillColor:'#1d4ed8',fillOpacity:.5,interactive:false}).addTo(dots));
-  dots.addTo(map);
+  // Homes: thousands of light dots on canvas, made once and shown/hidden by the filters.
+  const dots = L.layerGroup().addTo(map);
+  const dotMarkers = D.jobs.map(j => ({j, m:L.circleMarker([j[0],j[1]],{radius:4,stroke:false,fillColor:'#1d4ed8',fillOpacity:.5,interactive:false})}));
+  let shownJobs = D.jobs;
   function sizeDots(){ const z=map.getZoom(); const r = z>=16?7: z>=14?5: z>=13?4: z>=12?3:2.2; const o = z>=13?.6:.45; dots.eachLayer(l=>l.setStyle({radius:r,fillOpacity:o})); }
-  map.on('zoomend',sizeDots); sizeDots();
+  map.on('zoomend',sizeDots);
 
   // Crew photos: round photo pins, stacked into photo clusters when they overlap.
-  const sixMonthsAgo = Date.now()/1000 - 183*86400;
   const cluster = group({
     maxClusterRadius: 64, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
     iconCreateFunction(c){
@@ -221,20 +258,19 @@ footer b{color:var(--ink)}
     const more = s.ph.length>1 ? ` · ${s.ph.length} photos here` : '';
     m.bindPopup(()=>{
       const el = document.createElement('div');
-      el.innerHTML = `<img src="${p.w}" alt="Crew photo"><div class="cap">${p.who} · ${p.d}${more}</div>`;
+      el.innerHTML = `<img src="${p.w}" alt="Crew photo"><div class="cap">${esc(p.who)} · ${esc(p.d)}${more}</div>`;
       el.querySelector('img').addEventListener('click',()=>openLb(p));
       return el;
     },{maxWidth:300});
-    markers.push(m); cluster.addLayer(m);
+    markers.push(m);
   });
   map.addLayer(cluster);
 
   // 5-star reviews: gold stars at the reviewer's home, clustered the same way.
-  const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const rcluster = group({
     maxClusterRadius: 56, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
     iconCreateFunction(c){
-      const n = c.getAllChildMarkers().reduce((a,m)=>a+m.options.site.rv.length,0);
+      const n = c.getAllChildMarkers().reduce((a,m)=>a+(m.options.site.vis||m.options.site.rv).length,0);
       return L.divIcon({html:`<div class="starc">★<span class="c">${n}</span></div>`, className:'', iconSize:[46,46], iconAnchor:[23,23]});
     }
   });
@@ -245,55 +281,114 @@ footer b{color:var(--ink)}
     return `<div class="stars">★★★★★</div>${q}<div class="cap">A neighbor · ${esc(r.d)}${who}</div>`;
   }
   RV.forEach(s => {
-    const n = s.rv.length;
-    const badge = n>1 ? `<b>${n}</b>` : '';
-    const icon = L.divIcon({html:`<div class="star">★${badge}</div>`, className:'', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
-    const m = L.marker([s.lat,s.lon],{icon, site:s, zIndexOffset:-100});
+    const m = L.marker([s.lat,s.lon],{icon:L.divIcon({html:'',className:'',iconSize:[30,30]}), site:s, zIndexOffset:-100});
     m.bindPopup(()=>{
+      const list = s.vis || s.rv, n = list.length;
       const el = document.createElement('div');
       let i = 0;
       const draw = () => {
-        el.innerHTML = reviewHtml(s.rv[i]) + (n>1 ? `<div class="more">${i+1} of ${n} reviews here · <button type="button">next</button></div>` : '');
+        el.innerHTML = reviewHtml(list[i]) + (n>1 ? `<div class="more">${i+1} of ${n} reviews here · <button type="button">next</button></div>` : '');
         const b = el.querySelector('.more button'); if(b) b.onclick = () => { i=(i+1)%n; draw(); };
       };
       draw();
       return el;
     },{maxWidth:320});
-    rmarkers.push(m); rcluster.addLayer(m);
+    rmarkers.push(m);
   });
   map.addLayer(rcluster);
+  function starIcon(n){
+    const badge = n>1 ? `<b>${n}</b>` : '';
+    return L.divIcon({html:`<div class="star">★${badge}</div>`, className:'', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
+  }
 
-  // Strip of newest reviews
-  const rall = [];
-  RV.forEach(s => s.rv.forEach(r => { if(r.q) rall.push({r, s}); })); rall.sort((a,b)=>b.r.ts-a.r.ts);
-  const rstrip = document.getElementById('rstrip');
-  rall.slice(0,40).forEach(({r,s}) => {
-    const b = document.createElement('button'); b.className='rcard'; b.type='button';
-    b.innerHTML = `<div class="stars">★★★★★</div><p class="q">${esc(r.q)}</p><div class="m">A neighbor · ${esc(r.d)}${r.who?' · crew: '+esc(r.who):''}</div>`;
-    b.addEventListener('click',()=>{
-      map.flyTo([s.lat,s.lon],17,{duration:.8});
-      const m = rmarkers.find(x=>x.options.site===s);
-      map.once('moveend',()=>showIn(rcluster,m,()=>m.openPopup()));
-      window.scrollTo({top:0,behavior:'smooth'});
+  // Strip of newest photos / reviews (rebuilt by the filters)
+  const strip = document.getElementById('strip'), rstrip = document.getElementById('rstrip');
+  function buildStrips(sites, rsites){
+    strip.innerHTML = ''; rstrip.innerHTML = '';
+    const all = [];
+    sites.forEach(s => s.ph.forEach(p => { if(photoOk(p)) all.push({p, s}); })); all.sort((a,b)=>b.p.ts-a.p.ts);
+    all.slice(0,60).forEach(({p,s}) => {
+      const b = document.createElement('button'); b.className='thumb'; b.type='button';
+      b.innerHTML = `<img loading="lazy" src="${p.t}" alt="Crew photo"><span>${esc(p.who)} · ${esc(p.d)}</span>`;
+      b.addEventListener('click',()=>{
+        map.flyTo([s.lat,s.lon],17,{duration:.8});
+        const m = markers.find(x=>x.options.site===s);
+        map.once('moveend',()=>showIn(cluster,m,()=>m.openPopup()));
+        window.scrollTo({top:0,behavior:'smooth'});
+      });
+      strip.appendChild(b);
     });
-    rstrip.appendChild(b);
-  });
+    if(!all.length) strip.innerHTML = '<div class="empty">No crew photos match.</div>';
+    const rall = [];
+    rsites.forEach(s => s.vis.forEach(r => { if(r.q) rall.push({r, s}); })); rall.sort((a,b)=>b.r.ts-a.r.ts);
+    rall.slice(0,40).forEach(({r,s}) => {
+      const b = document.createElement('button'); b.className='rcard'; b.type='button';
+      b.innerHTML = `<div class="stars">★★★★★</div><p class="q">${esc(r.q)}</p><div class="m">A neighbor · ${esc(r.d)}${r.who?' · crew: '+esc(r.who):''}</div>`;
+      b.addEventListener('click',()=>{
+        map.flyTo([s.lat,s.lon],17,{duration:.8});
+        const m = rmarkers.find(x=>x.options.site===s);
+        map.once('moveend',()=>showIn(rcluster,m,()=>m.openPopup()));
+        window.scrollTo({top:0,behavior:'smooth'});
+      });
+      rstrip.appendChild(b);
+    });
+    if(!rall.length) rstrip.innerHTML = `<div class="empty">${F.q?'No reviews mention “'+esc(F.q)+'”.':'No written reviews match.'}</div>`;
+  }
 
-  // Strip of newest photos
-  const all = [];
-  D.selfies.forEach(s => s.ph.forEach(p => all.push({p, s}))); all.sort((a,b)=>b.p.ts-a.p.ts);
-  const strip = document.getElementById('strip');
-  all.slice(0,60).forEach(({p,s}) => {
-    const b = document.createElement('button'); b.className='thumb'; b.type='button';
-    b.innerHTML = `<img loading="lazy" src="${p.t}" alt="Crew photo"><span>${p.who} · ${p.d}</span>`;
-    b.addEventListener('click',()=>{
-      map.flyTo([s.lat,s.lon],17,{duration:.8});
-      const m = markers.find(x=>x.options.site===s);
-      map.once('moveend',()=>showIn(cluster,m,()=>m.openPopup()));
-      window.scrollTo({top:0,behavior:'smooth'});
-    });
-    strip.appendChild(b);
+  // Apply every filter at once: dots, photo pins, star pins, strips, and the numbers up top.
+  let shownSelfies = D.selfies, shownReviews = RV;
+  function apply(){
+    shownJobs = D.jobs.filter(jobOk);
+    dots.clearLayers(); dotMarkers.forEach(x => { if(jobOk(x.j)) dots.addLayer(x.m); }); sizeDots();
+    shownSelfies = D.selfies.filter(s => siteOk(s) && s.ph.some(photoOk));
+    cluster.clearLayers(); cluster.addLayers ? cluster.addLayers(markers.filter(m=>shownSelfies.includes(m.options.site))) : markers.forEach(m=>{ if(shownSelfies.includes(m.options.site)) cluster.addLayer(m); });
+    shownReviews = [];
+    RV.forEach(s => { s.vis = siteOk(s) ? s.rv.filter(reviewOk) : []; if(s.vis.length) shownReviews.push(s); });
+    const rm = rmarkers.filter(m => m.options.site.vis.length);
+    rm.forEach(m => m.setIcon(starIcon(m.options.site.vis.length)));
+    rcluster.clearLayers(); rcluster.addLayers ? rcluster.addLayers(rm) : rm.forEach(m=>rcluster.addLayer(m));
+    buildStrips(shownSelfies, shownReviews);
+    const nPhotos = shownSelfies.reduce((a,s)=>a+s.ph.filter(photoOk).length,0);
+    const nReviews = shownReviews.reduce((a,s)=>a+s.vis.length,0);
+    const filtered = F.kind || F.year < maxYear || F.q || F.tech;
+    document.getElementById('s-jobs').textContent = fmt(shownJobs.length);
+    document.getElementById('s-reviews').textContent = fmt(filtered ? nReviews : (D.reviews_total||nReviews));
+    document.getElementById('s-selfies').textContent = fmt(nPhotos);
+    document.getElementById('s-year').textContent = fmt(D.years[F.year < maxYear ? F.year : thisYear]||0);
+    document.querySelector('#s-year + .l, .stat:last-child .l').textContent = F.year < maxYear ? 'In '+F.year : 'This year';
+    const h = document.getElementById('h-count');
+    h.textContent = fmt(Math.floor(shownJobs.length/100)*100)+'+';
+    const kindWord = F.kind===1 ? ' got new gutters from us' : F.kind===2 ? ' had us fix their drains' : ' trust us with their gutters';
+    h.parentNode.childNodes.forEach(n => { if(n.nodeType===3) n.textContent = ' homes around Charlottesville' + kindWord + (F.year < maxYear ? ' by the end of '+F.year : '') + '.'; });
+    const tb = document.getElementById('techbar');
+    if(F.tech){
+      tb.hidden = false;
+      tb.innerHTML = `<span><b>${esc(F.tech)}'s map</b> · ${fmt(nPhotos)} crew photo${nPhotos===1?'':'s'} · ${fmt(nReviews)} five-star review${nReviews===1?'':'s'} that name ${esc(F.tech)}'s crew</span><a href="./">Show everyone</a>`;
+    }
+  }
+
+  // Controls
+  document.querySelectorAll('#kind button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('#kind button').forEach(x=>x.classList.toggle('on', x===b));
+    F.kind = +b.dataset.kind; apply();
+  }));
+  const yr = document.getElementById('year'), yrN = document.getElementById('year-n');
+  yr.min = minYear; yr.max = maxYear; yr.value = maxYear; yrN.textContent = maxYear;
+  let yrTimer = null;
+  yr.addEventListener('input', () => { yrN.textContent = yr.value; clearTimeout(yrTimer); yrTimer = setTimeout(()=>{ F.year = +yr.value; apply(); }, 60); });
+  let playing = null;
+  const playBtn = document.getElementById('play');
+  playBtn.addEventListener('click', () => {
+    if(playing){ clearInterval(playing); playing=null; playBtn.textContent='▶'; return; }
+    let y = minYear; yr.value = y; yrN.textContent = y; F.year = y; apply(); playBtn.textContent='❚❚';
+    playing = setInterval(() => { y++; if(y > maxYear){ clearInterval(playing); playing=null; playBtn.textContent='▶'; return; } yr.value = y; yrN.textContent = y; F.year = y; apply(); }, 1100);
   });
+  const rq = document.getElementById('rq'), rqx = document.getElementById('rq-x');
+  let rqTimer = null;
+  rq.addEventListener('input', () => { clearTimeout(rqTimer); rqTimer = setTimeout(()=>{ F.q = rq.value.trim().toLowerCase(); rqx.hidden = !F.q; apply(); }, 200); });
+  rqx.addEventListener('click', () => { rq.value=''; F.q=''; rqx.hidden=true; apply(); });
+  document.getElementById('rsearch').addEventListener('submit', e => e.preventDefault());
+  apply();
 
   // Lightbox
   const lb=document.getElementById('lb'), lbi=document.getElementById('lb-img'), lbc=document.getElementById('lb-cap');
@@ -315,35 +410,47 @@ footer b{color:var(--ink)}
   document.getElementById('near-x').onclick=()=>{ nearBox.classList.remove('show'); if(ring){map.removeLayer(ring);ring=null;} if(pinHere){map.removeLayer(pinHere);pinHere=null;} };
   function miles(a,b,c,d){ const R=3958.8, toR=x=>x*Math.PI/180; const dl=toR(c-a), dn=toR(d-b); const h=Math.sin(dl/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dn/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
   function showNear(lat,lon,label){
-    const n=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=0.5).length;
-    const sp=D.selfies.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.ph.length,0);
-    const n1=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=1).length;
-    const rv=RV.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.rv.length,0);
+    const n=shownJobs.filter(j=>miles(lat,lon,j[0],j[1])<=0.5).length;
+    const sp=shownSelfies.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.ph.filter(photoOk).length,0);
+    const n1=shownJobs.filter(j=>miles(lat,lon,j[0],j[1])<=1).length;
+    const rv=shownReviews.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.vis.length,0);
     if(ring) map.removeLayer(ring); if(pinHere) map.removeLayer(pinHere);
     ring=L.circle([lat,lon],{radius:804.7,color:'#f59e0b',weight:2,fillColor:'#f59e0b',fillOpacity:.08}).addTo(map);
     pinHere=L.circleMarker([lat,lon],{radius:8,color:'#fff',weight:3,fillColor:'#f59e0b',fillOpacity:1}).addTo(map);
     document.getElementById('near-n').textContent=fmt(n);
-    document.getElementById('near-s').textContent=`${fmt(n1)} within a mile · ${rv} five-star review${rv===1?'':'s'} · ${sp} crew photo${sp===1?'':'s'} nearby · ${label}`;
+    const line = where => `${where ? where+' · ' : ''}${fmt(n1)} within a mile · ${rv} five-star review${rv===1?'':'s'} · ${sp} crew photo${sp===1?'':'s'} nearby`;
+    document.getElementById('near-s').textContent=line(label);
     nearBox.classList.add('show');
     map.flyTo([lat,lon],15,{duration:.9});
+    if(!label) hoodName(lat,lon).then(h => { if(h) document.getElementById('near-s').textContent=line(h); });
+  }
+  // Neighborhood name for a spot (OpenStreetMap reverse lookup). Subdivisions
+  // come back as neighbourhood/suburb/hamlet; a road name is the fallback.
+  const hoodOf = a => a && (a.neighbourhood||a.suburb||a.hamlet||a.quarter||a.residential||a.village||a.town||a.road||'');
+  async function hoodName(lat,lon){
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=16&addressdetails=1&lat=${lat}&lon=${lon}`,{headers:{'Accept':'application/json'}});
+      const d=await r.json(); return hoodOf(d.address);
+    }catch(e){ return ''; }
   }
   document.getElementById('near-form').addEventListener('submit', async e=>{
     e.preventDefault();
     const q=document.getElementById('near-input').value.trim(); if(!q) return;
     const btn=e.target.querySelector('button'); btn.textContent='…'; btn.disabled=true;
     try{
-      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&viewbox=-79.2,38.6,-77.8,37.5&bounded=0&q='+encodeURIComponent(/virginia|,\s*va\b/i.test(q)?q:q+', Virginia');
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=1&countrycodes=us&viewbox=-79.2,38.6,-77.8,37.5&bounded=0&q='+encodeURIComponent(/virginia|,\s*va\b/i.test(q)?q:q+', Virginia');
       const r=await fetch(url,{headers:{'Accept':'application/json'}}); const d=await r.json();
       if(!d.length){ btn.textContent='Not found'; setTimeout(()=>btn.textContent='Show',1600); return; }
       const lat=+d[0].lat, lon=+d[0].lon;
       const parts=(d[0].display_name||q).split(',').slice(0,2).join(',');
-      showNear(lat,lon,parts);
+      const hood=hoodOf(d[0].address);
+      showNear(lat,lon,hood && !parts.includes(hood) ? `${parts} (${hood})` : parts);
       btn.textContent='Show';
     }catch(err){ btn.textContent='Try again'; setTimeout(()=>btn.textContent='Show',1600); }
     finally{ btn.disabled=false; }
   });
   // Tap anywhere on the map (not on a pin) to measure from that spot.
-  map.on('click',e=>showNear(e.latlng.lat,e.latlng.lng,'this spot'));
+  map.on('click',e=>showNear(e.latlng.lat,e.latlng.lng,''));
   } catch(e){ report(e); console.error(e); }
 })();
 </script>
