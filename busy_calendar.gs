@@ -19,9 +19,11 @@
 //   1. Script Properties: JOBBER_TOKEN_STORE_URL, JOBBER_TOKEN_STORE_SECRET
 //      (same values as the booking project — the token service owns the
 //      refresh-token chain, this script only asks for the current access token).
-//   2. Run setup()  → creates the calendars, shares them read-only with
+//   2. Services + → add "Google Calendar API" (identifier Calendar) — used only
+//      to share the calendars.
+//   3. Run setup()  → creates the calendars, shares them read-only with
 //      SHARE_WITH, installs the 10-minute trigger, runs one sync.
-//   3. In each Calendly account: Calendar connections → "Check for conflicts"
+//   4. In each Calendly account: Calendar connections → "Check for conflicts"
 //      → tick the matching CGP Busy calendar.
 //
 // Lane users (GC1, GC2, Solo, Install, Repair, Assessments…) are Jobber
@@ -256,17 +258,15 @@ function ensureCalendar_(cfg) {
   return cal;
 }
 
-// CalendarApp has no sharing method; the Calendar REST API does, and the
-// script's own OAuth token already carries the calendar scope.
+// CalendarApp has no sharing method; the Calendar advanced service does
+// (editor: Services + → Google Calendar API, identifier "Calendar").
 function shareCalendar_(calendarId, email) {
-  var resp = UrlFetchApp.fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(calendarId) + '/acl', {
-    method: 'post',
-    contentType: 'application/json',
-    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
-    payload: JSON.stringify({ role: 'reader', scope: { type: 'user', value: email } }),
-    muteHttpExceptions: true,
+  var already = (Calendar.Acl.list(calendarId).items || []).some(function (r) {
+    return r.scope && r.scope.type === 'user' && r.scope.value === email;
   });
-  if (resp.getResponseCode() >= 300) Logger.log('share ' + email + ' → ' + resp.getContentText());
+  if (already) return;
+  Calendar.Acl.insert({ role: 'reader', scope: { type: 'user', value: email } }, calendarId);
+  Logger.log('shared with ' + email);
 }
 
 // Make the calendar hold exactly `desired` (within the window), touching only
