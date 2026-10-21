@@ -41,7 +41,7 @@ const CAL_TZ = 'America/New_York';
 // Who gets read access to the calendars (so their Calendly can tick them).
 // The owner account (adam@cvillegutterpros.com) sees them automatically.
 const SHARE_WITH = [
-  // 'todd@cvillegutterpros.com',
+  'todd@cvillegutterpros.com',   // Todd's Calendly user connects to this Google account
 ];
 
 // mode 'any' : busy whenever ANY matching visit is on (per-visit events).
