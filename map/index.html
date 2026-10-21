@@ -169,6 +169,14 @@ footer b{color:var(--ink)}
 <script src="data.js"></script>
 <script>
 (function(){
+  // If the cluster library is blocked, pins still show (just unclustered); any
+  // script error is written under the map instead of silently hiding layers.
+  const hasMC = typeof L.markerClusterGroup === 'function';
+  const group = opts => hasMC ? L.markerClusterGroup(opts) : L.layerGroup();
+  const showIn = (g,m,cb) => g.zoomToShowLayer ? g.zoomToShowLayer(m,cb) : cb();
+  const report = e => { const b=document.getElementById('built'); if(b) b.textContent = 'Map error: '+(e && (e.message||e)); };
+  window.addEventListener('error', ev => report(ev.error || ev.message));
+  try {
   const D = window.CGP_MAP;
   const fmt = n => n.toLocaleString('en-US');
   const totalPhotos = D.selfies.reduce((a,s)=>a+s.ph.length,0);
@@ -197,7 +205,7 @@ footer b{color:var(--ink)}
 
   // Crew photos: round photo pins, stacked into photo clusters when they overlap.
   const sixMonthsAgo = Date.now()/1000 - 183*86400;
-  const cluster = L.markerClusterGroup({
+  const cluster = group({
     maxClusterRadius: 64, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
     iconCreateFunction(c){
       const ms = c.getAllChildMarkers().slice(0,3);
@@ -223,7 +231,7 @@ footer b{color:var(--ink)}
 
   // 5-star reviews: gold stars at the reviewer's home, clustered the same way.
   const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-  const rcluster = L.markerClusterGroup({
+  const rcluster = group({
     maxClusterRadius: 56, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
     iconCreateFunction(c){
       const n = c.getAllChildMarkers().reduce((a,m)=>a+m.options.site.rv.length,0);
@@ -265,7 +273,7 @@ footer b{color:var(--ink)}
     b.addEventListener('click',()=>{
       map.flyTo([s.lat,s.lon],17,{duration:.8});
       const m = rmarkers.find(x=>x.options.site===s);
-      map.once('moveend',()=>rcluster.zoomToShowLayer(m,()=>m.openPopup()));
+      map.once('moveend',()=>showIn(rcluster,m,()=>m.openPopup()));
       window.scrollTo({top:0,behavior:'smooth'});
     });
     rstrip.appendChild(b);
@@ -281,7 +289,7 @@ footer b{color:var(--ink)}
     b.addEventListener('click',()=>{
       map.flyTo([s.lat,s.lon],17,{duration:.8});
       const m = markers.find(x=>x.options.site===s);
-      map.once('moveend',()=>cluster.zoomToShowLayer(m,()=>m.openPopup()));
+      map.once('moveend',()=>showIn(cluster,m,()=>m.openPopup()));
       window.scrollTo({top:0,behavior:'smooth'});
     });
     strip.appendChild(b);
@@ -336,6 +344,7 @@ footer b{color:var(--ink)}
   });
   // Tap anywhere on the map (not on a pin) to measure from that spot.
   map.on('click',e=>showNear(e.latlng.lat,e.latlng.lng,'this spot'));
+  } catch(e){ report(e); console.error(e); }
 })();
 </script>
 </body>
