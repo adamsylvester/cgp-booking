@@ -13,7 +13,7 @@
 /* Layout: one map, framed by a headline above and a strip of crew photos below. Blue is the brand, amber is the photo ring. */
 :root{
   --bg:#f6f7fb; --card:#ffffff; --ink:#111827; --muted:#5b6475; --line:#e3e7ef;
-  --brand:#1d4ed8; --brand-ink:#ffffff; --amber:#f59e0b; --dot:rgba(29,78,216,.55);
+  --brand:#1d4ed8; --brand-ink:#ffffff; --amber:#f59e0b; --gold:#eab308; --dot:rgba(29,78,216,.55);
   --display:"Fraunces",Georgia,serif; --body:"Public Sans",system-ui,-apple-system,sans-serif;
 }
 *{box-sizing:border-box}
@@ -47,6 +47,17 @@ h1 b{color:var(--brand)}
 .legend{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted);padding:12px 2px}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--dot);margin-right:6px;vertical-align:middle}
 .legend i.ph{width:16px;height:16px;border:2px solid var(--amber);background:#ccc}
+.legend i.rv{width:16px;height:16px;background:var(--gold);border:2px solid #fff;box-shadow:0 0 0 1px var(--gold)}
+/* review pins: a gold star badge, smaller than a photo so both fit at one home */
+.star{width:30px;height:30px;border-radius:50%;background:var(--gold);border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:17px;line-height:1;transition:transform .15s}
+.star:hover{transform:scale(1.25);z-index:5}
+.star b{position:absolute;right:-6px;top:-6px;background:#111827;color:#fff;font-size:10px;font-weight:700;border-radius:999px;padding:1px 5px;line-height:1.3}
+.starc{position:relative;width:46px;height:46px;border-radius:50%;background:var(--gold);border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px}
+.starc .c{position:absolute;right:-6px;bottom:-4px;background:#111827;color:#fff;font-weight:700;font-size:12px;border-radius:999px;padding:2px 7px;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.leaflet-popup-content .stars{color:var(--gold);letter-spacing:1px;font-size:15px}
+.leaflet-popup-content .q{margin:4px 0 0;font-size:14px;max-width:280px;line-height:1.4}
+.leaflet-popup-content .more{margin-top:8px;border-top:1px solid var(--line);padding-top:6px}
+.leaflet-popup-content .more button{border:0;background:none;color:var(--brand);font:inherit;font-size:13px;cursor:pointer;padding:0;text-decoration:underline}
 /* photo pins */
 .pin{width:44px;height:44px;border-radius:50%;border:3px solid var(--amber);background:#ddd center/cover no-repeat;box-shadow:0 3px 10px rgba(0,0,0,.35);transition:transform .15s}
 .pin:hover{transform:scale(1.25);z-index:5}
@@ -70,6 +81,11 @@ h1 b{color:var(--brand)}
 .thumb{flex:0 0 auto;width:120px;height:150px;border-radius:10px;overflow:hidden;border:0;padding:0;cursor:pointer;position:relative;scroll-snap-align:start;background:#ddd}
 .thumb img{width:100%;height:100%;object-fit:cover;display:block}
 .thumb span{position:absolute;left:0;right:0;bottom:0;padding:18px 8px 6px;font-size:12px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));text-align:left}
+/* review cards */
+.rcard{flex:0 0 auto;width:250px;border-radius:10px;border:1px solid var(--line);background:var(--card);padding:12px 14px;text-align:left;cursor:pointer;scroll-snap-align:start;font:inherit;color:var(--ink);display:flex;flex-direction:column;gap:6px}
+.rcard .stars{color:var(--gold);letter-spacing:1px;font-size:14px}
+.rcard .q{font-size:13.5px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+.rcard .m{font-size:12px;color:var(--muted);margin-top:auto}
 /* lightbox */
 .lb{position:fixed;inset:0;background:rgba(10,14,25,.9);display:none;align-items:center;justify-content:center;z-index:5000;padding:20px}
 .lb.show{display:flex}
@@ -88,6 +104,9 @@ footer b{color:var(--ink)}
   .strip{overflow:visible;flex-wrap:wrap;gap:6px}
   .thumb{width:0.98in;height:1.22in}
   .thumb:nth-child(n+25){display:none}
+  .rcard{width:2.3in;border-color:#ccc}
+  .rcard:nth-child(n+9){display:none}
+  .star b{display:none}
   .strip-h span{display:none}
 }
 </style>
@@ -98,10 +117,11 @@ footer b{color:var(--ink)}
   <div>
     <div class="brand">Charlottesville Gutter Pros</div>
     <h1><b id="h-count">8,500+</b> homes around Charlottesville trust us with their gutters.</h1>
-    <p class="sub">Every blue dot is a home we've worked on since 2022. The photos are our own crew, on the job, at your neighbors' houses. Tap any photo to see who was there.</p>
+    <p class="sub">Every blue dot is a home we've worked on since 2022. Gold stars are 5-star reviews from those homes, and the photos are our own crew, on the job. Tap a star to read the review, or a photo to see who was there.</p>
   </div>
   <div class="stats" aria-label="Totals">
     <div class="stat"><div class="n" id="s-jobs">–</div><div class="l">Homes served</div></div>
+    <div class="stat"><div class="n" id="s-reviews">–</div><div class="l">5-star reviews</div></div>
     <div class="stat"><div class="n" id="s-selfies">–</div><div class="l">Crew photos</div></div>
     <div class="stat"><div class="n" id="s-year">–</div><div class="l">This year</div></div>
   </div>
@@ -114,6 +134,7 @@ footer b{color:var(--ink)}
       <button type="submit">Show</button>
     </form>
     <button class="chip on" id="chip-dots" type="button">Homes</button>
+    <button class="chip on" id="chip-reviews" type="button">5-star reviews</button>
     <button class="chip on" id="chip-photos" type="button">Crew photos</button>
   </div>
   <div id="map" role="application" aria-label="Map of homes served"></div>
@@ -123,14 +144,17 @@ footer b{color:var(--ink)}
     <small id="near-s"></small>
   </div>
 </div>
-<div class="legend"><span><i></i>Home we've worked on</span><span><i class="ph"></i>Crew photo at that home (tap it)</span><span id="built"></span></div>
+<div class="legend"><span><i></i>Home we've worked on</span><span><i class="rv"></i>5-star review from that home (tap it)</span><span><i class="ph"></i>Crew photo at that home (tap it)</span><span id="built"></span></div>
+
+<div class="strip-h"><h2>What your neighbors say</h2><span>Newest 5-star reviews · tap to find the home on the map</span></div>
+<div class="strip" id="rstrip"></div>
 
 <div class="strip-h"><h2>Our crew, at homes near you</h2><span>Newest first · tap to find it on the map</span></div>
 <div class="strip" id="strip"></div>
 
 <footer>
   <div><b>Charlottesville Gutter Pros</b> · 434-422-4700 · cvillegutterpros.com</div>
-  <div class="noprint">Dots are placed at the property, with no names or addresses shown.</div>
+  <div class="noprint">Dots and stars are placed at the property, with no names or addresses shown. Reviews are public Google reviews.</div>
 </footer>
 </div>
 
@@ -151,6 +175,8 @@ footer b{color:var(--ink)}
   const thisYear = new Date().getFullYear();
   document.getElementById('s-jobs').textContent = fmt(D.jobs.length);
   document.getElementById('s-selfies').textContent = fmt(totalPhotos);
+  const RV = D.reviews||[]; const totalReviews = RV.reduce((a,s)=>a+s.rv.length,0);
+  document.getElementById('s-reviews').textContent = fmt(D.reviews_total||totalReviews);
   document.getElementById('s-year').textContent = fmt(D.years[thisYear]||0);
   document.getElementById('h-count').textContent = fmt(Math.floor(D.jobs.length/100)*100)+'+';
   document.getElementById('built').textContent = 'Updated '+new Date(D.built+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
@@ -195,6 +221,56 @@ footer b{color:var(--ink)}
   });
   map.addLayer(cluster);
 
+  // 5-star reviews: gold stars at the reviewer's home, clustered the same way.
+  const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const rcluster = L.markerClusterGroup({
+    maxClusterRadius: 56, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
+    iconCreateFunction(c){
+      const n = c.getAllChildMarkers().reduce((a,m)=>a+m.options.site.rv.length,0);
+      return L.divIcon({html:`<div class="starc">★<span class="c">${n}</span></div>`, className:'', iconSize:[46,46], iconAnchor:[23,23]});
+    }
+  });
+  const rmarkers = [];
+  function reviewHtml(r){
+    const who = r.who ? ` · crew: ${esc(r.who)}` : '';
+    const q = r.q ? `<p class="q">“${esc(r.q)}”</p>` : `<p class="q">Left 5 stars, no words.</p>`;
+    return `<div class="stars">★★★★★</div>${q}<div class="cap">A neighbor · ${esc(r.d)}${who}</div>`;
+  }
+  RV.forEach(s => {
+    const n = s.rv.length;
+    const badge = n>1 ? `<b>${n}</b>` : '';
+    const icon = L.divIcon({html:`<div class="star">★${badge}</div>`, className:'', iconSize:[30,30], iconAnchor:[15,15], popupAnchor:[0,-16]});
+    const m = L.marker([s.lat,s.lon],{icon, site:s, zIndexOffset:-100});
+    m.bindPopup(()=>{
+      const el = document.createElement('div');
+      let i = 0;
+      const draw = () => {
+        el.innerHTML = reviewHtml(s.rv[i]) + (n>1 ? `<div class="more">${i+1} of ${n} reviews here · <button type="button">next</button></div>` : '');
+        const b = el.querySelector('.more button'); if(b) b.onclick = () => { i=(i+1)%n; draw(); };
+      };
+      draw();
+      return el;
+    },{maxWidth:320});
+    rmarkers.push(m); rcluster.addLayer(m);
+  });
+  map.addLayer(rcluster);
+
+  // Strip of newest reviews
+  const rall = [];
+  RV.forEach(s => s.rv.forEach(r => { if(r.q) rall.push({r, s}); })); rall.sort((a,b)=>b.r.ts-a.r.ts);
+  const rstrip = document.getElementById('rstrip');
+  rall.slice(0,40).forEach(({r,s}) => {
+    const b = document.createElement('button'); b.className='rcard'; b.type='button';
+    b.innerHTML = `<div class="stars">★★★★★</div><p class="q">${esc(r.q)}</p><div class="m">A neighbor · ${esc(r.d)}${r.who?' · crew: '+esc(r.who):''}</div>`;
+    b.addEventListener('click',()=>{
+      map.flyTo([s.lat,s.lon],17,{duration:.8});
+      const m = rmarkers.find(x=>x.options.site===s);
+      map.once('moveend',()=>rcluster.zoomToShowLayer(m,()=>m.openPopup()));
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+    rstrip.appendChild(b);
+  });
+
   // Strip of newest photos
   const all = [];
   D.selfies.forEach(s => s.ph.forEach(p => all.push({p, s}))); all.sort((a,b)=>b.p.ts-a.p.ts);
@@ -222,6 +298,8 @@ footer b{color:var(--ink)}
   const cd=document.getElementById('chip-dots'), cp=document.getElementById('chip-photos');
   cd.onclick=()=>{ cd.classList.toggle('on'); cd.classList.contains('on')?map.addLayer(dots):map.removeLayer(dots); };
   cp.onclick=()=>{ cp.classList.toggle('on'); cp.classList.contains('on')?map.addLayer(cluster):map.removeLayer(cluster); };
+  const cr=document.getElementById('chip-reviews');
+  cr.onclick=()=>{ cr.classList.toggle('on'); cr.classList.contains('on')?map.addLayer(rcluster):map.removeLayer(rcluster); };
 
   // "Near an address": geocode, draw a half-mile ring, count homes + photos inside.
   let ring=null, pinHere=null;
@@ -232,11 +310,12 @@ footer b{color:var(--ink)}
     const n=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=0.5).length;
     const sp=D.selfies.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.ph.length,0);
     const n1=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=1).length;
+    const rv=RV.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.rv.length,0);
     if(ring) map.removeLayer(ring); if(pinHere) map.removeLayer(pinHere);
     ring=L.circle([lat,lon],{radius:804.7,color:'#f59e0b',weight:2,fillColor:'#f59e0b',fillOpacity:.08}).addTo(map);
     pinHere=L.circleMarker([lat,lon],{radius:8,color:'#fff',weight:3,fillColor:'#f59e0b',fillOpacity:1}).addTo(map);
     document.getElementById('near-n').textContent=fmt(n);
-    document.getElementById('near-s').textContent=`${fmt(n1)} within a mile · ${sp} crew photo${sp===1?'':'s'} nearby · ${label}`;
+    document.getElementById('near-s').textContent=`${fmt(n1)} within a mile · ${rv} five-star review${rv===1?'':'s'} · ${sp} crew photo${sp===1?'':'s'} nearby · ${label}`;
     nearBox.classList.add('show');
     map.flyTo([lat,lon],15,{duration:.9});
   }
