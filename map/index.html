@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your Neighbors Trust Us · Charlottesville Gutter Pros</title>
+<meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<style>
+/* Layout: one map, framed by a headline above and a strip of crew photos below. Blue is the brand, amber is the photo ring. */
+:root{
+  --bg:#f6f7fb; --card:#ffffff; --ink:#111827; --muted:#5b6475; --line:#e3e7ef;
+  --brand:#1d4ed8; --brand-ink:#ffffff; --amber:#f59e0b; --dot:rgba(29,78,216,.55);
+  --display:"Fraunces",Georgia,serif; --body:"Public Sans",system-ui,-apple-system,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.45}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{padding-block:18px 10px;display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.brand{font-weight:600;letter-spacing:.08em;text-transform:uppercase;font-size:12px;color:var(--brand)}
+h1{font-family:var(--display);font-weight:700;font-size:clamp(28px,4.2vw,44px);line-height:1.05;margin:4px 0 6px;text-wrap:balance;font-variation-settings:"opsz" 144}
+h1 b{color:var(--brand)}
+.sub{color:var(--muted);max-width:60ch;margin:0}
+.stats{display:flex;gap:18px;flex-wrap:wrap}
+.stat{min-width:96px}
+.stat .n{font-family:var(--display);font-size:30px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums}
+.stat .l{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:4px}
+.mapcard{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 8px 30px rgba(17,24,39,.08)}
+#map{height:min(68vh,720px);min-height:380px;width:100%;background:#eef1f6}
+.tools{position:absolute;z-index:1000;top:12px;left:12px;right:12px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+.tools>*{pointer-events:auto}
+.search{display:flex;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,.12);overflow:hidden;flex:1 1 260px;max-width:460px}
+.search input{flex:1;border:0;padding:11px 12px;font:inherit;font-size:15px;min-width:0;outline:none;background:transparent;color:var(--ink)}
+.search button{border:0;background:var(--brand);color:var(--brand-ink);font:inherit;font-weight:600;padding:0 16px;cursor:pointer}
+.search button:focus-visible,.chip:focus-visible,.thumb:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.chip{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:13px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,.1);cursor:pointer;color:var(--ink)}
+.chip.on{background:var(--brand);color:var(--brand-ink);border-color:var(--brand)}
+.near{position:absolute;z-index:1000;left:12px;bottom:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;max-width:min(360px,calc(100% - 24px));box-shadow:0 2px 10px rgba(0,0,0,.12);display:none}
+.near.show{display:block}
+.near .big{font-family:var(--display);font-size:26px;font-weight:600;line-height:1.1}
+.near .big b{color:var(--brand)}
+.near small{color:var(--muted);display:block;margin-top:4px}
+.near .x{position:absolute;top:6px;right:8px;border:0;background:none;font-size:18px;cursor:pointer;color:var(--muted)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted);padding:12px 2px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--dot);margin-right:6px;vertical-align:middle}
+.legend i.ph{width:16px;height:16px;border:2px solid var(--amber);background:#ccc}
+/* photo pins */
+.pin{width:44px;height:44px;border-radius:50%;border:3px solid var(--amber);background:#ddd center/cover no-repeat;box-shadow:0 3px 10px rgba(0,0,0,.35);transition:transform .15s}
+.pin:hover{transform:scale(1.25);z-index:5}
+.pin.recent{border-color:#fff;box-shadow:0 0 0 3px var(--amber),0 3px 10px rgba(0,0,0,.35)}
+.cluster{position:relative;width:54px;height:54px}
+.cluster img{position:absolute;width:40px;height:40px;border-radius:50%;border:2px solid #fff;object-fit:cover;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.cluster img:nth-child(1){left:0;top:10px;z-index:3}
+.cluster img:nth-child(2){left:10px;top:0;z-index:2}
+.cluster img:nth-child(3){left:16px;top:14px;z-index:1}
+.cluster .c{position:absolute;right:-4px;bottom:-2px;background:var(--amber);color:#111;font-weight:700;font-size:12px;border-radius:999px;padding:2px 7px;z-index:4;box-shadow:0 1px 4px rgba(0,0,0,.3)}
+.leaflet-container{font-family:var(--body)}
+.leaflet-tile-pane .base{filter:saturate(.35) brightness(1.06)}
+.leaflet-popup-content{margin:10px 12px;font-size:14px}
+.leaflet-popup-content img{display:block;width:260px;max-width:70vw;border-radius:8px;cursor:zoom-in}
+.leaflet-popup-content .cap{margin-top:6px;color:var(--muted);font-size:13px}
+/* strip */
+.strip-h{display:flex;align-items:baseline;justify-content:space-between;margin:22px 0 8px}
+.strip-h h2{font-family:var(--display);font-size:22px;margin:0;font-weight:600}
+.strip-h span{color:var(--muted);font-size:13px}
+.strip{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 14px;scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.thumb{flex:0 0 auto;width:120px;height:150px;border-radius:10px;overflow:hidden;border:0;padding:0;cursor:pointer;position:relative;scroll-snap-align:start;background:#ddd}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb span{position:absolute;left:0;right:0;bottom:0;padding:18px 8px 6px;font-size:12px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.65));text-align:left}
+/* lightbox */
+.lb{position:fixed;inset:0;background:rgba(10,14,25,.9);display:none;align-items:center;justify-content:center;z-index:5000;padding:20px}
+.lb.show{display:flex}
+.lb img{max-width:min(92vw,900px);max-height:84vh;border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.lb .cap{position:absolute;bottom:max(18px,env(safe-area-inset-bottom,0px));left:0;right:0;text-align:center;color:#fff;font-size:15px}
+.lb .x{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:18px;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;width:42px;height:42px;border-radius:50%;cursor:pointer}
+footer{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 20px;color:var(--muted);font-size:13px;padding-block:14px 32px;border-top:1px solid var(--line);margin-top:8px}
+footer b{color:var(--ink)}
+@media (max-width:640px){#map{height:62vh} .stat .n{font-size:24px} .tools{right:12px} .chip{display:none}}
+@media print{
+  @page{size:letter landscape;margin:.4in}
+  body{background:#fff}
+  .tools,.near,.chip,footer .noprint,.leaflet-control{display:none!important}
+  .mapcard{box-shadow:none;border-radius:0;break-inside:avoid}
+  #map{height:5.6in;min-height:0}
+  .strip{overflow:visible;flex-wrap:wrap;gap:6px}
+  .thumb{width:0.98in;height:1.22in}
+  .thumb:nth-child(n+25){display:none}
+  .strip-h span{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div>
+    <div class="brand">Charlottesville Gutter Pros</div>
+    <h1><b id="h-count">8,500+</b> homes around Charlottesville trust us with their gutters.</h1>
+    <p class="sub">Every blue dot is a home we've worked on since 2022. The photos are our own crew, on the job, at your neighbors' houses. Tap any photo to see who was there.</p>
+  </div>
+  <div class="stats" aria-label="Totals">
+    <div class="stat"><div class="n" id="s-jobs">–</div><div class="l">Homes served</div></div>
+    <div class="stat"><div class="n" id="s-selfies">–</div><div class="l">Crew photos</div></div>
+    <div class="stat"><div class="n" id="s-year">–</div><div class="l">This year</div></div>
+  </div>
+</header>
+
+<div class="mapcard">
+  <div class="tools">
+    <form class="search" id="near-form" autocomplete="off">
+      <input id="near-input" type="text" placeholder="Type an address to see neighbors we've helped" aria-label="Address" data-1p-ignore>
+      <button type="submit">Show</button>
+    </form>
+    <button class="chip on" id="chip-dots" type="button">Homes</button>
+    <button class="chip on" id="chip-photos" type="button">Crew photos</button>
+  </div>
+  <div id="map" role="application" aria-label="Map of homes served"></div>
+  <div class="near" id="near">
+    <button class="x" id="near-x" aria-label="Close">×</button>
+    <div class="big"><b id="near-n">0</b> homes within a half mile</div>
+    <small id="near-s"></small>
+  </div>
+</div>
+<div class="legend"><span><i></i>Home we've worked on</span><span><i class="ph"></i>Crew photo at that home (tap it)</span><span id="built"></span></div>
+
+<div class="strip-h"><h2>Our crew, at homes near you</h2><span>Newest first · tap to find it on the map</span></div>
+<div class="strip" id="strip"></div>
+
+<footer>
+  <div><b>Charlottesville Gutter Pros</b> · 434-422-4700 · cvillegutterpros.com</div>
+  <div class="noprint">Dots are placed at the property, with no names or addresses shown.</div>
+</footer>
+</div>
+
+<div class="lb" id="lb" role="dialog" aria-modal="true">
+  <button class="x" id="lb-x" aria-label="Close">×</button>
+  <img id="lb-img" alt="Crew photo">
+  <div class="cap" id="lb-cap"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="data.js"></script>
+<script>
+(function(){
+  const D = window.CGP_MAP;
+  const fmt = n => n.toLocaleString('en-US');
+  const totalPhotos = D.selfies.reduce((a,s)=>a+s.ph.length,0);
+  const thisYear = new Date().getFullYear();
+  document.getElementById('s-jobs').textContent = fmt(D.jobs.length);
+  document.getElementById('s-selfies').textContent = fmt(totalPhotos);
+  document.getElementById('s-year').textContent = fmt(D.years[thisYear]||0);
+  document.getElementById('h-count').textContent = fmt(Math.floor(D.jobs.length/100)*100)+'+';
+  document.getElementById('built').textContent = 'Updated '+new Date(D.built+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  const map = L.map('map',{preferCanvas:true, zoomControl:true, attributionControl:true, tap:false}).setView([38.04,-78.49],12);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom:19, className:'base',
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+  map.zoomControl.setPosition('bottomright');
+
+  // Homes: thousands of light dots on canvas. One layer group.
+  const dots = L.layerGroup();
+  D.jobs.forEach(j => L.circleMarker([j[0],j[1]],{radius:4,stroke:false,fillColor:'#1d4ed8',fillOpacity:.5,interactive:false}).addTo(dots));
+  dots.addTo(map);
+  function sizeDots(){ const z=map.getZoom(); const r = z>=16?7: z>=14?5: z>=13?4: z>=12?3:2.2; const o = z>=13?.6:.45; dots.eachLayer(l=>l.setStyle({radius:r,fillOpacity:o})); }
+  map.on('zoomend',sizeDots); sizeDots();
+
+  // Crew photos: round photo pins, stacked into photo clusters when they overlap.
+  const sixMonthsAgo = Date.now()/1000 - 183*86400;
+  const cluster = L.markerClusterGroup({
+    maxClusterRadius: 64, showCoverageOnHover:false, spiderfyOnMaxZoom:true, disableClusteringAtZoom:17,
+    iconCreateFunction(c){
+      const ms = c.getAllChildMarkers().slice(0,3);
+      const imgs = ms.map(m=>`<img src="${m.options.ph.t}" alt="">`).join('');
+      return L.divIcon({html:`<div class="cluster">${imgs}<span class="c">${c.getChildCount()}</span></div>`, className:'', iconSize:[54,54], iconAnchor:[27,27]});
+    }
+  });
+  const markers = [];
+  D.selfies.forEach(s => {
+    const p = s.ph[0];
+    const icon = L.divIcon({html:`<div class="pin" style="background-image:url('${p.t}')"></div>`, className:'', iconSize:[44,44], iconAnchor:[22,22], popupAnchor:[0,-22]});
+    const m = L.marker([s.lat,s.lon],{icon, ph:p, site:s});
+    const more = s.ph.length>1 ? ` · ${s.ph.length} photos here` : '';
+    m.bindPopup(()=>{
+      const el = document.createElement('div');
+      el.innerHTML = `<img src="${p.w}" alt="Crew photo"><div class="cap">${p.who} · ${p.d}${more}</div>`;
+      el.querySelector('img').addEventListener('click',()=>openLb(p));
+      return el;
+    },{maxWidth:300});
+    markers.push(m); cluster.addLayer(m);
+  });
+  map.addLayer(cluster);
+
+  // Strip of newest photos
+  const all = [];
+  D.selfies.forEach(s => s.ph.forEach(p => all.push({p, s}))); all.sort((a,b)=>b.p.ts-a.p.ts);
+  const strip = document.getElementById('strip');
+  all.slice(0,60).forEach(({p,s}) => {
+    const b = document.createElement('button'); b.className='thumb'; b.type='button';
+    b.innerHTML = `<img loading="lazy" src="${p.t}" alt="Crew photo"><span>${p.who} · ${p.d}</span>`;
+    b.addEventListener('click',()=>{
+      map.flyTo([s.lat,s.lon],17,{duration:.8});
+      const m = markers.find(x=>x.options.site===s);
+      map.once('moveend',()=>cluster.zoomToShowLayer(m,()=>m.openPopup()));
+      window.scrollTo({top:0,behavior:'smooth'});
+    });
+    strip.appendChild(b);
+  });
+
+  // Lightbox
+  const lb=document.getElementById('lb'), lbi=document.getElementById('lb-img'), lbc=document.getElementById('lb-cap');
+  function openLb(p){ lbi.src=p.w; lbc.textContent=`${p.who} · ${p.d}`; lb.classList.add('show'); const hi=new Image(); hi.onload=()=>{ if(lb.classList.contains('show')) lbi.src=p.o; }; hi.src=p.o; }
+  function closeLb(){ lb.classList.remove('show'); lbi.src=''; }
+  document.getElementById('lb-x').onclick=closeLb; lb.addEventListener('click',e=>{ if(e.target===lb) closeLb(); });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeLb(); });
+
+  // Toggles
+  const cd=document.getElementById('chip-dots'), cp=document.getElementById('chip-photos');
+  cd.onclick=()=>{ cd.classList.toggle('on'); cd.classList.contains('on')?map.addLayer(dots):map.removeLayer(dots); };
+  cp.onclick=()=>{ cp.classList.toggle('on'); cp.classList.contains('on')?map.addLayer(cluster):map.removeLayer(cluster); };
+
+  // "Near an address": geocode, draw a half-mile ring, count homes + photos inside.
+  let ring=null, pinHere=null;
+  const nearBox=document.getElementById('near');
+  document.getElementById('near-x').onclick=()=>{ nearBox.classList.remove('show'); if(ring){map.removeLayer(ring);ring=null;} if(pinHere){map.removeLayer(pinHere);pinHere=null;} };
+  function miles(a,b,c,d){ const R=3958.8, toR=x=>x*Math.PI/180; const dl=toR(c-a), dn=toR(d-b); const h=Math.sin(dl/2)**2+Math.cos(toR(a))*Math.cos(toR(c))*Math.sin(dn/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+  function showNear(lat,lon,label){
+    const n=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=0.5).length;
+    const sp=D.selfies.filter(s=>miles(lat,lon,s.lat,s.lon)<=0.5).reduce((a,s)=>a+s.ph.length,0);
+    const n1=D.jobs.filter(j=>miles(lat,lon,j[0],j[1])<=1).length;
+    if(ring) map.removeLayer(ring); if(pinHere) map.removeLayer(pinHere);
+    ring=L.circle([lat,lon],{radius:804.7,color:'#f59e0b',weight:2,fillColor:'#f59e0b',fillOpacity:.08}).addTo(map);
+    pinHere=L.circleMarker([lat,lon],{radius:8,color:'#fff',weight:3,fillColor:'#f59e0b',fillOpacity:1}).addTo(map);
+    document.getElementById('near-n').textContent=fmt(n);
+    document.getElementById('near-s').textContent=`${fmt(n1)} within a mile · ${sp} crew photo${sp===1?'':'s'} nearby · ${label}`;
+    nearBox.classList.add('show');
+    map.flyTo([lat,lon],15,{duration:.9});
+  }
+  document.getElementById('near-form').addEventListener('submit', async e=>{
+    e.preventDefault();
+    const q=document.getElementById('near-input').value.trim(); if(!q) return;
+    const btn=e.target.querySelector('button'); btn.textContent='…'; btn.disabled=true;
+    try{
+      const url='https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&viewbox=-79.2,38.6,-77.8,37.5&bounded=0&q='+encodeURIComponent(/virginia|,\s*va\b/i.test(q)?q:q+', Virginia');
+      const r=await fetch(url,{headers:{'Accept':'application/json'}}); const d=await r.json();
+      if(!d.length){ btn.textContent='Not found'; setTimeout(()=>btn.textContent='Show',1600); return; }
+      const lat=+d[0].lat, lon=+d[0].lon;
+      const parts=(d[0].display_name||q).split(',').slice(0,2).join(',');
+      showNear(lat,lon,parts);
+      btn.textContent='Show';
+    }catch(err){ btn.textContent='Try again'; setTimeout(()=>btn.textContent='Show',1600); }
+    finally{ btn.disabled=false; }
+  });
+  // Tap anywhere on the map (not on a pin) to measure from that spot.
+  map.on('click',e=>showNear(e.latlng.lat,e.latlng.lng,'this spot'));
+})();
+</script>
+</body>
+</html>
