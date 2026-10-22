@@ -935,9 +935,10 @@
       @media (max-width:680px){ .plan-grid, .field-row { grid-template-columns:1fr; } }
       @media (max-width:640px){ .brand-strip { justify-content:center; text-align:center; } .brand-strip-info { text-align:center; } .brand-strip-incl { justify-content:center; } }
       /* ===== Numbered step headers for clearer hierarchy ===== */
-      .step-head { display:flex; align-items:center; gap:10px; margin:0 0 14px; padding-top:20px; border-top:1px solid var(--border); }
-      .step-head .num { flex:0 0 auto; width:24px; height:24px; border-radius:50%; background:var(--primary); color:#fff; font-size:12.5px; font-weight:800; display:flex; align-items:center; justify-content:center; }
-      .step-head .txt { font-size:15px; font-weight:800; color:var(--text); letter-spacing:-.01em; }
+      .step-head { display:flex; align-items:center; justify-content:center; margin:0 0 16px; padding-top:22px; border-top:1px solid var(--border); }
+      .step-pill { display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:999px; }
+      .step-head .num { flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#fff; color:var(--primary); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+      .step-head .txt { font-size:12px; font-weight:800; color:#fff; letter-spacing:.1em; }
       .price-wrap .price { color:var(--primary); }
       /* Reviews + what's-included, integrated into the price box */
       .price-trust { margin-top:16px; padding-top:14px; border-top:1px solid #c7d4f7; }
@@ -1003,7 +1004,7 @@
       @keyframes addrGlow { 0%,100% { box-shadow:0 0 0 0 rgba(29,78,216,.0); } 50% { box-shadow:0 0 0 7px rgba(29,78,216,.16); } }
       @media (prefers-reduced-motion: reduce) { .addr-field input.addr-idle { animation:none; } }
       .addr-start .addr-note { margin-top:12px; }
-      .house-hero-prompt-2 { margin-top:28px; padding-top:24px; border-top:1px solid var(--border); }
+      .house-hero-prompt-2 { margin-top:28px; padding-top:24px; border-top:1px solid var(--border); margin-bottom:10px; }
       @media (max-width:640px) { .addr-start { padding:20px 14px 16px; border-radius:16px; } .addr-field input { font-size:18px; padding:16px 14px; } }
       .addr-suggest { position:absolute; left:0; right:0; top:100%; z-index:30; margin:4px 0 0; padding:6px; list-style:none; background:#fff; border:1.5px solid var(--border); border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.14); max-height:280px; overflow-y:auto; }
       .addr-suggest li { padding:10px 12px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600; color:var(--text); display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
@@ -1071,7 +1072,8 @@
         </div>
         <p class="zip-note addr-note" id="addrNote" style="display:none;"></p>
       </div>
-      <p class="house-hero-prompt house-hero-prompt-2">Which home looks most like yours?</p>
+      <div class="house-hero-prompt-2"><span class="addr-kicker"><span class="addr-kicker-num">2</span> Pick your home</span></div>
+      <p class="house-hero-prompt">Which home looks most like yours?</p>
       <p class="house-hero-sub">Tap the closest match then scroll down.</p>
       <div class="house-grid" id="houseGrid">
         <div class="house-opt" data-house="simple">
@@ -1121,7 +1123,7 @@
           <div class="lock-note" id="lockNote">👆 First pick the home above that looks most like yours.</div>
 
           <div class="step-active">
-          <div class="step-head"><span class="num">1</span><span class="txt">Your home</span></div>
+          <div class="step-head"><span class="step-pill"><span class="num">3</span><span class="txt">Your home</span></span></div>
           <div class="field-row">
           <div class="field" id="sqftField">
             <div class="arrow-wrap" aria-hidden="true">
@@ -1167,7 +1169,7 @@
           <p class="zip-note" id="zipNote" style="display:none;"></p>
           </div>
 
-          <div class="step-head"><span class="num">2</span><span class="txt">Choose your plan</span></div>
+          <div class="step-head"><span class="step-pill"><span class="num">4</span><span class="txt">Choose your plan</span></span></div>
           <div class="plan-grid" id="planGrid">
             <label class="plan-opt plan-featured selected" data-plan="basic">
               <span class="plan-badge">★ Most popular</span>
@@ -1229,7 +1231,7 @@
           </div>
 
           <div class="contact-panel">
-            <div class="step-head"><span class="num">3</span><span class="txt">Your details</span></div>
+            <div class="step-head"><span class="step-pill"><span class="num">5</span><span class="txt">Your details</span></span></div>
             <div class="contact-grid">
               <div class="field">
                 <label for="custName">Full Name</label>
@@ -1269,7 +1271,7 @@
          time — held for 30 minutes — and THEN pays the deposit. schedule.html
          in hold mode posts cgp.held (send them to Square) or cgp.skip (no date). -->
     <section class="date-pick" id="datePick" hidden>
-      <div class="step-head"><span class="num">4</span><span class="txt">Pick your day &amp; time</span></div>
+      <div class="step-head"><span class="step-pill"><span class="num">6</span><span class="txt">Pick your day &amp; time</span></span></div>
       <p class="date-pick-sub">Pick a time, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. We hold the time for 30 minutes while you pay.</p>
       <iframe id="datePickFrame" title="Pick a date and time" style="width:100%;height:720px;border:0;display:block;border-radius:12px;background:#fff"></iframe>
     </section>
@@ -1279,7 +1281,7 @@
          token, which the Apps Script charges for the server-computed deposit.
          If the SDK can't load, the old hosted Square checkout takes over. -->
     <section class="pay-step" id="payStep" hidden>
-      <div class="step-head"><span class="num">5</span><span class="txt">Pay your deposit</span></div>
+      <div class="step-head"><span class="step-pill"><span class="num">7</span><span class="txt">Pay your deposit</span></span></div>
       <p class="pay-sub"><strong id="payHeld">Your time</strong> is held for you for 30 minutes.</p>
       <div class="pay-box">
         <div class="pay-row"><span>Due today</span><strong id="payAmount">$0</strong></div>
