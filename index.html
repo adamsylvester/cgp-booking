@@ -999,6 +999,8 @@
       .addr-note.from-county { color:var(--success, #15803d); }
       .addr-note.from-county .addr-edit { color:var(--text-subtle); font-weight:500; }
       .addr-note.heads-up { color:#b45309; }
+      .addr-note.addr-miss { color:#7c2d12; background:#fff7ed; border:1px solid #fed7aa; border-radius:12px; padding:10px 14px; font-weight:500; text-align:left; max-width:520px; }
+      .addr-note.addr-miss strong { font-weight:800; }
       #sqft.from-county, #stories.from-county, #zip.from-county { border-color:var(--success, #15803d); background:#f0fdf4; }
       .extra-fee { color:var(--primary); font-weight:700; white-space:nowrap; }
       .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
@@ -1690,6 +1692,14 @@
     // one tap to fix. The lookup lives at team.cvillegutterpros.com/api/property.
     const PROPERTY_API = 'https://team.cvillegutterpros.com/api/property';
     let propertyRecord = null;   // last county record we filled from (goes into the lead payload)
+    // Plain words for the two ways the lookup can come up empty. (Adam: "nothing
+    // worse than a poorly worded error message.") Neither one stops the booking.
+    const NO_MATCH_NOTE = '<strong>We couldn\'t find that address in Albemarle County or Charlottesville city records.</strong> ' +
+      'No problem — if it\'s typed right, just keep going. Pick your home below and enter your square feet, ' +
+      'and we\'ll use the address exactly as you typed it.';
+    const LOOKUP_DOWN_NOTE = '<strong>Address search isn\'t available right now.</strong> ' +
+      'Just type your full address and keep going — pick your home below and enter your square feet.';
+    const PICK_ONE_NOTE = 'Tap your address in the list and we\'ll fill in your house details for you — or keep going with it as typed.';
 
     function initAddressLookup() {
       const input = elements.custAddress;
@@ -1715,15 +1725,11 @@
       function render() {
         list.innerHTML = '';
         if (!items.length) {
-          if (lastQuery.length >= 5) {
-            const li = document.createElement('li');
-            li.className = 'addr-none';
-            li.textContent = 'No county match yet — keep typing, or just finish your address and pick your home below.';
-            list.appendChild(li);
-            list.hidden = false;
-          } else { hideList(); }
+          hideList();
+          if (lastQuery.length >= 5) showNote(NO_MATCH_NOTE, 'addr-miss');
           return;
         }
+        if (note.classList.contains('addr-miss')) showNote('', '');
         items.forEach((s, i) => {
           const li = document.createElement('li');
           li.setAttribute('role', 'option');
@@ -1748,7 +1754,9 @@
           active = -1;
           render();
         } catch (e) {
-          if (e.name !== 'AbortError') hideList();
+          if (e.name === 'AbortError') return;
+          hideList();
+          if (q.length >= 5) showNote(LOOKUP_DOWN_NOTE, 'addr-miss');
         }
       }
       async function pick(s) {
@@ -1832,7 +1840,14 @@
         else if (e.key === 'Enter' && !list.hidden && items.length) { e.preventDefault(); pick(items[active < 0 ? 0 : active]); }
         else if (e.key === 'Escape') hideList();
       });
-      input.addEventListener('blur', () => setTimeout(hideList, 150));
+      input.addEventListener('blur', () => setTimeout(() => {
+        const had = items.length > 0;
+        hideList();
+        if (propertyRecord || lastQuery.length < 5) return;
+        if (had) showNote(PICK_ONE_NOTE, 'addr-miss');
+        else if (!note.classList.contains('addr-miss')) showNote(NO_MATCH_NOTE, 'addr-miss');
+      }, 150));
+      input.addEventListener('focus', () => { if (lastQuery.length >= 3 && items.length) render(); });
       // Hand edits to the numbers drop the county highlight on that box only.
       fieldsFromCounty.forEach((el) => el.addEventListener('input', () => { if (!filling) el.classList.remove('from-county'); }));
       elements.storiesSelect.addEventListener('change', () => { if (!filling) elements.storiesSelect.classList.remove('from-county'); });
