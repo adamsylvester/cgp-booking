@@ -2063,7 +2063,7 @@
     // SQUARE_CARD_LIVE: flip to true once the sandbox rehearsal has passed and
     // the production token is in place; until then real customers get the
     // hosted Square checkout as before.
-    const SQUARE_CARD_LIVE = false;
+    const SQUARE_CARD_LIVE = true;
     const SQUARE = SQUARE_TEST
       ? { sdk: 'https://sandbox.web.squarecdn.com/v1/square.js', appId: 'sandbox-sq0idb-D1kxs2r8L6bhfRshU6CH4w', locationId: 'LMQGNRYSTAQS0', env: 'sandbox' }
       : { sdk: 'https://web.squarecdn.com/v1/square.js', appId: SQUARE_CARD_LIVE ? 'sq0idp-jup3sOKF-EuYNnheFKsZBQ' : 'PROD_APP_ID_TBD', locationId: 'LY862H05F9ENY', env: 'production' };
