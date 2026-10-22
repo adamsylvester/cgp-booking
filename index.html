@@ -2060,9 +2060,13 @@
     // ?squaretest=1 switches to Square's sandbox so the whole paid path can be
     // rehearsed with test cards; the Apps Script then charges the sandbox too.
     const SQUARE_TEST = /[?&]squaretest=1/.test(location.search);
+    // SQUARE_CARD_LIVE: flip to true once the sandbox rehearsal has passed and
+    // the production token is in place; until then real customers get the
+    // hosted Square checkout as before.
+    const SQUARE_CARD_LIVE = false;
     const SQUARE = SQUARE_TEST
-      ? { sdk: 'https://sandbox.web.squarecdn.com/v1/square.js', appId: 'SANDBOX_APP_ID_TBD', locationId: 'SANDBOX_LOCATION_TBD', env: 'sandbox' }
-      : { sdk: 'https://web.squarecdn.com/v1/square.js', appId: 'PROD_APP_ID_TBD', locationId: 'PROD_LOCATION_TBD', env: 'production' };
+      ? { sdk: 'https://sandbox.web.squarecdn.com/v1/square.js', appId: 'sandbox-sq0idb-D1kxs2r8L6bhfRshU6CH4w', locationId: 'LMQGNRYSTAQS0', env: 'sandbox' }
+      : { sdk: 'https://web.squarecdn.com/v1/square.js', appId: SQUARE_CARD_LIVE ? 'sq0idp-jup3sOKF-EuYNnheFKsZBQ' : 'PROD_APP_ID_TBD', locationId: 'PROD_LOCATION_TBD', env: 'production' };
     let squareCard = null, squarePayments = null, payIdempotency = '';
 
     function loadSquareSdk() {
