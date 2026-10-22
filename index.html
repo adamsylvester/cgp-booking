@@ -2063,12 +2063,24 @@
     // Pick-then-pay. The scheduler iframe holds the slot for 30 minutes and
     // tells us; we then send them to Square with the hold id attached, so the
     // paid deposit schedules exactly that time.
+    // Arrival window by house size (Adam, 2026-10-22): simple homes get an
+    // hour, big or complex ones two to three. The start grid stays the same;
+    // a long window simply blocks the later starts it overlaps.
+    const JOB_MINUTES = { simple: 60, standard: 90, complex: 120, townhome2: 60, townhome3: 90 };
+    function jobMinutes(payload) {
+      let m = JOB_MINUTES[payload.houseType] || 90;
+      const sq = Number(payload.sqft) || 0;
+      if (sq > 3500) m += 30;
+      if (sq > 5000) m += 30;
+      return Math.min(180, m);
+    }
     let pendingPayload = null;
     function openDatePicker(payload) {
       pendingPayload = payload;
       const sec = document.getElementById('datePick');
       const frame = document.getElementById('datePickFrame');
-      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold' + (window.cgpOffice ? '&office=1' : '') + '&v=' + Date.now();
+      payload.minutes = jobMinutes(payload);
+      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold&minutes=' + payload.minutes + (window.cgpOffice ? '&office=1' : '') + '&v=' + Date.now();
       sec.hidden = false;
       elements.bookBtn.disabled = true;
       elements.bookBtn.textContent = 'Pick a time below ↓';

@@ -82,6 +82,7 @@
       mode: opts.token ? 'manage' : (opts.mode === 'hold' ? 'hold' : 'book'),
       confirmed: !!opts.confirmed,
       office: !!opts.office,
+      minutes: Number(opts.minutes) > 0 ? Math.round(Number(opts.minutes)) : null,   // window length from the house size
       service: opts.service || 'cleaning',
       embed: !!opts.embed,
       token: opts.token || '',
@@ -111,7 +112,7 @@
         .then(function (rows) { if (!rows[0]) throw new Error('unknown service'); S.svc = rows[0]; });
     }
     function loadSlots() {
-      return sbRpc('booking_slots', { p_service: S.service, p_zip: S.zip || null }).then(function (rows) {
+      return sbRpc('booking_slots', { p_service: S.service, p_zip: S.zip || null, p_minutes: S.minutes }).then(function (rows) {
         S.slots = rows.map(function (r) { return { start: new Date(r.slot_start), end: new Date(r.slot_end), miles: r.miles == null ? null : Number(r.miles), far: !!r.far }; });
         S.byDay = {};
         S.slots.forEach(function (s) { var k = dayKey(s.start); (S.byDay[k] = S.byDay[k] || []).push(s); });
@@ -145,8 +146,8 @@
     // --- pieces
     function info(extra) {
       var svc = S.svc || {};
-      var mins = svc.duration_min || 60;
-      var dur = mins >= 60 ? (mins / 60) + ' hr' : mins + ' min';
+      var mins = S.minutes || svc.duration_min || 60;
+      var dur = mins % 60 === 0 ? (mins / 60) + ' hr' : (mins >= 60 ? Math.floor(mins / 60) + ' hr ' + (mins % 60) + ' min' : mins + ' min');
       var h = '';
       if (extra && extra.back) h += '<button class="bk-back" type="button" data-act="back" aria-label="Back">&larr;</button>';
       h += '<div class="bk-brand"><div class="bk-logo">CGP</div><div class="bk-company">' + COMPANY + '</div></div>';
@@ -397,7 +398,7 @@
         zip: S.zip || (String(v('address')).match(/\b\d{5}\b/) || [''])[0],
         notes: v('notes'), website: v('website'),
         lead_timestamp: S.service === 'cleaning' ? (l.timestamp || '') : '',
-        source: S.office ? 'office' : (S.embed ? 'booking-page-embed' : 'booking-page'),
+        source: S.office ? 'office' : (S.embed ? 'booking-page-embed' : 'booking-page'), minutes: S.minutes,
       };
       set({ step: 'busy', busyMsg: 'Booking your time…' });
       api(body).then(function (r) {
@@ -419,7 +420,7 @@
       api({
         op: 'hold', service: S.service, start: S.picked.start.toISOString(),
         name: l.name || '', email: l.email || '', phone: l.phone || '', address: l.address || '',
-        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: S.office ? 'office' : 'pick-then-pay',
+        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: S.office ? 'office' : 'pick-then-pay', minutes: S.minutes,
       }).then(function (r) {
         if (!r.ok) { S.err = friendly(r.error, r._status); return loadSlots().then(function () { set({ step: 'calendar' }); }); }
         try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}

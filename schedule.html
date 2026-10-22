@@ -29,6 +29,7 @@
         // mode=hold: pick-then-pay — hold the time, tell the booking page, no form
         mode: q.get('mode') === 'hold' ? 'hold' : undefined,
         office: q.get('office') === '1',   // staff booking for a customer: not counted in stats
+        minutes: q.get('minutes'),         // arrival-window length, from the house size on the booking page
       });
     })();
   </script>
