@@ -986,15 +986,16 @@
       .zip-note.trip-fee { color:var(--success, #15803d); }
       .zip-note.unserved { color:#b42318; }
       /* Address autocomplete (Step 1) */
-      .step-active .addr-field { position:relative; max-width:520px; margin:0 auto 18px; text-align:left; }
-      .step-active .addr-field label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-subtle); text-align:center; }
-      .step-active .addr-field input { width:100%; box-sizing:border-box; font-size:17px; font-weight:600; padding:12px 14px; text-align:center; }
+      .addr-field { position:relative; max-width:520px; margin:6px auto 0; text-align:left; }
+      .addr-field label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-subtle); text-align:center; }
+      .addr-field input { width:100%; box-sizing:border-box; font-size:18px; font-weight:600; padding:14px 16px; text-align:center; }
+      .house-hero-prompt-2 { margin-top:26px; padding-top:22px; border-top:1px solid var(--border); }
       .addr-suggest { position:absolute; left:0; right:0; top:100%; z-index:30; margin:4px 0 0; padding:6px; list-style:none; background:#fff; border:1.5px solid var(--border); border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.14); max-height:280px; overflow-y:auto; }
       .addr-suggest li { padding:10px 12px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600; color:var(--text); display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
       .addr-suggest li small { font-size:12px; font-weight:600; color:var(--text-subtle); white-space:nowrap; }
       .addr-suggest li:hover, .addr-suggest li.active { background:#eff6ff; color:var(--primary); }
       .addr-suggest li.addr-none { cursor:default; color:var(--text-subtle); font-weight:500; justify-content:center; }
-      .addr-note { margin-bottom:14px; }
+      .addr-note { margin-bottom:0; }
       .addr-note.from-county { color:var(--success, #15803d); }
       .addr-note.from-county .addr-edit { color:var(--text-subtle); font-weight:500; }
       .addr-note.heads-up { color:#b45309; }
@@ -1039,7 +1040,17 @@
       <span class="seg" id="railBook">3 · Book</span>
     </div>
     <section class="house-hero" id="houseHero">
-      <p class="house-hero-prompt">Which home looks most like yours?</p>
+      <!-- Address first (Adam, 2026-10-22): picking a county address fills ZIP,
+           square feet and gutter height from the assessor's records
+           (team.cvillegutterpros.com/api/property). Then the house pictures. -->
+      <p class="house-hero-prompt">Where are we cleaning?</p>
+      <div class="field addr-field" id="addrField">
+        <label for="custAddress">Service Address</label>
+        <input id="custAddress" type="text" autocomplete="off" data-1p-ignore placeholder="Start typing your street address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="addrSuggest" />
+        <ul class="addr-suggest" id="addrSuggest" role="listbox" hidden></ul>
+      </div>
+      <p class="zip-note addr-note" id="addrNote" style="display:none;"></p>
+      <p class="house-hero-prompt house-hero-prompt-2">Which home looks most like yours?</p>
       <p class="house-hero-sub">Tap the closest match then scroll down.</p>
       <div class="house-grid" id="houseGrid">
         <div class="house-opt" data-house="simple">
@@ -1090,14 +1101,6 @@
 
           <div class="step-active">
           <div class="step-head"><span class="num">1</span><span class="txt">Your home</span></div>
-          <!-- Address first: picking a county address fills ZIP, square feet and
-               gutter height from the assessor's records (team.cvillegutterpros.com/api/property). -->
-          <div class="field addr-field" id="addrField">
-            <label for="custAddress">Service Address</label>
-            <input id="custAddress" type="text" autocomplete="off" data-1p-ignore placeholder="Start typing your street address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="addrSuggest" />
-            <ul class="addr-suggest" id="addrSuggest" role="listbox" hidden></ul>
-          </div>
-          <p class="zip-note addr-note" id="addrNote" style="display:none;"></p>
           <div class="field-row">
           <div class="field" id="sqftField">
             <div class="arrow-wrap" aria-hidden="true">
@@ -1715,7 +1718,7 @@
           if (lastQuery.length >= 5) {
             const li = document.createElement('li');
             li.className = 'addr-none';
-            li.textContent = 'No county match yet — keep typing, or just finish typing your address and fill in the boxes below.';
+            li.textContent = 'No county match yet — keep typing, or just finish your address and pick your home below.';
             list.appendChild(li);
             list.hidden = false;
           } else { hideList(); }
@@ -1799,8 +1802,8 @@
         let text = '✓ From ' + d.county + ' records: ' + (bits.length ? bits.join(', ') : 'ZIP ' + d.zip) +
           '. <span class="addr-edit">Not quite right? Just change the numbers.</span>';
         let cls = 'from-county';
-        if (d.attached && selectedHouse && !flat) {
-          text += '<br>Heads up: the county lists this as an attached home — if it\'s a townhome, pick a townhome above for a flat price.';
+        if (d.attached && !flat) {
+          text += '<br>Heads up: the county lists this as an attached home — if it\'s a townhome, pick a townhome below for a flat price.';
           cls = 'heads-up';
         }
         showNote(text, cls);
