@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Charlottesville Gutter Pros — Book Online</title>
-  <meta name="description" content="Get an instant quote for gutter cleaning, pay a 25% deposit, and book your date — no callbacks, no waiting." />
+  <title>Book Online | Charlottesville Gutter Pros</title>
+  <meta name="description" content="Get an instant price for gutter cleaning, pay a 25% deposit, and book your date. No callbacks, no waiting." />
 
   <!-- Open Graph (Facebook, LinkedIn, iMessage, etc.) -->
   <meta property="og:type" content="website" />
@@ -849,7 +849,7 @@
        lead row and the booking hold carry source=office so web stats stay
        honest. On via ?office=1 or the tiny "Staff" link at the bottom; sticks
        on that device until turned off. -->
-  <div class="office-bar" id="officeBar" hidden>Office booking mode &mdash; this visit is not counted in website stats.
+  <div class="office-bar" id="officeBar" hidden>Office booking mode: this visit is not counted in website stats.
     <button type="button" id="officeOff">Turn off</button></div>
 
   <div class="wrap">
@@ -1056,7 +1056,7 @@
 
     <div class="quote-reveal" id="quoteReveal">
     <div class="hero-quote">
-      <h1 class="hero-title">Gutter cleaning &mdash; your price in <em>10 seconds.</em></h1>
+      <h1 class="hero-title">Your gutter cleaning price in <em>10 seconds.</em></h1>
       <p class="hero-sub">Instant price · pick your date · 25% deposit today</p>
       <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> 4.9 on Google · 800+ reviews</a></p>
     </div>
@@ -1314,7 +1314,7 @@
          competes with the booking flow on page load. -->
     <section class="other-ways" id="other-ways">
       <h2 class="other-ways-h">Not booking a cleaning today?</h2>
-      <p class="other-ways-sub">We'll come to you &mdash; or just call/text
+      <p class="other-ways-sub">We'll come to you, or just call/text
         <a href="tel:+14344224700">434-422-4700</a>.</p>
 
       <div class="ow-grid">
@@ -1605,10 +1605,10 @@
       const note = elements.zipNote;
       note.className = 'zip-note';
       if (status === 'inArea') {
-        note.textContent = '✓ Great news — we service your area, no trip fee!';
+        note.textContent = '✓ Great news, we service your area. No trip fee!';
         note.classList.add('in-area');
       } else if (status === 'tripFee') {
-        note.textContent = '✓ Great news — we service your area! Your price includes a $' + PRICING.outsideAreaFee + ' trip fee.';
+        note.textContent = '✓ Great news, we service your area! Your price includes a $' + PRICING.outsideAreaFee + ' trip fee.';
         note.classList.add('trip-fee');
       } else if (status === 'unserved') {
         note.textContent = 'Sorry, that ZIP is outside our service area. Contact us and we\'ll see what we can do.';
@@ -1722,11 +1722,11 @@
     // Plain words for the two ways the lookup can come up empty. (Adam: "nothing
     // worse than a poorly worded error message.") Neither one stops the booking.
     const NO_MATCH_NOTE = '<strong>We couldn\'t find that address in local county records.</strong> ' +
-      'No problem — if it\'s typed right, just keep going. Pick your home below and enter your square feet, ' +
+      'No problem. If it\'s typed right, just keep going. Pick your home below and enter your square feet, ' +
       'and we\'ll use the address exactly as you typed it.';
     const LOOKUP_DOWN_NOTE = '<strong>Address search isn\'t available right now.</strong> ' +
-      'Just type your full address and keep going — pick your home below and enter your square feet.';
-    const PICK_ONE_NOTE = 'Tap your address in the list and we\'ll fill in your house details for you — or keep going with it as typed.';
+      'Just type your full address and keep going: pick your home below and enter your square feet.';
+    const PICK_ONE_NOTE = 'Tap your address in the list and we\'ll fill in your house details for you, or keep going with it as typed.';
 
     function initAddressLookup() {
       const input = elements.custAddress;
@@ -1843,7 +1843,7 @@
           '. <span class="addr-edit">Not quite right? Just change the numbers.</span>';
         let cls = 'from-county';
         if (d.attached && !flat) {
-          text += '<br>Heads up: the county lists this as an attached home — if it\'s a townhome, pick a townhome below for a flat price.';
+          text += '<br>Heads up: the county lists this as an attached home. If it\'s a townhome, pick a townhome below for a flat price.';
           cls = 'heads-up';
         }
         showNote(text, cls);
@@ -2445,7 +2445,7 @@
       }
       if (out && out.ok && out.paid) {
         try { if (window.cgpTrack) window.cgpTrack('deposit_paid_card', { price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
-        btn.textContent = 'Paid — one moment…';
+        btn.textContent = 'Paid. One moment…';
         window.location.href = 'thanks.html';
         return;
       }
