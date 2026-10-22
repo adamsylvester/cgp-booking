@@ -10,9 +10,13 @@
    where the crew already is that day, so a customer across town sees that
    day marked and is steered to a day the crew is nearby.
 
-   window.CGPBooking.mount(el, { service, embed, token })
+   window.CGPBooking.mount(el, { service, embed, token, mode, confirmed })
      service  'cleaning' | 'assessment'      (book mode)
+     mode     'hold'  — pick-then-pay: no details form; picking a time holds
+              it 30 min and posts {type:'cgp.held'} to the parent page, which
+              sends the customer to Square. {type:'cgp.skip'} = no date chosen.
      token    manage link id                 (manage mode: reschedule / cancel)
+     confirmed with token: the thanks page — show "You are scheduled".
    ============================================================ */
 (function () {
   'use strict';
@@ -74,7 +78,8 @@
   function mount(root, opts) {
     opts = opts || {};
     var S = {
-      mode: opts.token ? 'manage' : 'book',
+      mode: opts.token ? 'manage' : (opts.mode === 'hold' ? 'hold' : 'book'),
+      confirmed: !!opts.confirmed,
       service: opts.service || 'cleaning',
       embed: !!opts.embed,
       token: opts.token || '',
@@ -120,7 +125,10 @@
         p = p.then(function () { return api({ op: 'get', token: S.token }); }).then(function (r) {
           if (!r.ok) throw new Error(r.error === 'not_found' ? 'We could not find that booking. Call us at ' + PHONE + '.' : r.error);
           S.hold = r.hold; S.zip = r.hold.zip || '';
-          set({ step: 'manage' });
+          if (S.confirmed && (r.hold.status === 'held' || r.hold.status === 'booked')) {
+            try { localStorage.removeItem('cgp_hold'); } catch (_) {}
+            set({ step: 'done', doneKind: 'booked', paid: true });
+          } else set({ step: 'manage' });
         });
       } else {
         if (S.service === 'cleaning' && S.lead && S.lead.zip) S.zip = String(S.lead.zip).replace(/\D/g, '').slice(0, 5);
@@ -178,7 +186,10 @@
       h += '</div>';
       h += '<div class="bk-tz">' + ICON.globe + '<span>Eastern Time - US &amp; Canada (' + timeStr(new Date()) + ')</span></div>';
       if (anyFar) h += '<div class="bk-legend"><i></i> Our crew is across town that day &mdash; a highlighted day gets you a tighter arrival window.</div>';
-      if (!S.slots.length) h += '<div class="bk-empty">No online times in the next ' + (S.svc.horizon_days || 60) + ' days. Call or text us at <a href="tel:+1' + PHONE.replace(/\D/g, '') + '">' + PHONE + '</a> and we\'ll find you a spot.</div>';
+      if (!S.slots.length) {
+        h += '<div class="bk-empty">No online times in the next ' + (S.svc.horizon_days || 60) + ' days. Call or text us at <a href="tel:+1' + PHONE.replace(/\D/g, '') + '">' + PHONE + '</a> and we\'ll find you a spot.' +
+          (S.mode === 'hold' ? '<p style="margin:14px 0 0"><button type="button" class="bk-btn" data-act="skip">Pay the deposit now, we\'ll call to set a date</button></p>' : '') + '</div>';
+      }
       h += '</div>';
       return h;
     }
@@ -195,7 +206,7 @@
       list.forEach(function (s, i) {
         var picked = S.picked === s;
         h += '<div class="bk-slot' + (picked ? ' picked' : '') + '"><button type="button" class="t" data-act="pick" data-i="' + i + '">' + timeStr(s.start) + '</button>';
-        if (picked) h += '<button type="button" class="next" data-act="next-step">Next</button>';
+        if (picked) h += '<button type="button" class="next" data-act="next-step">' + (S.mode === 'hold' ? 'Pay deposit' : 'Next') + '</button>';
         h += '</div>';
       });
       h += '</div></div>';
@@ -260,7 +271,7 @@
       }
       h += '<div class="bk-check-big">&#10003;</div>';
       h += '<h2>' + (kind === 'rescheduled' ? 'You are rescheduled' : 'You are scheduled') + '</h2>';
-      h += '<p class="lead">' + (S.warning ? 'Our office will send your confirmation shortly.' : 'A calendar invitation has been sent to your email address.') + '</p>';
+      h += '<p class="lead">' + (S.paid ? 'Your deposit is in. A confirmation email with a calendar invitation is on its way.' : (S.warning ? 'Our office will send your confirmation shortly.' : 'A calendar invitation has been sent to your email address.')) + '</p>';
       h += '<div class="bk-card"><div class="t">' + esc(S.svc.title) + '</div>';
       h += '<div class="bk-meta">' + ICON.cal + '<span>' + esc(range(st, en)) + '</span></div>';
       h += '<div class="bk-meta">' + ICON.globe + '<span>Eastern Time - US &amp; Canada</span></div>';
@@ -344,7 +355,12 @@
       else if (a === 'pick') { S.picked = S.byDay[S.day][+el.getAttribute('data-i')]; render(); }
       else if (a === 'next-step') {
         if (S.mode === 'manage') return reschedule();
+        if (S.mode === 'hold') return holdSlot();
         set({ step: 'form' });
+      }
+      else if (a === 'skip') {
+        try { parent.postMessage({ type: 'cgp.skip', service: S.service }, '*'); } catch (_) {}
+        set({ step: 'busy', busyMsg: 'Sending you to secure checkout\u2026' });
       }
       else if (a === 'back') set({ step: 'calendar' });
       else if (a === 'reschedule') { S.step = 'loading'; render(); loadSlots().then(function () { set({ step: 'calendar' }); }).catch(function (e) { set({ step: 'error', err: String(e.message || e) }); }); }
@@ -391,6 +407,24 @@
         try { parent.postMessage({ type: 'cgp.booked', service: S.service }, '*'); } catch (_) {}
         set({ step: 'done', doneKind: 'booked' });
       }).catch(function () { S.err = friendly('', 'network'); set({ step: 'form' }); });
+    }
+
+    // Pick-then-pay: hold the time, hand the parent page the token, it sends
+    // them to Square. The deposit turns the hold into the booking.
+    function holdSlot() {
+      var l = S.lead || {};
+      set({ step: 'busy', busyMsg: 'Holding your time\u2026' });
+      api({
+        op: 'hold', service: S.service, start: S.picked.start.toISOString(),
+        name: l.name || '', email: l.email || '', phone: l.phone || '', address: l.address || '',
+        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: 'pick-then-pay',
+      }).then(function (r) {
+        if (!r.ok) { S.err = friendly(r.error, r._status); return loadSlots().then(function () { set({ step: 'calendar' }); }); }
+        try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}
+        track('time_held', { plan: S.service });
+        try { parent.postMessage({ type: 'cgp.held', service: S.service, token: r.token, start_at: r.hold.start_at, end_at: r.hold.end_at, expires_at: r.expires_at || null }, '*'); } catch (_) {}
+        set({ step: 'busy', busyMsg: timeStr(S.picked.start) + ' on ' + fmt(S.picked.start, { weekday: 'long', month: 'long', day: 'numeric' }) + ' is held for you for 30 minutes. Sending you to secure checkout\u2026' });
+      }).catch(function () { S.err = friendly('', 'network'); set({ step: 'calendar' }); });
     }
 
     function reschedule() {

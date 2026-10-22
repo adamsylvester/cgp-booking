@@ -100,8 +100,9 @@ const JOBBER_ASSIGN_USER_IDS = [];
 // ===== Extra sheet columns (added by setupJobberColumns) =====
 const JCOL = {
   CLIENT: 23, REQUEST: 24, QUOTE: 25, JOB: 26, VISIT_AT: 27, SYNC: 28,
+  HOLD: 29,   // booking_holds id when they picked a time before paying (2026-10-22)
 };
-const JOBBER_LAST_COL = 28;
+const JOBBER_LAST_COL = 29;
 
 // ===========================================================================
 // TOKEN + TRANSPORT
@@ -1454,7 +1455,7 @@ function onlineIcs_(hold, title) {
   ].join('\r\n');
 }
 
-function onlineSendCustomerEmail_(hold, kind) {
+function onlineSendCustomerEmail_(hold, kind, lead) {
   if (!hold.email) return;
   var title = ONLINE_TITLES[hold.service] || 'Appointment';
   var first = escapeHtml(String(hold.name || 'there').split(' ')[0]);
@@ -1480,6 +1481,15 @@ function onlineSendCustomerEmail_(hold, kind) {
     inner += rowBold('When', escapeHtml(onlineWhen_(hold)));
     if (hold.address) inner += row('Where', escapeHtml(hold.address));
     inner += '</table>';
+    if (lead && Number(lead.total || 0) > 0) {
+      // Paid cleaning: fold the deposit receipt in so this is their one email.
+      var paidAll = depositRateFor(lead.plan) >= 1;
+      inner += sectionHead('Your quote');
+      inner += '<table style="border-collapse:collapse;width:100%;">' +
+        quoteSummaryRows({ houseType: lead.house, sqft: lead.sqft, stories: lead.stories, planName: lead.plan, plan: lead.plan,
+                           finalPrice: lead.total, deposit: lead.deposit, outsideArea: lead.outside }) + '</table>';
+      inner += '<p style="margin:10px 0 0;color:#475467;font-size:13px;">' + (paidAll ? 'Paid in full — nothing due after the job.' : 'Your $' + escapeHtml(String(lead.deposit)) + ' deposit is in; the rest is due when the job is done.') + '</p>';
+    }
     inner += '<p style="margin:18px 0 6px;">' + btn(onlineGoogleCalLink_(hold, title), 'Add to Google Calendar', true) + btn(manage, 'Reschedule or cancel', false) + '</p>';
     inner += '<p style="margin-top:14px;font-size:13px;color:#475467;line-height:1.5;">You\'ll get a reminder the day before. Please be home for the appointment — ' +
              (hold.service === 'assessment' ? 'your service consultant will walk the property with you.' : 'we\'ll knock when we arrive and again when we\'re done.') + '</p>';
@@ -1527,4 +1537,75 @@ function onlineNotifyOffice_(hold, kind, ids, prev) {
     MailApp.sendEmail({ to: NOTIFICATION_EMAIL, subject: words[kind] + ': ' + (hold.name || hold.email) + ' · ' + Utilities.formatDate(new Date(hold.start_at), SCHED.timeZone, 'EEE MMM d h:mm a'),
                         htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME });
   } catch (e) { /* never let the notification break the booking */ }
+}
+
+// ----- pick-then-pay (2026-10-22) ---------------------------------------------
+// The cleaning flow is now price → details → pick a time → deposit. The time is
+// a 30-minute hold in booking_holds; the checkout request carries its id and we
+// pin it to the sheet row. When the deposit lands, the payment checker calls
+// onlineAfterPaid_: confirm the hold (it may have expired if they paid slowly),
+// schedule the Jobber job for exactly that time, and send the confirmation.
+
+function onlineRememberHold_(holdId) {
+  if (!/^[0-9a-f-]{36}$/i.test(String(holdId || ''))) return;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var row = sheet.getLastRow();           // logLead() just appended this booking
+  if (row < 2) return;
+  sheet.getRange(row, JCOL.HOLD).setValue(String(holdId));
+}
+
+function onlineAfterPaid_(sheetRow, receiptUrl) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var holdId = String(sheet.getRange(sheetRow, JCOL.HOLD).getValue() || '');
+  if (!holdId) return;                                   // skipped the picker: schedule.html handles it later
+  if (String(sheet.getRange(sheetRow, JCOL.JOB).getValue() || '')) return;   // already on the calendar
+  var lead = rowToLead(sheet.getRange(sheetRow, 1, 1, LAST_COL).getValues()[0]);
+  var hold = onlineHold_(holdId);
+  if (!hold || !hold.id) { jobberNotifyFailure_(lead, new Error('hold ' + holdId + ' not found'), 'finding the time they picked'); return; }
+  try {
+    var confirmed = onlineRpc_('booking_hold_confirm', { p_id: holdId });
+    if (!confirmed || !confirmed.id) {
+      // The hold expired while they paid and the time is gone. Money is in,
+      // so the office picks a new time with them; the customer is told.
+      onlineHoldUpdate_(holdId, { status: 'cancelled', error: 'slot lost before the deposit landed' });
+      sheet.getRange(sheetRow, JCOL.SYNC).setValue('⚠️ paid, but their picked time was taken — call to reschedule');
+      onlineSlotLostEmails_(hold, lead);
+      return;
+    }
+    hold = confirmed;
+    var jobId = scheduleBookingInJobber_(sheetRow, hold.start_at, hold.end_at, receiptUrl);
+    var visitId = '';
+    try { visitId = onlineFirstVisitId_(jobId); } catch (e) { /* only needed to move it later */ }
+    var clientCell = String(sheet.getRange(sheetRow, JCOL.CLIENT).getValue() || '');
+    var ids = { jobber_job_id: jobId, jobber_visit_id: visitId, jobber_client_id: clientCell.split('|')[0] };
+    var patch = { status: 'booked' };
+    Object.keys(ids).forEach(function (k) { if (ids[k]) patch[k] = ids[k]; });
+    onlineHoldUpdate_(holdId, patch);
+    hold.status = 'booked';
+    onlineSendCustomerEmail_(hold, 'booked', lead);
+    onlineNotifyOffice_(hold, 'booked', ids, null);
+  } catch (err) {
+    onlineHoldUpdate_(holdId, { error: String(err).slice(0, 400) });
+    jobberNotifyFailure_(lead, err, 'scheduling the time they picked before paying');
+  }
+}
+
+function onlineSlotLostEmails_(hold, lead) {
+  var when = onlineWhen_(hold);
+  try {
+    MailApp.sendEmail({ to: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME,
+      subject: '⚠️ Paid, but their time slot was lost: ' + (hold.name || hold.email),
+      htmlBody: emailShell(statusBanner('#f59e0b', '⚠️ Deposit received, but the time they picked (' + escapeHtml(when) + ') was taken while they paid.') +
+        '<table style="border-collapse:collapse;width:100%;">' + contactRows(hold.name, hold.phone, hold.email, hold.address) + '</table>' +
+        '<p style="margin:16px 0 0;line-height:1.5;">Their quote/request is in Jobber with no visit yet. Call them to set a new time, then schedule it by hand.</p>') });
+  } catch (e) { /* never block */ }
+  if (!hold.email) return;
+  try {
+    MailApp.sendEmail({ to: hold.email, replyTo: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME,
+      subject: 'Your deposit is in — one quick thing about the date',
+      htmlBody: emailShell('<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + escapeHtml(String(hold.name || 'there').split(' ')[0]) + '! Your deposit is in.</h2>' +
+        '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">The time you picked (' + escapeHtml(when) + ') filled up in the few minutes it took to pay — sorry about that. ' +
+        'Our office will call you today to set a new time that works. Or reply to this email with a couple of options.</p>' +
+        '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>') });
+  } catch (e) { /* never block */ }
 }

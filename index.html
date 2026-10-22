@@ -938,6 +938,9 @@
       .price-incl { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 16px; font-size:12.5px; font-weight:600; color:var(--text); }
       .price-incl span { white-space:nowrap; }
       /* Step 1 is the only required input zone — highlight it as the active step. */
+      .date-pick { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 14px 14px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
+      .date-pick .step-head { border-top:none; padding-top:0; }
+      .date-pick-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
       .step-active { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 18px 12px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
       .step-active .step-head { border-top:none; padding-top:0; }
       .step-active .zip-field input { background:#fff; }
@@ -1187,7 +1190,7 @@
           </button>
           <div id="formError" class="form-error" style="display:none;"></div>
 
-          <p class="microcopy">After payment, you'll pick your service date on the next screen.</p>
+          <p class="microcopy">Next you'll pick your service date, then pay the deposit to lock it in.</p>
           <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
           <p class="microcopy">
             Need something else?
@@ -1196,6 +1199,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Pick-then-pay (2026-10-22): after the details, the customer picks a
+         time — held for 30 minutes — and THEN pays the deposit. schedule.html
+         in hold mode posts cgp.held (send them to Square) or cgp.skip (no date). -->
+    <section class="date-pick" id="datePick" hidden>
+      <div class="step-head"><span class="num">4</span><span class="txt">Pick your day &amp; time</span></div>
+      <p class="date-pick-sub">Pick a time, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. We hold the time for 30 minutes while you pay.</p>
+      <iframe id="datePickFrame" title="Pick a date and time" style="width:100%;height:720px;border:0;display:block;border-radius:12px;background:#fff"></iframe>
+    </section>
 
     <div class="paybar" id="payBar" hidden>
       <div class="paybar-sum">
@@ -1534,14 +1546,16 @@
       elements.meterRestLabel.textContent = payInFull ? 'Nothing due after the job' : '$' + balance + ' after the job';
       elements.meterDep.style.width = Math.round(rate * 100) + '%';
       elements.paymentBreakdown.style.display = 'grid';
-      elements.bookBtn.textContent = payInFull ? `Pay $${deposit} Now` : `Pay $${deposit} Deposit`;
+      elements.bookBtn.textContent = 'Pick your date →';
+      const dd = document.getElementById('datePickDeposit');
+      if (dd) dd.textContent = payInFull ? `$${deposit} payment` : `$${deposit} deposit`;
 
       // "only $X today" nudge on the featured plan card.
       const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * depositRateFor('basic'));
       elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
 
       elements.payBarAmt.textContent = '$' + deposit;
-      elements.payBarBtn.textContent = payInFull ? `Pay $${deposit} Now →` : `Pay $${deposit} Deposit →`;
+      elements.payBarBtn.textContent = 'Pick your date →';
 
       currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
@@ -1967,12 +1981,53 @@
         payload.session = window.cgpSession || '';
       } catch (_) { /* analytics never blocks a booking */ }
 
-      // Stash on this device so the post-Square scheduler can prefill the form.
+      // Stash on this device: the date picker reads it (name, email, phone,
+      // ZIP) and the thanks page finds the held time through it.
       try {
         localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
+        localStorage.removeItem('cgp_hold');
         if (window.cgpSession) localStorage.setItem('cgp_sid', window.cgpSession);
       } catch (_) { /* ignore quota / private-mode errors */ }
 
+      openDatePicker(payload);
+    }
+
+    // Pick-then-pay. The scheduler iframe holds the slot for 30 minutes and
+    // tells us; we then send them to Square with the hold id attached, so the
+    // paid deposit schedules exactly that time.
+    let pendingPayload = null;
+    function openDatePicker(payload) {
+      pendingPayload = payload;
+      const sec = document.getElementById('datePick');
+      const frame = document.getElementById('datePickFrame');
+      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold&v=' + Date.now();
+      sec.hidden = false;
+      elements.bookBtn.disabled = true;
+      elements.bookBtn.textContent = 'Pick a time below ↓';
+      updatePayBar();
+      setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      try { if (window.cgpTrack) window.cgpTrack('date_picker_opened'); } catch (_) {}
+    }
+    window.addEventListener('message', (ev) => {
+      const d = ev.data;
+      if (!d || typeof d !== 'object') return;
+      const frame = document.getElementById('datePickFrame');
+      if (d.type === 'cgp.height' && frame && ev.source === frame.contentWindow && d.height > 200) {
+        frame.style.height = (Math.ceil(d.height) + 8) + 'px';
+      }
+      if (!pendingPayload) return;
+      if (d.type === 'cgp.held') {
+        pendingPayload.hold = d.token;
+        pendingPayload.holdStart = d.start_at;
+        startCheckout(pendingPayload);
+      } else if (d.type === 'cgp.skip') {
+        startCheckout(pendingPayload);
+      }
+    });
+
+    async function startCheckout(payload) {
+      if (startCheckout.busy) return;
+      startCheckout.busy = true;
       // Ask the Apps Script to log the lead AND create a Square checkout for
       // exactly this customer's 25% deposit, then send them there.
       elements.bookBtn.disabled = true;

@@ -21,6 +21,7 @@
       max-width: 480px;
       width: 100%;
       padding: 32px;
+      transition: max-width .2s ease;
       background: #fff;
       border: 1px solid #dbe6f5;
       border-radius: 20px;
@@ -69,9 +70,9 @@
   <div class="card">
     <div class="paid">✓ Deposit received</div>
     <div class="spinner" aria-hidden="true"></div>
-    <h1>Thanks! One last step.</h1>
-    <p>Sending you to pick a date for your gutter cleaning&hellip;</p>
-    <a id="fallback" class="fallback" href="schedule.html?service=cleaning">Pick a date</a>
+    <h1 id="thanksH1">Thanks! You're all set.</h1>
+    <p id="thanksP">Confirming your date&hellip;</p>
+    <a id="fallback" class="fallback" href="schedule.html?service=cleaning" hidden>Pick a date</a>
   </div>
 
   <script>
@@ -117,7 +118,15 @@
 
     const lead = readLead();
     const target = SCHEDULE_URL;
-    sendBuyerConfirmation(lead);
+    // Pick-then-pay (2026-10-22): the customer chose their time BEFORE paying,
+    // so this page is the "You are scheduled" screen. The deposit turns the
+    // held slot into the booking (the Apps Script does that within a minute
+    // and sends the confirmation with the calendar invite). Only someone who
+    // skipped the date picker gets sent to schedule.html the old way.
+    let holdToken = '';
+    try { holdToken = localStorage.getItem('cgp_hold') || ''; } catch (_) {}
+    const hasHold = /^[0-9a-f-]{36}$/i.test(holdToken);
+    if (!hasHold) sendBuyerConfirmation(lead);   // with a hold, the scheduler's confirmation (with invite) replaces this
 
     // Funnel analytics: Square only sends people here after a successful
     // payment, so this is the client-side end of the funnel. The authoritative
@@ -155,9 +164,28 @@
       }).catch(function () {});
     } catch (e) { /* never block the redirect */ }
 
-    // Small delay so the user sees the "Sending you to..." card briefly,
-    // which feels less abrupt than an instant flash-redirect.
-    setTimeout(() => { window.location.replace(target); }, 600);
+    if (hasHold) {
+      const card = document.querySelector('.card');
+      card.style.maxWidth = '1040px';
+      document.getElementById('thanksP').textContent = 'Your deposit is in. Here\u2019s your appointment.';
+      const spin = document.querySelector('.spinner'); if (spin) spin.hidden = true;
+      const link = document.createElement('link'); link.rel = 'stylesheet'; link.href = 'booking.css';
+      document.head.appendChild(link);
+      const host = document.createElement('div'); host.className = 'bk-page'; host.style.padding = '18px 0 0'; host.style.textAlign = 'left';
+      host.innerHTML = '<div style="width:100%"><div class="bk" id="bk"></div></div>';
+      card.appendChild(host);
+      const js = document.createElement('script'); js.src = 'booking.js';
+      js.onload = () => window.CGPBooking.mount(document.getElementById('bk'), { token: holdToken, confirmed: true });
+      js.onerror = () => { window.location.replace(target); };
+      document.head.appendChild(js);
+    } else {
+      document.getElementById('thanksH1').textContent = 'Thanks! One last step.';
+      document.getElementById('thanksP').textContent = 'Sending you to pick a date for your gutter cleaning\u2026';
+      document.getElementById('fallback').hidden = false;
+      // Small delay so the user sees the "Sending you to..." card briefly,
+      // which feels less abrupt than an instant flash-redirect.
+      setTimeout(() => { window.location.replace(target); }, 600);
+    }
   </script>
 </body>
 </html>

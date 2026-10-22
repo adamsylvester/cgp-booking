@@ -211,6 +211,11 @@ function doPost(e) {
       try {
         var link = createSquareCheckout(data);
         logLead(data, STATUS.STARTED, link.orderId, priceCheck);
+        // Pick-then-pay: remember the held time on the row so the deposit
+        // can schedule exactly that slot (onlineAfterPaid_ in jobber_sync.gs).
+        if (data.hold && typeof onlineRememberHold_ === 'function') {
+          try { onlineRememberHold_(data.hold); } catch (e) { /* never block checkout */ }
+        }
         sendCheckoutStartedEmail(data, priceCheck);
         return jsonOutput({ ok: true, checkoutUrl: link.url });
       } catch (err) {
@@ -549,6 +554,11 @@ function checkPendingPayments() {
       // "Jobber sync" column and email the office; they never block payment.
       if (jobberSyncEnabled_()) {
         pushBookingToJobber_(rowToLead(p.vals), p.sheetRow, receiptUrl);
+        // Pick-then-pay: they chose their time before paying — put the job
+        // on the calendar now and send the confirmation with the invite.
+        if (typeof onlineAfterPaid_ === 'function') {
+          try { onlineAfterPaid_(p.sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
+        }
       }
     } else if (p.status === STATUS.STARTED && (now - p.ts) > ABANDONED_AFTER_MIN * 60000) {
       sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.ABANDONED);
@@ -742,7 +752,7 @@ function sendPaidEmail(lead, receiptUrl) {
   if (receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
-  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re picking their date on our scheduler now — you\'ll get a 📅 booking email the moment they do. ' +
+  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They picked their date before paying — the 📅 booking email with the time follows in a moment (or, if they skipped the date, when they pick one). ' +
            'They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — ' +
            'the API can\'t set that status, so it stays “Awaiting response” until someone clicks it.</p>';
   inner += metaFooter(lead);
