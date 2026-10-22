@@ -1174,12 +1174,22 @@ function testEndToEnd() {
 // hides it from normal views, but to remove the job, quote and request fully
 // you have to delete them in the Jobber UI.
 function cleanupEndToEndTest() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheets()[0];
   var lastRow = sheet.getLastRow();
   var removed = 0;
 
+  // Test rows on the Assessments tab too (online-booking rehearsals log there).
+  var assess = ss.getSheetByName('Assessments');
+  if (assess) {
+    for (var a = assess.getLastRow(); a >= 2; a--) {
+      if (String(assess.getRange(a, 3).getValue()).indexOf('ZZZ') === 0) { assess.deleteRow(a); removed++; }
+    }
+  }
+
   for (var r = lastRow; r >= 2; r--) {
-    if (String(sheet.getRange(r, COL.NAME).getValue()).indexOf('ZZZ TEST') !== 0) continue;
+    // Any ZZZ-prefixed name: "ZZZ TEST — DELETE ME", "ZZZ SANDBOX — …"
+    if (String(sheet.getRange(r, COL.NAME).getValue()).indexOf('ZZZ') !== 0) continue;
 
     var clientCell = String(sheet.getRange(r, JCOL.CLIENT).getValue() || '');
     var clientId = clientCell.split('|')[0];
