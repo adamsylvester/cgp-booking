@@ -1635,7 +1635,8 @@
     let bookBtnInView = false;
 
     function updatePayBar() {
-      const show = currentQuote.finalPrice > 0 && !bookBtnInView;
+      // Hidden while the date picker is open: the next step is in the picker, not the bar.
+      const show = currentQuote.finalPrice > 0 && !bookBtnInView && !pendingPayload;
       elements.payBar.hidden = !show;
       document.body.classList.toggle('has-paybar', show);
     }

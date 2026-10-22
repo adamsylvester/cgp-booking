@@ -7,6 +7,17 @@
 > invite. The Calendly webhook code below is kept only as history; nothing
 > links to Calendly any more. Jobber markers are now `📅 ONLINE — ` and the
 > client tag `📅 Online Booking`. Full notes: tech-portal/db/migration_online_booking.sql.
+>
+> **Same day, later — pick the time, THEN pay.** The cleaning flow is now
+> price → details → pick a time → Square deposit. The picked slot is a 30-minute
+> hold (`booking_holds.expires_at`); the checkout request carries the hold id
+> (sheet column 29); when the deposit lands, `checkPendingPayments` →
+> `onlineAfterPaid_` confirms the hold (`booking_hold_confirm`), schedules the
+> job for that time and sends the confirmation with the invite. An unpaid hold
+> expires (pg_cron every minute) and the time goes back on the board. A paid
+> customer whose hold was lost gets a "we'll call you" email and the office an
+> alert. thanks.html is now the "You are scheduled" screen; only someone who
+> skipped the picker is sent to schedule.html the old way.
 
 # Jobber sync — setup runbook
 
