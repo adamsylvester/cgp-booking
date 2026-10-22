@@ -1052,6 +1052,13 @@
       @media (prefers-reduced-motion: reduce) { .addr-field input.addr-idle { animation:none; } }
       .addr-start .addr-note { margin-top:12px; }
       .house-hero-prompt-2 { margin-top:28px; padding-top:24px; border-top:1px solid var(--border); margin-bottom:10px; }
+      .home-kind { display:flex; justify-content:center; gap:12px; flex-wrap:wrap; margin:8px 0 6px; }
+      .kind-btn { font-family:Poppins, sans-serif; font-size:16px; font-weight:700; letter-spacing:.3px; padding:14px 26px; border-radius:3px; border:2px solid var(--primary); background:#fff; color:var(--primary); cursor:pointer; min-width:200px; }
+      .kind-btn:hover { background:#eaf3fa; }
+      .kind-btn.on { background:var(--primary); color:#fff; }
+      .house-hero-prompt-3 { margin-top:22px; }
+      #houseGrid[hidden], #housePrompt[hidden], #houseSub[hidden] { display:none; }
+      .house-grid .house-opt[hidden] { display:none; }
       .form-card.no-price .needs-price { display:none; }
       .price-hint { margin:4px 0 0; text-align:center; font-size:14px; color:var(--text-muted); }
       .form-card:not(.no-price) .price-hint { display:none; }
@@ -1130,35 +1137,40 @@
         <p class="zip-note addr-note" id="addrNote" style="display:none;"></p>
       </div>
       <div class="house-hero-prompt-2"><span class="addr-kicker"><span class="addr-kicker-num">2</span> Pick your home</span></div>
-      <p class="house-hero-prompt">Which home looks most like yours?</p>
-      <p class="house-hero-sub">Tap the closest match then scroll down.</p>
-      <div class="house-grid" id="houseGrid">
-        <div class="house-opt" data-house="simple">
+      <p class="house-hero-prompt">What kind of home is it?</p>
+      <div class="home-kind" id="homeKind" role="group" aria-label="Kind of home">
+        <button type="button" class="kind-btn" data-kind="house">Single-family house</button>
+        <button type="button" class="kind-btn" data-kind="townhome">Townhome</button>
+      </div>
+      <p class="house-hero-prompt house-hero-prompt-3" id="housePrompt" hidden>Which one looks most like yours?</p>
+      <p class="house-hero-sub" id="houseSub" hidden>Tap the closest match then scroll down.</p>
+      <div class="house-grid" id="houseGrid" hidden>
+        <div class="house-opt" data-house="simple" data-kind="house">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-simple.webp" type="image/webp" /><img src="house-simple.png" alt="Simple home — front and back gutter" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Simple</div>
           <div class="house-opt-desc">Front and back gutter</div>
         </div>
-        <div class="house-opt" data-house="standard">
+        <div class="house-opt" data-house="standard" data-kind="house">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-standard.webp" type="image/webp" /><img src="house-standard.png" alt="Standard home — multiple sections of gutters" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Standard</div>
           <div class="house-opt-desc">Multiple sections of gutters, uppers and lowers</div>
         </div>
-        <div class="house-opt" data-house="complex">
+        <div class="house-opt" data-house="complex" data-kind="house">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-complex.webp" type="image/webp" /><img src="house-complex.png" alt="Complex home — gutters with gables and wings" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Complex</div>
           <div class="house-opt-desc">Several sections of gutters with gables and wings</div>
         </div>
-        <div class="house-opt" data-house="townhome2">
+        <div class="house-opt" data-house="townhome2" data-kind="townhome">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-townhome2.webp" type="image/webp" /><img src="house-townhome2.png" alt="2-story townhome" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">2-Story Townhome</div>
           <div class="house-opt-desc">Attached home, up to two floors</div>
           <div class="house-opt-note">🪜 1-man team &amp; 24-ft ladder</div>
         </div>
-        <div class="house-opt" data-house="townhome3">
+        <div class="house-opt" data-house="townhome3" data-kind="townhome">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-townhome3.webp" type="image/webp" /><img src="house-townhome3.png" alt="3-story townhome" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">3-Story Townhome</div>
@@ -1892,9 +1904,10 @@
           '. <span class="addr-edit">Not quite right? Just change the numbers.</span>';
         let cls = 'from-county';
         if (d.attached && !flat) {
-          text += '<br>Heads up: the county lists this as an attached home. If it\'s a townhome, pick a townhome below for a flat price.';
+          text += '<br>Heads up: the county lists this as an attached home, so we picked Townhome below. Change it if that\'s wrong.';
           cls = 'heads-up';
         }
+        if (!document.querySelector('.kind-btn.on') && window.setHomeKind) window.setHomeKind(d.attached ? 'townhome' : 'house', { quiet: true });
         showNote(text, cls);
       }
       function move(dir) {
@@ -2630,8 +2643,30 @@
 
       elements.bookBtn.addEventListener('click', handleSubmit);
 
-      // Step 1: tapping a house unlocks the form below.
+      // House or townhome first (Adam, 2026-10-22: less busy at the start); then only
+      // the matching pictures show. A county record that says "attached" pre-answers it.
       const houseGrid = document.getElementById('houseGrid');
+      window.setHomeKind = function (kind, opts) {
+        opts = opts || {};
+        document.querySelectorAll('.kind-btn').forEach((b) => b.classList.toggle('on', b.dataset.kind === kind));
+        houseGrid.querySelectorAll('.house-opt').forEach((o) => { o.hidden = o.dataset.kind !== kind; });
+        document.getElementById('housePrompt').hidden = false;
+        document.getElementById('houseSub').hidden = false;
+        houseGrid.hidden = false;
+        const picked = houseGrid.querySelector('.house-opt.selected');
+        if (picked && picked.dataset.kind !== kind) {
+          picked.classList.remove('selected');
+          selectedHouse = null; window.selectedHouse = null;
+          elements.formCard.classList.add('is-locked');
+          document.getElementById('bookingCard').hidden = true;
+          renderEmptyPrice();
+        }
+        if (!opts.quiet && window.cgpTrack) window.cgpTrack('home_kind', { detail: kind });
+      };
+      document.querySelectorAll('.kind-btn').forEach((b) => b.addEventListener('click', () => {
+        window.setHomeKind(b.dataset.kind);
+        if (!houseGrid.querySelector('.house-opt.selected')) houseGrid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }));
       houseGrid.querySelectorAll('.house-opt').forEach((opt) => {
         opt.addEventListener('click', () => {
           const firstPick = !selectedHouse;
