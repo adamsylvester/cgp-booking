@@ -8,8 +8,9 @@
 //
 //   CGP Busy — Todd      every visit Todd is assigned to (or the Assessments
 //                        lane)  →  Calendly "todd-cvillegutterpros/30min"
-//   CGP Busy — Cleaning  the windows where EVERY cleaning lane (GC1, GC2) is
-//                        already booked  →  Calendly "gutterpros/gutter-cleaning"
+//   CGP Busy — Cleaning  every visit on the GC1 lane (new-customer cleanings —
+//                        online bookings land there; GC2 is the recurring lane
+//                        and does NOT make GC1 free)  →  Calendly "gutterpros/gutter-cleaning"
 //
 // Jobber stays the only source of truth for the crew's day. The calendars hold
 // nothing but copies, so the script may freely delete and recreate its own
@@ -51,7 +52,9 @@ const SHARE_WITH = [
 //              (merged blocks) — i.e. no crew is free.
 const BUSY_CALENDARS = [
   { key: 'todd',     name: 'CGP Busy — Todd',     mode: 'any', people: ['Todd M'], lanes: ['Assessments'] },
-  { key: 'cleaning', name: 'CGP Busy — Cleaning', mode: 'all', people: [],         lanes: ['GC1', 'GC2'] },
+  // 2026-10-22: was mode 'all' over ['GC1','GC2'] — a Nov 3 booking slipped
+  // through because GC2 was empty while GC1 was full, then got put on GC1.
+  { key: 'cleaning', name: 'CGP Busy — Cleaning', mode: 'any', people: [],         lanes: ['GC1'] },
 ];
 
 // ----------------------------------------------------------------------------
