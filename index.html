@@ -985,6 +985,20 @@
       .zip-note.in-area { color:var(--success, #15803d); }
       .zip-note.trip-fee { color:var(--success, #15803d); }
       .zip-note.unserved { color:#b42318; }
+      /* Address autocomplete (Step 1) */
+      .step-active .addr-field { position:relative; max-width:520px; margin:0 auto 18px; text-align:left; }
+      .step-active .addr-field label { font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:.06em; color:var(--text-subtle); text-align:center; }
+      .step-active .addr-field input { width:100%; box-sizing:border-box; font-size:17px; font-weight:600; padding:12px 14px; text-align:center; }
+      .addr-suggest { position:absolute; left:0; right:0; top:100%; z-index:30; margin:4px 0 0; padding:6px; list-style:none; background:#fff; border:1.5px solid var(--border); border-radius:12px; box-shadow:0 12px 32px rgba(15,23,42,.14); max-height:280px; overflow-y:auto; }
+      .addr-suggest li { padding:10px 12px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600; color:var(--text); display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
+      .addr-suggest li small { font-size:12px; font-weight:600; color:var(--text-subtle); white-space:nowrap; }
+      .addr-suggest li:hover, .addr-suggest li.active { background:#eff6ff; color:var(--primary); }
+      .addr-suggest li.addr-none { cursor:default; color:var(--text-subtle); font-weight:500; justify-content:center; }
+      .addr-note { margin-bottom:14px; }
+      .addr-note.from-county { color:var(--success, #15803d); }
+      .addr-note.from-county .addr-edit { color:var(--text-subtle); font-weight:500; }
+      .addr-note.heads-up { color:#b45309; }
+      #sqft.from-county, #stories.from-county, #zip.from-county { border-color:var(--success, #15803d); background:#f0fdf4; }
       .extra-fee { color:var(--primary); font-weight:700; white-space:nowrap; }
       .form-card textarea { width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid var(--border); border-radius:10px; font:inherit; font-size:15px; resize:vertical; min-height:72px; }
       .form-card textarea:focus { outline:none; border-color:var(--primary); }
@@ -1076,6 +1090,14 @@
 
           <div class="step-active">
           <div class="step-head"><span class="num">1</span><span class="txt">Your home</span></div>
+          <!-- Address first: picking a county address fills ZIP, square feet and
+               gutter height from the assessor's records (team.cvillegutterpros.com/api/property). -->
+          <div class="field addr-field" id="addrField">
+            <label for="custAddress">Service Address</label>
+            <input id="custAddress" type="text" autocomplete="off" data-1p-ignore placeholder="Start typing your street address" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="addrSuggest" />
+            <ul class="addr-suggest" id="addrSuggest" role="listbox" hidden></ul>
+          </div>
+          <p class="zip-note addr-note" id="addrNote" style="display:none;"></p>
           <div class="field-row">
           <div class="field" id="sqftField">
             <div class="arrow-wrap" aria-hidden="true">
@@ -1196,10 +1218,6 @@
               <div class="field">
                 <label for="custEmail">Email</label>
                 <input id="custEmail" type="email" autocomplete="email" />
-              </div>
-              <div class="field">
-                <label for="custAddress">Service Address</label>
-                <input id="custAddress" type="text" autocomplete="street-address" />
               </div>
               <div class="field field-full">
                 <label for="custNotes">Anything unique about your gutters? (optional)</label>
@@ -1661,6 +1679,162 @@
 
     // ===== Contact + submit =====
 
+    // ===== Address autocomplete + county autofill =====
+    // Both counties publish their assessor records (public tax roll). Typing a
+    // street address offers matching county addresses; picking one fills ZIP,
+    // finished square feet and gutter height. Everything stays editable — the
+    // note under the row says what came from the county so a wrong guess is
+    // one tap to fix. The lookup lives at team.cvillegutterpros.com/api/property.
+    const PROPERTY_API = 'https://team.cvillegutterpros.com/api/property';
+    let propertyRecord = null;   // last county record we filled from (goes into the lead payload)
+
+    function initAddressLookup() {
+      const input = elements.custAddress;
+      const list = document.getElementById('addrSuggest');
+      const note = document.getElementById('addrNote');
+      if (!input || !list) return;
+      let timer = null, ctrl = null, items = [], active = -1, lastQuery = '';
+      let filling = false;   // true while we set the fields ourselves, so the 'hand edit' listeners stay quiet
+
+      const fieldsFromCounty = [elements.sqftInput, elements.storiesSelect, elements.zipInput];
+      function clearCountyMarks() {
+        fieldsFromCounty.forEach((el) => el.classList.remove('from-county'));
+      }
+      function hideList() {
+        list.hidden = true; list.innerHTML = ''; items = []; active = -1;
+        input.setAttribute('aria-expanded', 'false');
+      }
+      function showNote(text, cls) {
+        note.className = 'zip-note addr-note' + (cls ? ' ' + cls : '');
+        note.innerHTML = text;
+        note.style.display = text ? 'block' : 'none';
+      }
+      function render() {
+        list.innerHTML = '';
+        if (!items.length) {
+          if (lastQuery.length >= 5) {
+            const li = document.createElement('li');
+            li.className = 'addr-none';
+            li.textContent = 'No county match yet — keep typing, or just finish typing your address and fill in the boxes below.';
+            list.appendChild(li);
+            list.hidden = false;
+          } else { hideList(); }
+          return;
+        }
+        items.forEach((s, i) => {
+          const li = document.createElement('li');
+          li.setAttribute('role', 'option');
+          li.className = i === active ? 'active' : '';
+          li.innerHTML = '<span></span><small></small>';
+          li.firstChild.textContent = s.label;
+          li.lastChild.textContent = s.county;
+          li.addEventListener('mousedown', (e) => { e.preventDefault(); pick(s); });
+          list.appendChild(li);
+        });
+        list.hidden = false;
+        input.setAttribute('aria-expanded', 'true');
+      }
+      async function search(q) {
+        if (ctrl) ctrl.abort();
+        ctrl = new AbortController();
+        try {
+          const r = await fetch(PROPERTY_API + '?q=' + encodeURIComponent(q), { signal: ctrl.signal });
+          const d = await r.json();
+          if (q !== lastQuery) return;   // a newer keystroke won
+          items = d.suggestions || [];
+          active = -1;
+          render();
+        } catch (e) {
+          if (e.name !== 'AbortError') hideList();
+        }
+      }
+      async function pick(s) {
+        hideList();
+        input.value = s.label.replace(/,\s*\d{5}$/, '');   // street only; ZIP has its own box
+        input.classList.remove('invalid');
+        if (s.zip && /^\d{5}$/.test(s.zip)) {
+          elements.zipInput.value = s.zip;
+          elements.zipInput.classList.add('from-county');
+          filling = true;
+          elements.zipInput.dispatchEvent(new Event('input', { bubbles: true }));
+          filling = false;
+        }
+        showNote('Looking up ' + s.label + ' in ' + s.county + ' records…', '');
+        try {
+          const r = await fetch(PROPERTY_API + '?id=' + encodeURIComponent(s.id));
+          const d = await r.json();
+          applyCountyRecord(d, s);
+        } catch (e) {
+          propertyRecord = { id: s.id, error: true };
+          showNote('✓ Address found. We couldn\'t reach the county\'s house records, so enter your square feet and gutter height below.', '');
+        }
+        updateBookBtnState();
+        if (window.cgpTrack) window.cgpTrack('address_picked', { detail: s.county });
+      }
+      function applyCountyRecord(d, s) {
+        propertyRecord = d && d.found ? d : { id: s.id, found: false };
+        if (!d || !d.found || !d.residential || !d.sqft) {
+          const why = d && d.found && !d.residential && d.use ? ' (listed as "' + d.use + '")' : '';
+          showNote(isHouseFlat(selectedHouse)
+            ? '✓ Address found' + (d && d.zip ? ', ZIP ' + d.zip : '') + '.'
+            : '✓ Address found. The county has no house size on file for it' + why + ', so enter your square feet and gutter height below.', '');
+          return;
+        }
+        const flat = isHouseFlat(selectedHouse);
+        const bits = [];
+        if (!flat) {
+          elements.sqftInput.value = d.sqft;
+          elements.sqftInput.classList.add('from-county');
+          bits.push('<strong>' + Number(d.sqft).toLocaleString() + ' sq ft</strong>');
+          if (d.stories) {
+            elements.storiesSelect.value = String(d.stories);
+            elements.storiesSelect.classList.add('from-county');
+            bits.push('<strong>' + d.stories + (d.stories === 1 ? ' story' : ' stories') + '</strong>');
+          }
+          filling = true;
+          elements.sqftInput.dispatchEvent(new Event('input', { bubbles: true }));
+          elements.storiesSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          filling = false;
+        }
+        let text = '✓ From ' + d.county + ' records: ' + (bits.length ? bits.join(', ') : 'ZIP ' + d.zip) +
+          '. <span class="addr-edit">Not quite right? Just change the numbers.</span>';
+        let cls = 'from-county';
+        if (d.attached && selectedHouse && !flat) {
+          text += '<br>Heads up: the county lists this as an attached home — if it\'s a townhome, pick a townhome above for a flat price.';
+          cls = 'heads-up';
+        }
+        showNote(text, cls);
+      }
+      function move(dir) {
+        if (list.hidden || !items.length) return;
+        active = (active + dir + items.length) % items.length;
+        render();
+        const el = list.children[active];
+        if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+      }
+
+      input.addEventListener('input', () => {
+        propertyRecord = null;
+        clearCountyMarks();
+        if (note.style.display !== 'none') showNote('', '');
+        const q = input.value.replace(/\s+/g, ' ').trim();
+        lastQuery = q;
+        clearTimeout(timer);
+        if (q.length < 3) { hideList(); return; }
+        timer = setTimeout(() => search(q), 220);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+        else if (e.key === 'Enter' && !list.hidden && items.length) { e.preventDefault(); pick(items[active < 0 ? 0 : active]); }
+        else if (e.key === 'Escape') hideList();
+      });
+      input.addEventListener('blur', () => setTimeout(hideList, 150));
+      // Hand edits to the numbers drop the county highlight on that box only.
+      fieldsFromCounty.forEach((el) => el.addEventListener('input', () => { if (!filling) el.classList.remove('from-county'); }));
+      elements.storiesSelect.addEventListener('change', () => { if (!filling) elements.storiesSelect.classList.remove('from-county'); });
+    }
+
     function isValidEmail(value) {
       return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
     }
@@ -1767,6 +1941,10 @@
         userAgent: navigator.userAgent,
         page: location.href + (window.cgpOffice ? ' [office]' : ''),
         office: window.cgpOffice ? 1 : 0,
+        // County assessor record behind the autofill, if the address was picked from the list.
+        propertyId: propertyRecord && propertyRecord.id ? propertyRecord.id : '',
+        countySqft: propertyRecord && propertyRecord.sqft ? propertyRecord.sqft : '',
+        countyStories: propertyRecord && propertyRecord.stories ? propertyRecord.stories : '',
       };
     }
 
@@ -2312,6 +2490,7 @@
         renderZipNote();
         calculatePrice();
       });
+      initAddressLookup();
 
       // Sticky pay bar: mirror the main button, hide when it's on screen.
       elements.payBarBtn.addEventListener('click', handlePayBarClick);
@@ -2568,8 +2747,9 @@
         }).observe(priceEl, { childList: true, subtree: true, characterData: true });
       }
 
-      // 3. Started typing contact details.
-      ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach(function (id) {
+      // 3. Started typing contact details. (The address moved up to Step 1 on
+      //    2026-10-22, so it no longer counts as "details".)
+      ['custName', 'custPhone', 'custEmail'].forEach(function (id) {
         var el = document.getElementById(id);
         if (el) el.addEventListener('input', function () { once('details_started'); });
       });
