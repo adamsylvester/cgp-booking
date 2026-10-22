@@ -1,3 +1,13 @@
+> **2026-10-22 — Calendly is gone.** Scheduling now runs on our own picker:
+> `schedule.html` reads open slots from Supabase `booking_slots()` (which knows
+> the GC1 lane's day AND how far the crew is from the customer's ZIP), the tech
+> portal's `/api/book` claims the slot as a `booking_holds` row, and this
+> script's `online_schedule` / `online_reschedule` / `online_cancel` actions
+> put it in Jobber and send the customer a confirmation with a calendar
+> invite. The Calendly webhook code below is kept only as history; nothing
+> links to Calendly any more. Jobber markers are now `📅 ONLINE — ` and the
+> client tag `📅 Online Booking`. Full notes: tech-portal/db/migration_online_booking.sql.
+
 # Jobber sync — setup runbook
 
 Turns a paid online booking into real Jobber records.
