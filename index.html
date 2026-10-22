@@ -24,45 +24,51 @@
   <meta name="twitter:image" content="https://book.cvillegutterpros.com/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800;900&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Arimo:wght@400;700&display=swap" />
   <style>
-    /* Look (2026-10-22, Adam): Nunito Sans everywhere, flat cards — thin borders,
-       small corners, no drop shadows, no gradients. The logo keeps Raleway. */
+    /* Look (2026-10-22, Adam): match cvillegutterpros.com — Poppins headings +
+       Arimo body, homepage blue #2080BD / green #27A247 / dark #36383A, 3px
+       corners, blue header bar, dark photo hero, blue + black footer. */
     :root {
-      --bg-start: #f6f7f9;
-      --bg-end: #f6f7f9;
+      --bg-start: #ffffff;
+      --bg-end: #ffffff;
       --surface: #ffffff;
-      --surface-soft: #f3f8fc;
-      --surface-muted: #f8fafc;
-      --text: #18243c;
-      --text-muted: #475467;
+      --surface-soft: #f8f8f8;
+      --surface-muted: #f8f8f8;
+      --text: #36383a;
+      --text-muted: #4b4f58;
       --text-subtle: #667085;
       --border: #d9dde4;
       --border-strong: #c4cad4;
-      --primary: #0a6db0;
-      --primary-dark: #085a93;
+      --primary: #2080bd;
+      --primary-dark: #1a6a9e;
       --primary-grad: var(--primary);
-      --success: #16a34a;
+      --success: #27a247;
       --warning: #f59e0b;
       --danger: #dc2626;
       --shadow-lg: none;
       --shadow-md: none;
       --shadow-sm: none;
-      --radius-xl: 12px;
-      --radius-lg: 10px;
-      --radius-md: 8px;
-      --radius-sm: 6px;
+      --radius-xl: 4px;
+      --radius-lg: 4px;
+      --radius-md: 4px;
+      --radius-sm: 3px;
       --radius-pill: 999px;
     }
 
     * {
       box-sizing: border-box;
     }
+    /* Homepage typography: Poppins for headings, pills, prices and buttons; Arimo body. */
+    h1, h2, h3, .step-pill, .addr-kicker, .price, .plan-price, .plan-name, .house-opt-name, .addr-prompt, .house-hero-prompt,
+    .form-title, .reviews-heading, .other-ways-h, .paybar-v, .deposit-head-value, .price-label, .ow-cta, .ow-label strong { font-family: Poppins, sans-serif; }
+    h2, .form-title, .reviews-heading, .other-ways-h { color: var(--text); font-weight: 700; letter-spacing: -0.5px; }
 
     body {
       margin: 0;
+      overflow-x: hidden;
       padding: 22px 16px 32px;
-      font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: Arimo, Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       color: var(--text);
       background: var(--bg-start);
     }
@@ -511,8 +517,11 @@
       overflow: hidden;
       padding: 16px;
       border: 0;
-      border-radius: 8px;
-      background: var(--primary-grad);
+      border-radius: 3px;
+      font-family: Poppins, sans-serif;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      background: #27a247;
       color: #fff;
       text-align: center;
       text-decoration: none;
@@ -719,26 +728,33 @@
     }
 
     /* ===== Centered hero header ===== */
-    .hero-head { text-align: center; margin: 6px 0 18px; }
-    .hero-logo-link { display: inline-block; margin-bottom: 8px; }
-    .hero-logo { width: 190px; height: auto; display: block; transition: opacity .15s ease; }
-    .hero-logo-link:hover .hero-logo { opacity: .85; }
-    .hero-quote { text-align: center; margin: 10px 0 18px; }
-    .hero-title { margin: 0 0 8px; font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
-    .hero-title em { font-style: normal; color: var(--primary); }
-    .hero-sub { margin: 0 0 8px; font-size: 16.5px; color: var(--text-muted); }
+    /* Header bar */
+    .site-head { background: #2080bd; margin: -22px -16px 0; padding: 8px 16px; }
+    .site-head-in { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .hero-logo-link { display: inline-block; line-height: 0; }
+    .hero-logo { width: 86px; height: auto; display: block; }
+    .site-nav { display: flex; gap: 26px; }
+    .site-nav a { color: #fff; font-family: Arimo, Arial, sans-serif; font-size: 16px; font-weight: 600; letter-spacing: .4px; text-decoration: none; }
+    .site-nav a:hover { text-decoration: underline; }
+    .btn-outline { display: inline-block; background: #fff; color: #23a455; border: 2px solid #27a247; border-radius: 3px; font-family: Poppins, sans-serif; font-size: 13px; font-weight: 700; letter-spacing: .4px; text-transform: uppercase; padding: 10px 14px; text-decoration: none; white-space: nowrap; }
+    .btn-outline:hover { background: #f3fbf5; }
+    @media (max-width: 760px) { .site-nav { display: none; } .btn-outline { font-size: 12px; padding: 9px 10px; } }
+    /* Hero band: the homepage's own van photo under a dark overlay */
+    .hero-quote { text-align: center; width: 100vw; margin: 0 0 22px calc(50% - 50vw); padding: 44px 16px 30px; color: #fff;
+      background: linear-gradient(rgba(0,0,0,.66), rgba(0,0,0,.66)), url(hero-bg.jpg) center 45% / cover no-repeat; }
+    .hero-title { margin: 0 auto 10px; max-width: 900px; font-family: Poppins, sans-serif; font-size: clamp(28px, 4.6vw, 48px); font-weight: 800; line-height: 1.08; letter-spacing: -0.5px; text-transform: uppercase; color: #fff; text-shadow: 0 2px 10px rgba(0,0,0,.4); }
+    .hero-title em { font-style: normal; color: #6ec1e4; white-space: nowrap; }
+    .hero-sub { margin: 0 0 8px; font-size: 17px; color: #fff; }
     .hero-rating { margin: 0 0 10px; font-size: 14px; }
-    .hero-rating a { color: var(--text); font-weight: 700; text-decoration: none; }
+    .hero-rating a { color: #fff; font-weight: 700; text-decoration: none; }
     .hero-rating a:hover { text-decoration: underline; }
-    .hero-rating .stars { color: #f59e0b; letter-spacing: .04em; }
+    .hero-rating .stars { color: #f5b301; letter-spacing: .04em; }
     .crew-strip { display:flex; justify-content:center; gap:10px; margin:14px auto 6px; max-width:760px; overflow-x:auto; padding:2px 4px 6px; scrollbar-width:none; }
     .crew-strip::-webkit-scrollbar { display:none; }
-    .crew-strip img { flex:0 0 auto; width:112px; height:112px; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:#eee; }
-    .crew-cap { margin:0 0 14px; text-align:center; font-size:13px; color:var(--text-subtle); }
+    .crew-strip img { flex:0 0 auto; width:112px; height:112px; object-fit:cover; border-radius:3px; border:2px solid rgba(255,255,255,.6); background:#eee; }
     @media (max-width:640px) { .crew-strip { justify-content:flex-start; } .crew-strip img { width:96px; height:96px; } }
-    .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
-    .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
-    .hero-phone a:hover { text-decoration: underline; }
+    .crew-cap { color: rgba(255,255,255,.8); }
+    .hero-phone { display: none; }
     /* ===== Progress rail (quote flow) ===== */
     .rail { display: flex; justify-content: center; gap: 6px; margin: 0 0 18px; flex-wrap: wrap; }
     .rail .seg { display: flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--text-muted); background: #fff; border: 1.5px solid var(--border); padding: 8px 15px; border-radius: 10px; transition: all .2s ease; }
@@ -857,13 +873,19 @@
   <div class="office-bar" id="officeBar" hidden>Office booking mode: this visit is not counted in website stats.
     <button type="button" id="officeOff">Turn off</button></div>
 
-  <div class="wrap">
-    <div class="hero-head">
-      <a class="hero-logo-link" href="https://cvillegutterpros.com" target="_blank" rel="noopener">
-        <img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" />
-      </a>
-      <p class="hero-phone">Prefer to talk? <a href="tel:+14344224700">Call/Text 434-422-4700</a></p>
+  <!-- Header bar, same as cvillegutterpros.com: blue band, logo left, outlined phone button right. -->
+  <header class="site-head">
+    <div class="site-head-in">
+      <a class="hero-logo-link" href="https://cvillegutterpros.com" rel="noopener"><img class="hero-logo" src="logo.png" alt="Charlottesville Gutter Pros" /></a>
+      <nav class="site-nav">
+        <a href="https://cvillegutterpros.com/gutter-cleaning/">Gutter Cleaning</a>
+        <a href="https://cvillegutterpros.com/gutter-protection/">Protection Plan</a>
+        <a href="https://cvillegutterpros.com/meet-our-team/">Meet Our Team</a>
+      </nav>
+      <a class="btn-outline" href="tel:+14344224700">Call/Text 434-422-4700</a>
     </div>
+  </header>
+  <div class="wrap">
 
     <!-- Gutter cleaning is ~all of the volume on this page, so the quote flow
          is the page. The other two paths live below, behind subtle links. -->
@@ -949,8 +971,8 @@
       @media (max-width:640px){ .brand-strip { justify-content:center; text-align:center; } .brand-strip-info { text-align:center; } .brand-strip-incl { justify-content:center; } }
       /* ===== Numbered step headers for clearer hierarchy ===== */
       .step-head { display:flex; align-items:center; justify-content:center; margin:0 0 16px; padding-top:22px; border-top:1px solid var(--border); }
-      .step-pill { display:inline-flex; align-items:center; gap:8px; background:var(--text); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; }
-      .step-head .num { flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#fff; color:var(--text); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+      .step-pill { display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; }
+      .step-head .num { flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#fff; color:var(--primary); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
       .step-head .txt { font-size:12px; font-weight:800; color:#fff; letter-spacing:.1em; }
       .price-wrap .price { color:var(--primary); }
       /* Reviews + what's-included, integrated into the price box */
@@ -973,8 +995,20 @@
       .pay-fine { margin-top:10px; }
       .office-bar { position:sticky; top:0; z-index:50; background:#fff7e6; color:#92400e; border-bottom:1px solid #fde68a; font-size:13px; font-weight:700; text-align:center; padding:7px 12px; }
       .office-bar button { font:inherit; font-size:12px; margin-left:10px; padding:3px 10px; border-radius:10px; border:1px solid #f59e0b; background:#fff; color:#92400e; cursor:pointer; }
-      .staff-link { display:block; text-align:center; margin:28px 0 8px; font-size:11px; color:#c7cdd6; text-decoration:none; }
-      .staff-link:hover { color:var(--text-subtle); }
+      .staff-link { display:inline-block; margin-left:14px; font-size:11px; color:#444; text-decoration:none; }
+      .staff-link:hover { color:#999; }
+      .site-foot { margin:40px -16px -32px; font-family:Arimo, Arial, sans-serif; }
+      .site-foot-blue { background:#2080bd; color:#fff; padding:36px 16px 30px; }
+      .site-foot-in { max-width:1100px; margin:0 auto; display:grid; grid-template-columns:1.4fr 1fr 1fr; gap:28px; }
+      .foot-col h4 { margin:0 0 10px; font-family:Poppins, sans-serif; font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#fff; }
+      .foot-col a { display:block; color:#fff; text-decoration:none; font-size:14px; line-height:1.9; }
+      .foot-col a:hover { text-decoration:underline; }
+      .foot-brand { display:flex; gap:16px; align-items:flex-start; }
+      .foot-brand img { width:96px; height:96px; flex:0 0 auto; }
+      .foot-brand p { margin:0; font-size:14px; line-height:1.6; }
+      .foot-brand p a { display:inline; font-weight:700; }
+      .site-foot-dark { background:#191919; color:#bbb; text-align:center; font-size:13px; padding:14px 16px; }
+      @media (max-width:760px) { .site-foot-in { grid-template-columns:1fr; } }
       .date-pick { background:#f5f9ff; border:2px solid var(--primary); border-radius:8px; padding:18px 14px 14px; margin:18px 0 10px; box-shadow:none; }
       .date-pick .step-head { border-top:none; padding-top:0; }
       .date-pick-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
@@ -1002,9 +1036,9 @@
       /* Address autocomplete (Step 1) */
       /* "Start here" block: the one thing on the page a visitor must not scroll past. */
       .addr-start { position:relative; max-width:680px; margin:0 auto; padding:26px 22px 22px; border:2px solid var(--primary); border-radius:10px;
-        background:#eaf4fa; box-shadow:none; }
-      .addr-kicker { display:inline-flex; align-items:center; gap:8px; background:var(--text); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; margin-bottom:12px; }
-      .addr-kicker-num { width:22px; height:22px; border-radius:50%; background:#fff; color:var(--text); font-size:13px; display:inline-flex; align-items:center; justify-content:center; }
+        background:#f8f8f8; box-shadow:none; }
+      .addr-kicker { display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; margin-bottom:12px; }
+      .addr-kicker-num { width:22px; height:22px; border-radius:50%; background:#fff; color:var(--primary); font-size:13px; display:inline-flex; align-items:center; justify-content:center; }
       .addr-prompt { font-size:clamp(24px,3.4vw,30px); font-weight:800; letter-spacing:-.02em; margin:0 0 4px; }
       .addr-sub { font-size:15px; color:var(--text-muted); margin:0 0 16px; }
       .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
@@ -1055,13 +1089,13 @@
       .paybar .paybar-sum { text-align:right; }
       .paybar .paybar-t { font-size:12px; color:var(--text-subtle); font-weight:700; }
       .paybar .paybar-v { font-size:19px; font-weight:900; letter-spacing:-.02em; }
-      .paybar .paybar-go { padding:14px 28px; background:var(--primary-grad); color:#fff; border:none; border-radius:8px; font-size:16px; font-weight:800; cursor:pointer; box-shadow:none; white-space:nowrap; }
+      .paybar .paybar-go { padding:14px 28px; background:#27a247; color:#fff; border:none; border-radius:3px; font-family:Poppins, sans-serif; text-transform:uppercase; letter-spacing:.4px; font-size:15px; font-weight:700; cursor:pointer; box-shadow:none; white-space:nowrap; }
       .paybar .paybar-go:active { transform:translateY(1px); }
     </style>
 
     <div class="quote-reveal" id="quoteReveal">
     <div class="hero-quote">
-      <h1 class="hero-title">Your gutter cleaning price in <em>10 seconds.</em></h1>
+      <h1 class="hero-title">Your gutter cleaning price in <em>10 seconds</em></h1>
       <p class="hero-sub">Instant price · pick your date · 25% deposit today</p>
       <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> 4.9 on Google · 800+ reviews</a></p>
       <!-- Real crew selfies from recent jobs (CompanyCam #selfie feed, Oct 2026). -->
@@ -2855,6 +2889,35 @@
 
   <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
   <script src="https://link.msgsndr.com/js/form_embed.js"></script>
-<a class="staff-link" href="#" id="staffLink">Staff</a>
+  <footer class="site-foot">
+    <div class="site-foot-blue">
+      <div class="site-foot-in">
+        <div class="foot-col foot-brand">
+          <img src="logo.png" alt="" width="96" height="96" />
+          <p><strong>Charlottesville Gutter Pros</strong><br />1718 Seminole Trail<br />Charlottesville, VA 22901<br /><a href="tel:+14344224700">434-422-4700</a></p>
+        </div>
+        <div class="foot-col">
+          <h4>Our Services</h4>
+          <a href="https://cvillegutterpros.com/gutter-cleaning/">Gutter Cleaning</a>
+          <a href="https://cvillegutterpros.com/gutter-repair/">Gutter Repair</a>
+          <a href="https://cvillegutterpros.com/gutter-installation/">Gutter Installation</a>
+          <a href="https://cvillegutterpros.com/gutter-screen-installation/">Gutter Guard Installation</a>
+          <a href="https://cvillegutterpros.com/underground-gutter-drain-flushing/">Underground Drains</a>
+          <a href="https://cvillegutterpros.com/gutter-protection/">Gutter Protection Plan</a>
+        </div>
+        <div class="foot-col">
+          <h4>Quicklinks</h4>
+          <a href="https://cvillegutterpros.com/locations/">Areas Served</a>
+          <a href="https://cvillegutterpros.com/meet-our-team/">Meet Our Team</a>
+          <a href="https://cvillegutterpros.com/financing/">Financing</a>
+          <a href="https://cvillegutterpros.com/pricing/">Pricing</a>
+          <a href="https://cvillegutterpros.com/referral/">Referrals</a>
+          <a href="https://cvillegutterpros.com/privacy-policy/">Privacy Policy</a>
+          <a href="https://cvillegutterpros.com/terms-conditions/">Terms &amp; Conditions</a>
+        </div>
+      </div>
+    </div>
+    <div class="site-foot-dark">Copyright &copy; 2026 Charlottesville Gutter Pros <a class="staff-link" href="#" id="staffLink">Staff</a></div>
+  </footer>
 </body>
 </html>

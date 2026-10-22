@@ -1,13 +1,13 @@
 /* Online scheduler — the look customers already know from Calendly, on our
    own data. Shared by schedule.html (book) and manage.html (change/cancel). */
 :root {
-  --bk-primary: #1d4ed8; --bk-primary-dark: #1e40af; --bk-primary-soft: #eef4ff;
-  --bk-text: #1a1a1a; --bk-muted: #4b5563; --bk-subtle: #6b7280; --bk-border: #e5e7eb;
-  --bk-bg: #f3f7fc; --bk-success: #16a34a; --bk-danger: #b42318;
+  --bk-primary: #2080bd; --bk-primary-dark: #1a6a9e; --bk-primary-soft: #eaf3fa;
+  --bk-text: #36383a; --bk-muted: #4b4f58; --bk-subtle: #6b7280; --bk-border: #e5e7eb;
+  --bk-bg: #f8f8f8; --bk-success: #27a247; --bk-danger: #b42318;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { font-family: 'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: var(--bk-text);
+body { font-family: Arimo, Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; color: var(--bk-text);
        background: var(--bk-bg); -webkit-font-smoothing: antialiased; }
 body.embed { background: transparent; }
 .bk-page { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 28px 12px 48px; }
@@ -98,7 +98,7 @@ body.embed .bk { box-shadow: none; }
 .bk-check input { width: 18px; height: 18px; margin-top: 2px; }
 .bk-form .err { color: var(--bk-danger); font-size: 13px; margin: -8px 0 12px; display: none; }
 .bk-form .err.on { display: block; }
-.bk-submit { font: inherit; font-size: 16px; font-weight: 700; padding: 13px 24px; border-radius: 999px; border: 0; background: var(--bk-primary); color: #fff; cursor: pointer; }
+.bk-submit { font: inherit; font-family: Poppins, sans-serif; text-transform: uppercase; letter-spacing: .4px; font-size: 15px; font-weight: 700; padding: 13px 24px; border-radius: 3px; border: 0; background: var(--bk-success); color: #fff; cursor: pointer; }
 .bk-submit:hover { background: var(--bk-primary-dark); }
 .bk-submit:disabled { opacity: .6; cursor: default; }
 .bk-fine { font-size: 12.5px; color: var(--bk-subtle); margin-top: 14px; line-height: 1.5; }
