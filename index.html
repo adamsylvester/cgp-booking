@@ -1694,7 +1694,7 @@
     let propertyRecord = null;   // last county record we filled from (goes into the lead payload)
     // Plain words for the two ways the lookup can come up empty. (Adam: "nothing
     // worse than a poorly worded error message.") Neither one stops the booking.
-    const NO_MATCH_NOTE = '<strong>We couldn\'t find that address in Albemarle County or Charlottesville city records.</strong> ' +
+    const NO_MATCH_NOTE = '<strong>We couldn\'t find that address in local county records.</strong> ' +
       'No problem — if it\'s typed right, just keep going. Pick your home below and enter your square feet, ' +
       'and we\'ll use the address exactly as you typed it.';
     const LOOKUP_DOWN_NOTE = '<strong>Address search isn\'t available right now.</strong> ' +
@@ -1786,9 +1786,11 @@
         propertyRecord = d && d.found ? d : { id: s.id, found: false };
         if (!d || !d.found || !d.residential || !d.sqft) {
           const why = d && d.found && !d.residential && d.use ? ' (listed as "' + d.use + '")' : '';
-          showNote(isHouseFlat(selectedHouse)
-            ? '✓ Address found' + (d && d.zip ? ', ZIP ' + d.zip : '') + '.'
-            : '✓ Address found. The county has no house size on file for it' + why + ', so enter your square feet and gutter height below.', '');
+          let text;
+          if (isHouseFlat(selectedHouse)) text = '✓ Address found' + (d && d.zip ? ', ZIP ' + d.zip : '') + '.';
+          else if (d && d.found && d.no_sizes) text = '✓ Address found in ' + d.county + ' records. ' + d.county + ' doesn\'t publish house sizes online, so enter your square feet and gutter height below.';
+          else text = '✓ Address found. The county has no house size on file for it' + why + ', so enter your square feet and gutter height below.';
+          showNote(text, '');
           return;
         }
         const flat = isHouseFlat(selectedHouse);
