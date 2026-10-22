@@ -5,9 +5,9 @@
 // Script, name it "jobber_sync"). It shares that file's PRICING, COL, STATUS
 // and sheet helpers.
 //
-// CALENDLY IS THE SOURCE OF TRUTH FOR SCHEDULING. This script never decides
-// what's available — it mirrors whatever slot the customer picked in Calendly
-// onto the Jobber calendar.
+// THE SCHEDULER DECIDES WHEN (booking_slots in Supabase since 2026-10-22;
+// Calendly before that). This script never decides what's available — it
+// mirrors whatever slot the customer picked onto the Jobber calendar.
 //
 // Two stages, in the order the money moves:
 //
@@ -32,11 +32,11 @@ const JOBBER_API_VERSION = '2025-01-20';
 
 // ===== Online-booking markers =====
 // The admin should be able to tell at a glance — from any list, the calendar,
-// or the client page — that a record came through Calendly/the booking site
+// or the client page — that a record came through the booking site
 // rather than being entered by the team. The prefix leads every title; the tag
 // shows as a chip on the client and is filterable in client lists.
-const JOBBER_TITLE_PREFIX = '📅 CALENDLY — ';
-const JOBBER_CLIENT_TAG = '📅 Calendly Booking';
+const JOBBER_TITLE_PREFIX = '📅 ONLINE — ';
+const JOBBER_CLIENT_TAG = '📅 Online Booking';
 
 // ===== Scheduling config =====
 // Calendly decides WHEN. These only fill gaps Calendly doesn't tell us.
@@ -982,7 +982,7 @@ function calendlyAnswer_(answers, words) {
 }
 
 function calendlyInstructions_(lead, ev) {
-  var lines = ['Booked through Calendly from book.cvillegutterpros.com.'];
+  var lines = ['Booked online at book.cvillegutterpros.com.'];
   if (ev.name) lines.push('Event: ' + ev.name);
   if (lead.phone) lines.push('Phone: ' + lead.phone);
   if (lead.notes) lines.push('What they told us: ' + lead.notes);
@@ -1233,4 +1233,298 @@ function testJobberConnection() {
     }
   }
 
+}
+
+// ===========================================================================
+// ONLINE BOOKING (2026-10-22) — our own scheduler replaced Calendly.
+// ===========================================================================
+// book.cvillegutterpros.com/schedule.html shows open slots straight from
+// Supabase (booking_slots — it knows where the crew already is that day),
+// and team.cvillegutterpros.com/api/book claims the slot as a booking_holds
+// row. Then it calls this web app with the hold id and nothing else. We read
+// the hold back from Supabase ourselves (booking_hold_get), so the request
+// body is never trusted — the unguessable id is the whole credential, the
+// same way Calendly's reschedule links worked.
+//
+//   online_schedule    paid cleaning → the PAID sheet row's job gets its visit
+//                      (same scheduleBookingInJobber_ Calendly used);
+//                      assessment  → Request with the assessment scheduled.
+//   online_reschedule  move the visit / assessment to the new hold's time.
+//   online_cancel      email the office; Jobber is left alone (the deposit
+//                      stays attached to the job) exactly as before.
+//
+// Every path emails the customer (confirmation with a calendar invite,
+// reschedule, cancellation) and the office. Day-before reminder emails are
+// queued in Postgres (booking_queue_reminders, 9am ET) and sent by the pulse.
+
+const ONLINE_SB_URL = 'https://wmmhvguajkeiyhmfmilu.supabase.co';
+const ONLINE_SB_KEY = 'sb_publishable_qTRQ_ECvykQgCBHWReXC7w_nt1HUv8Z';   // publishable; the hold id is the secret
+const ONLINE_MANAGE_URL = 'https://book.cvillegutterpros.com/manage.html?t=';
+const ONLINE_TITLES = { cleaning: 'Gutter Cleaning', assessment: 'Gutter Assessment' };
+
+function onlineAction_(action, data) {
+  var holdId = String((data && data.hold) || '');
+  if (!/^[0-9a-f-]{36}$/i.test(holdId)) return { ok: false, error: 'bad_hold' };
+  if (!jobberSyncEnabled_()) return { ok: false, error: 'jobber_not_configured' };
+  var hold = onlineHold_(holdId);
+  if (!hold || !hold.id) return { ok: false, error: 'hold_not_found' };
+  try {
+    if (action === 'online_schedule') return onlineSchedule_(hold);
+    if (action === 'online_reschedule') return onlineReschedule_(hold, onlineHold_(String(data.prev || '')));
+    if (action === 'online_cancel') return onlineCancel_(hold);
+    return { ok: false, error: 'unknown_action' };
+  } catch (err) {
+    onlineHoldUpdate_(hold.id, { error: String(err).slice(0, 400) });
+    jobberNotifyFailure_(onlineLead_(hold), err, action.replace('online_', '') + ' for an online ' + hold.service + ' booking');
+    return { ok: false, error: String(err).slice(0, 300) };
+  }
+}
+
+function onlineRpc_(fn, args) {
+  var resp = UrlFetchApp.fetch(ONLINE_SB_URL + '/rest/v1/rpc/' + fn, {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { apikey: ONLINE_SB_KEY, Authorization: 'Bearer ' + ONLINE_SB_KEY },
+    payload: JSON.stringify(args),
+  });
+  var code = resp.getResponseCode();
+  var text = resp.getContentText() || '';
+  if (code >= 300) throw new Error('Supabase ' + fn + ' -> ' + code + ' ' + text.slice(0, 200));
+  return text ? JSON.parse(text) : null;
+}
+function onlineHold_(id) { return id ? onlineRpc_('booking_hold_get', { p_id: id }) : null; }
+function onlineHoldUpdate_(id, patch) {
+  try { return onlineRpc_('booking_hold_update', { p_id: id, p: patch }); } catch (e) { return null; }
+}
+
+// A hold in the shape the Jobber helpers expect from a sheet row.
+function onlineLead_(hold) {
+  return {
+    name: hold.name || '', email: hold.email || '', phone: hold.phone || '',
+    address: hold.address || '', zip: hold.zip || '', notes: hold.notes || '',
+    plan: hold.service === 'assessment' ? 'On-site assessment' : '',
+    house: '', sqft: '', stories: '', outside: false, base: 0, total: 0, deposit: 0,
+    timestamp: hold.lead_timestamp || '',
+  };
+}
+
+function onlineSchedule_(hold) {
+  if (hold.status === 'booked' && (hold.jobber_job_id || hold.jobber_request_id)) return { ok: true, already: true };
+  if (hold.status !== 'held' && hold.status !== 'booked') return { ok: false, error: 'hold_' + hold.status };
+  var ids = hold.service === 'assessment' ? onlineScheduleAssessment_(hold) : onlineScheduleCleaning_(hold);
+  if (ids.error) return { ok: false, error: ids.error };
+  var patch = { status: 'booked' };
+  Object.keys(ids).forEach(function (k) { if (ids[k]) patch[k] = ids[k]; });
+  onlineHoldUpdate_(hold.id, patch);
+  hold.status = 'booked';
+  onlineSendCustomerEmail_(hold, 'booked');
+  onlineNotifyOffice_(hold, 'booked', ids, null);
+  return { ok: true, jobId: ids.jobber_job_id || '', requestId: ids.jobber_request_id || '' };
+}
+
+// The paid cleaning: find the PAID row with no job yet (newest for this
+// email), exactly as the Calendly webhook did. The customer only reaches the
+// scheduler from Square's "paid" redirect, but the minute checker may not
+// have marked the row yet — ask Square now instead of refusing.
+function onlineScheduleCleaning_(hold) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var row = calendlyFindPaidUnscheduledRow_(hold.email);
+  if (!row) {
+    row = jobberFindRow_(hold.lead_timestamp, hold.email);
+    if (!row) return { error: 'payment_not_found' };
+    if (String(sheet.getRange(row, JCOL.JOB).getValue() || '')) return { error: 'already_scheduled' };
+    if (String(sheet.getRange(row, COL.STATUS).getValue() || '') !== STATUS.PAID) {
+      try { checkPendingPayments(); } catch (e) { /* fall through to the re-read */ }
+      if (String(sheet.getRange(row, COL.STATUS).getValue() || '') !== STATUS.PAID) return { error: 'payment_not_found' };
+    }
+  }
+  var receiptUrl = String(sheet.getRange(row, COL.PAYMENT_LINK).getValue() || '');
+  var lead = rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]);
+  if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) pushBookingToJobber_(lead, row, receiptUrl);
+  var jobId = scheduleBookingInJobber_(row, hold.start_at, hold.end_at, receiptUrl);
+  var visitId = '';
+  try { visitId = onlineFirstVisitId_(jobId); } catch (e) { /* the id only matters for a later reschedule */ }
+  var clientCell = String(sheet.getRange(row, JCOL.CLIENT).getValue() || '');
+  return { jobber_job_id: jobId, jobber_visit_id: visitId, jobber_client_id: clientCell.split('|')[0] };
+}
+
+function onlineScheduleAssessment_(hold) {
+  var lead = onlineLead_(hold);
+  var made = jobberEnsureClient_(lead);
+  var ev = { start_time: hold.start_at, end_time: hold.end_at, name: 'Gutter assessment' };
+  var requestId = jobberCreateAssessmentRequest_(made.clientId, made.propertyId, lead, ev);
+  var assessmentId = '';
+  try { assessmentId = onlineAssessmentId_(requestId); } catch (e) { /* only needed to move it later */ }
+  calendlyLogRow_(lead, ev, requestId, '✅ Request created in Jobber (online booking)');
+  return { jobber_request_id: requestId, jobber_assessment_id: assessmentId, jobber_client_id: made.clientId };
+}
+
+function onlineFirstVisitId_(jobId) {
+  var data = jobberGql_(
+    'query($id: EncodedId!) { job(id: $id) { visits(first: 3) { nodes { id startAt } } } }', { id: jobId });
+  var nodes = (((data.job || {}).visits || {}).nodes) || [];
+  return nodes.length ? nodes[0].id : '';
+}
+
+function onlineAssessmentId_(requestId) {
+  var data = jobberGql_('query($id: EncodedId!) { request(id: $id) { assessment { id } } }', { id: requestId });
+  return (((data.request || {}).assessment) || {}).id || '';
+}
+
+function onlineReschedule_(hold, prev) {
+  if (!prev || !prev.id) return { ok: false, error: 'prev_not_found' };
+  var ids = {
+    jobber_job_id: prev.jobber_job_id || '', jobber_visit_id: prev.jobber_visit_id || '',
+    jobber_request_id: prev.jobber_request_id || '', jobber_assessment_id: prev.jobber_assessment_id || '',
+    jobber_client_id: prev.jobber_client_id || '',
+  };
+  var tz = SCHED.timeZone;
+  var start = new Date(hold.start_at), end = new Date(hold.end_at);
+  var at = function (d) {
+    return { date: Utilities.formatDate(d, tz, 'yyyy-MM-dd'), time: Utilities.formatDate(d, tz, 'HH:mm:ss'), timezone: tz };
+  };
+  if (ids.jobber_visit_id) {
+    var d1 = jobberGql_(
+      'mutation($id: EncodedId!, $input: VisitEditScheduleInput!) {' +
+      '  visitEditSchedule(id: $id, input: $input) { visit { id } userErrors { message path } }' +
+      '}', { id: ids.jobber_visit_id, input: { startAt: at(start), endAt: at(end) } });
+    jobberCheckErrors_(d1.visitEditSchedule, 'visitEditSchedule');
+  } else if (ids.jobber_assessment_id) {
+    var d2 = jobberGql_(
+      'mutation($id: EncodedId!, $input: AssessmentEditInput!) {' +
+      '  assessmentEdit(assessmentId: $id, input: $input) { assessment { id } userErrors { message path } }' +
+      '}', { id: ids.jobber_assessment_id, input: { schedule: { startAt: at(start), endAt: at(end), notifyTeam: true } } });
+    jobberCheckErrors_(d2.assessmentEdit, 'assessmentEdit');
+  } else {
+    // The first booking never made it into Jobber: schedule the new time fresh.
+    return onlineSchedule_(hold);
+  }
+  var patch = { status: 'booked' };
+  Object.keys(ids).forEach(function (k) { if (ids[k]) patch[k] = ids[k]; });
+  onlineHoldUpdate_(hold.id, patch);
+  hold.status = 'booked';
+  onlineSendCustomerEmail_(hold, 'rescheduled');
+  onlineNotifyOffice_(hold, 'rescheduled', ids, prev);
+  return { ok: true };
+}
+
+// Jobber keeps the job so the deposit stays attached to something; the
+// office moves or cancels it by hand (same rule as the Calendly days).
+function onlineCancel_(hold) {
+  onlineNotifyOffice_(hold, 'cancelled', hold, null);
+  onlineSendCustomerEmail_(hold, 'cancelled');
+  return { ok: true };
+}
+
+// ----- emails ---------------------------------------------------------------
+
+function onlineWhen_(hold) {
+  var tz = SCHED.timeZone, s = new Date(hold.start_at), e = new Date(hold.end_at);
+  return Utilities.formatDate(s, tz, 'EEEE, MMMM d, yyyy') + ' · ' +
+         Utilities.formatDate(s, tz, 'h:mm a').toLowerCase() + ' – ' + Utilities.formatDate(e, tz, 'h:mm a').toLowerCase() + ' (Eastern)';
+}
+
+function onlineGoogleCalLink_(hold, title) {
+  var f = function (d) { return Utilities.formatDate(new Date(d), 'UTC', "yyyyMMdd'T'HHmmss'Z'"); };
+  return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+    '&text=' + encodeURIComponent(title + ' - ' + FROM_NAME) +
+    '&dates=' + f(hold.start_at) + '/' + f(hold.end_at) +
+    '&location=' + encodeURIComponent(hold.address || '') +
+    '&details=' + encodeURIComponent('We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id);
+}
+
+// A real calendar invitation (METHOD:REQUEST), so Gmail / Apple Mail show the
+// "add to calendar" card the way Calendly's did.
+function onlineIcs_(hold, title) {
+  var f = function (d) { return Utilities.formatDate(new Date(d), 'UTC', "yyyyMMdd'T'HHmmss'Z'"); };
+  var esc = function (s) {
+    return String(s || '').replace(/\\/g, '\\\\').replace(/\r?\n/g, '\\n').replace(/[,;]/g, function (c) { return '\\' + c; });
+  };
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Charlottesville Gutter Pros//Booking//EN', 'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    'UID:' + hold.id + '@cvillegutterpros.com',
+    'DTSTAMP:' + f(new Date()), 'DTSTART:' + f(hold.start_at), 'DTEND:' + f(hold.end_at),
+    'SUMMARY:' + esc(title + ' - ' + FROM_NAME),
+    'LOCATION:' + esc(hold.address),
+    'DESCRIPTION:' + esc('We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id),
+    'ORGANIZER;CN=' + esc(FROM_NAME) + ':mailto:' + FROM_ADDRESS,
+    'ATTENDEE;CN=' + esc(hold.name) + ';RSVP=FALSE:mailto:' + hold.email,
+    'STATUS:CONFIRMED', 'SEQUENCE:0',
+    'END:VEVENT', 'END:VCALENDAR',
+  ].join('\r\n');
+}
+
+function onlineSendCustomerEmail_(hold, kind) {
+  if (!hold.email) return;
+  var title = ONLINE_TITLES[hold.service] || 'Appointment';
+  var first = escapeHtml(String(hold.name || 'there').split(' ')[0]);
+  var tz = SCHED.timeZone, start = new Date(hold.start_at);
+  var short = Utilities.formatDate(start, tz, 'EEE, MMM d') + ' at ' + Utilities.formatDate(start, tz, 'h:mm a').toLowerCase();
+  var manage = ONLINE_MANAGE_URL + hold.id;
+  var btn = function (href, label, solid) {
+    return '<a href="' + href + '" style="display:inline-block;margin:0 8px 8px 0;padding:11px 18px;border-radius:999px;font-weight:700;text-decoration:none;' +
+      (solid ? 'background:#1d4ed8;color:#fff;' : 'border:1px solid #1d4ed8;color:#1d4ed8;') + '">' + label + '</a>';
+  };
+  var inner = '', subject;
+  if (kind === 'cancelled') {
+    subject = 'Cancelled: ' + title + ' on ' + Utilities.formatDate(start, tz, 'MMM d');
+    inner += '<h2 style="margin:0 0 8px;color:#101828;">Your ' + title.toLowerCase() + ' is cancelled</h2>';
+    inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">Hi ' + first + ', we\'ve taken <strong>' + escapeHtml(onlineWhen_(hold)) + '</strong> off the calendar. ' +
+             'Want a different day? Reply to this email or call/text <a href="tel:+14344224700">434-422-4700</a>.</p>';
+  } else {
+    subject = (kind === 'rescheduled' ? 'Rescheduled: ' : 'Confirmed: ') + title + ' with ' + FROM_NAME + ' on ' + short;
+    inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">' + (kind === 'rescheduled' ? 'You\'re rescheduled' : 'You\'re scheduled') + ', ' + first + '!</h2>';
+    inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">A calendar invitation is attached. Your technician will call or text on the way.</p>';
+    inner += '<table style="border-collapse:collapse;width:100%;">';
+    inner += rowBold('What', escapeHtml(title));
+    inner += rowBold('When', escapeHtml(onlineWhen_(hold)));
+    if (hold.address) inner += row('Where', escapeHtml(hold.address));
+    inner += '</table>';
+    inner += '<p style="margin:18px 0 6px;">' + btn(onlineGoogleCalLink_(hold, title), 'Add to Google Calendar', true) + btn(manage, 'Reschedule or cancel', false) + '</p>';
+    inner += '<p style="margin-top:14px;font-size:13px;color:#475467;line-height:1.5;">You\'ll get a reminder the day before. Please be home for the appointment — ' +
+             (hold.service === 'assessment' ? 'your service consultant will walk the property with you.' : 'we\'ll knock when we arrive and again when we\'re done.') + '</p>';
+  }
+  inner += '<p style="margin-top:22px;font-size:13px;color:#475467;line-height:1.5;">Questions? Just reply to this email — it goes straight to our office.</p>';
+  inner += '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>';
+  var options = { to: hold.email, subject: subject, htmlBody: emailShell(inner), replyTo: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME };
+  if (kind !== 'cancelled') options.attachments = [Utilities.newBlob(onlineIcs_(hold, title), 'text/calendar', 'invite.ics')];
+  MailApp.sendEmail(options);
+}
+
+function onlineJobberLink_(encodedId, kind) {
+  try {
+    var raw = Utilities.newBlob(Utilities.base64Decode(encodedId)).getDataAsString();   // gid://Jobber/Job/123
+    var n = raw.split('/').pop();
+    return n ? 'https://secure.getjobber.com/' + kind + '/' + n : '';
+  } catch (e) { return ''; }
+}
+
+function onlineNotifyOffice_(hold, kind, ids, prev) {
+  var title = ONLINE_TITLES[hold.service] || 'Appointment';
+  var colors = { booked: '#15803d', rescheduled: '#1d4ed8', cancelled: '#f59e0b' };
+  var words = { booked: '📅 New online booking', rescheduled: '🔁 Online booking moved', cancelled: '❌ Online booking cancelled' };
+  var inner = statusBanner(colors[kind] || '#475467', words[kind] + ' — ' + title);
+  inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(hold.name || 'Unknown') + ' · ' + escapeHtml(onlineWhen_(hold)) + '</h2>';
+  if (prev) inner += '<p style="margin:0 0 12px;color:#475467;">Was: ' + escapeHtml(onlineWhen_(prev)) + '</p>';
+  inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(hold.name, hold.phone, hold.email, hold.address) + '</table>';
+  inner += '<table style="border-collapse:collapse;width:100%;margin-top:10px;">';
+  if (hold.zip) inner += row('ZIP', escapeHtml(hold.zip));
+  if (hold.miles != null && hold.miles !== '') inner += row('Crew that day', 'about ' + Math.round(Number(hold.miles)) + ' mi away' + (Number(hold.miles) > 12 ? ' ⚠️ across town' : ''));
+  if (hold.notes) inner += row('Notes', escapeHtml(hold.notes));
+  var jobLink = ids && ids.jobber_job_id ? onlineJobberLink_(ids.jobber_job_id, 'work_orders') : '';
+  var reqLink = ids && ids.jobber_request_id ? onlineJobberLink_(ids.jobber_request_id, 'requests') : '';
+  if (jobLink) inner += row('Jobber job', '<a href="' + jobLink + '">' + jobLink + '</a>');
+  if (reqLink) inner += row('Jobber request', '<a href="' + reqLink + '">' + reqLink + '</a>');
+  inner += '</table>';
+  if (kind === 'cancelled') {
+    inner += '<p style="margin:16px 0 0;line-height:1.5;">Their Jobber ' + (hold.jobber_job_id ? 'job' : 'request') +
+      ' was <strong>not</strong> changed' + (hold.jobber_job_id ? ' — the deposit is still attached to it' : '') + '. Move or cancel it by hand once they rebook.</p>';
+  } else if (kind === 'booked' && hold.service === 'cleaning') {
+    inner += '<p style="margin:16px 0 0;font-size:13px;color:#475467;line-height:1.5;">They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — the API can\'t set that status.</p>';
+  }
+  inner += '<p style="margin-top:16px;font-size:12px;color:#98a2b3;">Change or cancel link (same one the customer has): ' + ONLINE_MANAGE_URL + hold.id + '</p>';
+  try {
+    MailApp.sendEmail({ to: NOTIFICATION_EMAIL, subject: words[kind] + ': ' + (hold.name || hold.email) + ' · ' + Utilities.formatDate(new Date(hold.start_at), SCHED.timeZone, 'EEE MMM d h:mm a'),
+                        htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME });
+  } catch (e) { /* never let the notification break the booking */ }
 }

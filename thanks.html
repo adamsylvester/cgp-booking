@@ -70,32 +70,16 @@
     <div class="paid">✓ Deposit received</div>
     <div class="spinner" aria-hidden="true"></div>
     <h1>Thanks! One last step.</h1>
-    <p>Sending you to our calendar to pick a date for your gutter cleaning&hellip;</p>
-    <a id="fallback" class="fallback" href="https://calendly.com/gutterpros/gutter-cleaning">Pick a date</a>
+    <p>Sending you to pick a date for your gutter cleaning&hellip;</p>
+    <a id="fallback" class="fallback" href="schedule.html?service=cleaning">Pick a date</a>
   </div>
 
   <script>
-    const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
+    // Our own scheduler (replaced Calendly 2026-10-22). It reads the lead
+    // from localStorage itself (name, email, phone, address, ZIP, timestamp)
+    // and the timestamp is how the booking finds its paid row in the sheet.
+    const SCHEDULE_URL = 'schedule.html?service=cleaning';
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
-
-    // Prefill for the gutter-cleaning event's CUSTOM questions.
-    //
-    // Calendly fills these BY SLOT NUMBER (a1, a2, ...), and a question that is
-    // toggled OFF still occupies its slot. The Calendly UI hides this — it
-    // relabels them "Question 1 / Question 2" regardless.
-    //
-    // Confirmed 2026-08-03 against the Calendly API, which exposes the true
-    // order (GET /event_types -> custom_questions[].position):
-    //
-    //   position 0 -> a1 = "Is there anything you'd like us to know..."  enabled=false
-    //   position 1 -> a2 = "Phone number"                                enabled=true, required
-    //
-    // ⚠️ Adding, reordering, or re-enabling a question shifts these slots. The
-    // failure is silent — an answer lands in the wrong box rather than erroring.
-    // Re-test a link after any change to that event's questions.
-    const CALENDLY_ANSWERS = {
-      2: (lead) => lead.phone,
-    };
 
     function readLead() {
       try {
@@ -103,50 +87,6 @@
         if (raw) return JSON.parse(raw);
       } catch (_) { /* ignore */ }
       return null;
-    }
-
-    // Calendly wants E.164 for the SMS reminder field (+14345551234).
-    function toE164(raw) {
-      const digits = String(raw || '').replace(/\D/g, '');
-      if (digits.length === 10) return `+1${digits}`;
-      if (digits.length === 11 && digits[0] === '1') return `+${digits}`;
-      return '';
-    }
-
-    // Prefill everything Calendly will otherwise ask again. name + email are
-    // also what lets the webhook match this booking back to its paid row, so
-    // the Jobber job lands on the right slot.
-    function buildCalendlyUrl(lead) {
-      if (!lead || !lead.name || !lead.email) return CALENDLY_URL;
-
-      const params = new URLSearchParams({
-        email: lead.email,
-        hide_gdpr_banner: '1',
-      });
-
-      // The event's invitee details are set to "First Name, Last Name, Email",
-      // which ignores `name` — that only fills a single "Full Name" field.
-      // Send both spellings so this keeps working if that setting changes.
-      const parts = String(lead.name || '').trim().split(/\s+/);
-      params.set('name', lead.name);
-      if (parts.length > 1) {
-        params.set('first_name', parts[0]);
-        params.set('last_name', parts.slice(1).join(' '));
-      } else if (parts[0]) {
-        params.set('first_name', parts[0]);
-      }
-
-      // Calendly's SMS reminder field. Ignored if the event has SMS off.
-      const phone = toE164(lead.phone);
-      if (phone) params.set('text_reminder_number', phone);
-
-      // Custom questions, keyed by their Calendly slot number (see above).
-      Object.keys(CALENDLY_ANSWERS).forEach((slot) => {
-        const value = CALENDLY_ANSWERS[slot](lead);
-        if (value) params.set(`a${slot}`, value);
-      });
-
-      return `${CALENDLY_URL}?${params.toString()}`;
     }
 
     function sendBuyerConfirmation(lead) {
@@ -176,15 +116,14 @@
     }
 
     const lead = readLead();
-    const target = buildCalendlyUrl(lead);
-    document.getElementById('fallback').href = target;
+    const target = SCHEDULE_URL;
     sendBuyerConfirmation(lead);
 
     // Funnel analytics: Square only sends people here after a successful
     // payment, so this is the client-side end of the funnel. The authoritative
     // paid count is still the leads sheet (Square is polled directly) — this
     // exists so the event trail has a matching finish line. sendBeacon because
-    // we redirect to Calendly a moment later.
+    // we redirect to the scheduler a moment later.
     try {
       // The session id lives in sessionStorage, which some browsers drop across
       // the trip to Square and back (2 of 7 deposits in Sep 2026 came back with

@@ -772,7 +772,6 @@
     }
 
 
-    .calendly-inline-widget { border-radius: 8px; overflow: hidden; }
 
     /* Subtle exits to the other two paths, directly under the hero. */
     .alt-paths { margin: 0 0 18px; text-align: center; font-size: 14px; color: var(--text-subtle); }
@@ -812,8 +811,8 @@
     .ow-chev { font-size: 17px; font-weight: 700; transition: transform .2s ease; }
     .ow-toggle[aria-expanded="true"] .ow-cta { background: var(--primary); color: #fff; }
     .ow-toggle[aria-expanded="true"] .ow-chev { transform: rotate(90deg); }
-    /* Contain any stubbornly wide embed (Calendly hard-codes min-width:320px)
-       so it scrolls inside its own card instead of the whole page. */
+    /* Contain any stubbornly wide embed so it scrolls inside its own card
+       instead of the whole page. */
     .ow-body { padding: 0 20px 20px; overflow-x: auto; }
     .ow-body[hidden] { display: none; }
     @media (max-width: 420px) { .ow-body { padding: 0 8px 14px; } }
@@ -1253,9 +1252,14 @@
           <span class="ow-cta">Pick a time <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
         </button>
         <div class="ow-body" id="owAssess" hidden>
-          <div class="calendly-inline-widget"
-               data-url="https://calendly.com/todd-cvillegutterpros/30min?hide_event_type_details=1"
-               style="min-width:280px;height:700px;"></div>
+          <!-- Our own scheduler (replaced Calendly 2026-10-22): schedule.html
+               reads open assessment times from Supabase and books through the
+               tech portal's /api/book. It posts its height and a 'cgp.booked'
+               message up to this page. -->
+          <iframe id="assessFrame"
+                  data-src="schedule.html?service=assessment&embed=1"
+                  title="Book a gutter assessment"
+                  style="width:100%;height:720px;border:0;border-radius:4px;display:block"></iframe>
         </div>
       </div>
       </div><!-- /ow-grid -->
@@ -1963,7 +1967,7 @@
         payload.session = window.cgpSession || '';
       } catch (_) { /* analytics never blocks a booking */ }
 
-      // Stash on this device so the post-Square "thanks" page can prefill Calendly.
+      // Stash on this device so the post-Square scheduler can prefill the form.
       try {
         localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
         if (window.cgpSession) localStorage.setItem('cgp_sid', window.cgpSession);
@@ -2138,19 +2142,16 @@
 
 
   <script>
-    // The two secondary paths. Their iframes are inert (data-src / no Calendly
-    // script) until first opened, so neither third party blocks the quote flow.
+    // The two secondary paths. Their iframes are inert (data-src) until first
+    // opened, so neither blocks the quote flow.
     (function () {
-      var calendlyLoaded = false;
-
-      function loadCalendly() {
-        if (calendlyLoaded) return;
-        calendlyLoaded = true;
-        var s = document.createElement('script');
-        s.src = 'https://assets.calendly.com/assets/external/widget.js';
-        s.async = true;
-        document.head.appendChild(s);   // widget.js initialises .calendly-inline-widget on load
-      }
+      // The scheduler iframe reports its own height so it never scrolls inside the card.
+      window.addEventListener('message', function (ev) {
+        var d = ev.data;
+        if (!d || d.type !== 'cgp.height') return;
+        var f = document.getElementById('assessFrame');
+        if (f && d.height > 200) f.style.height = (Math.ceil(d.height) + 8) + 'px';
+      });
 
       function open_(btn) {
         var body = document.getElementById(btn.getAttribute('data-panel'));
@@ -2160,7 +2161,6 @@
         if (btn.parentNode) btn.parentNode.classList.add('is-open');
         var frame = body.querySelector('iframe[data-src]');
         if (frame) { frame.src = frame.getAttribute('data-src'); frame.removeAttribute('data-src'); }
-        if (body.querySelector('.calendly-inline-widget')) loadCalendly();
       }
 
       Array.prototype.forEach.call(document.querySelectorAll('.ow-toggle'), function (btn) {
@@ -2313,14 +2313,13 @@
         });
       });
 
-      // 6. Completions inside the third-party embeds. Calendly documents this
-      //    message; LeadConnector's is matched loosely, so it may simply never
-      //    fire — in which case callback volume still comes from GHL itself.
+      // 6. Completions inside the embeds. Our scheduler posts 'cgp.booked';
+      //    LeadConnector's is matched loosely, so it may simply never fire —
+      //    in which case callback volume still comes from GHL itself.
       window.addEventListener('message', function (ev) {
         var d = ev.data;
-        if (d && typeof d === 'object' && typeof d.event === 'string' &&
-            d.event.indexOf('calendly.') === 0) {
-          if (d.event === 'calendly.event_scheduled') once('assessment_booked');
+        if (d && typeof d === 'object' && d.type === 'cgp.booked') {
+          if (d.service === 'assessment') once('assessment_booked');
           return;
         }
         if (String(ev.origin || '').indexOf('leadconnectorhq.com') === -1) return;

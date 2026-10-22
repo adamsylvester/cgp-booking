@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Pick a time — Charlottesville Gutter Pros</title>
+  <link rel="stylesheet" href="booking.css" />
+</head>
+<body>
+  <!-- Our own scheduler (replaced Calendly 2026-10-22). ?service=cleaning is
+       where thanks.html sends a paid customer; ?service=assessment&embed=1 is
+       the panel on the booking page. Logic: booking.js -->
+  <div class="bk-page">
+    <div>
+      <div class="bk" id="bk"><div class="bk-loading"><div class="bk-spin"></div>Loading times&hellip;</div></div>
+      <div class="bk-foot" id="bkFoot">Charlottesville Gutter Pros &middot; <a href="tel:+14344224700">434-422-4700</a></div>
+    </div>
+  </div>
+  <script src="booking.js"></script>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var embed = q.get('embed') === '1';
+      if (embed) document.getElementById('bkFoot').hidden = true;
+      window.CGPBooking.mount(document.getElementById('bk'), {
+        service: q.get('service') === 'assessment' ? 'assessment' : 'cleaning',
+        embed: embed,
+      });
+    })();
+  </script>
+</body>
+</html>

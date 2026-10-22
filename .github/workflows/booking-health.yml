@@ -44,3 +44,25 @@ jobs:
             echo "::error::pencil -> Version: New version)."
           fi
           exit 1
+
+      - name: Scheduler can list open times (Supabase booking_slots)
+        run: |
+          # Since 2026-10-22 the booking page shows times from our own slot
+          # function instead of Calendly. If this call dies, paid customers
+          # land on a scheduler with no dates. Anonymous key, no personal data.
+          BODY=$(curl -sS --max-time 30 --retry 2 -X POST \
+            'https://wmmhvguajkeiyhmfmilu.supabase.co/rest/v1/rpc/booking_slots' \
+            -H 'apikey: sb_publishable_qTRQ_ECvykQgCBHWReXC7w_nt1HUv8Z' \
+            -H 'Content-Type: application/json' \
+            -d '{"p_service":"cleaning"}')
+          if printf '%s' "$BODY" | grep -q '"slot_start"'; then
+            echo "✅ Scheduler has open cleaning times."
+            exit 0
+          fi
+          if printf '%s' "$BODY" | grep -q '^\[\]'; then
+            echo "::warning::Scheduler answered but has NO open cleaning times in the next 60 days."
+            exit 0
+          fi
+          echo "::error::booking_slots is not answering — the scheduler shows no dates."
+          printf '%s\n' "$BODY" | head -c 1000
+          exit 1

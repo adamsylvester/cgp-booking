@@ -3,9 +3,9 @@
 const NOTIFICATION_EMAIL = 'adam@cvillegutterpros.com';
 const FROM_ADDRESS = 'adam@cvillegutterpros.com';
 const FROM_NAME = 'Charlottesville Gutter Pros';
-// Calendly event used to schedule the PAID cleaning (post-deposit). This is the
-// gutter-cleaning calendar, NOT the assessment calendar on the booking page.
-const CALENDLY_URL = 'https://calendly.com/gutterpros/gutter-cleaning';
+// Where a paid customer picks their cleaning date (our own scheduler since
+// 2026-10-22; Calendly before that). thanks.html sends them there.
+const SCHEDULE_URL = 'https://book.cvillegutterpros.com/schedule.html?service=cleaning';
 // Deposit = 25% of the quoted total, rounded to a whole dollar...
 const DEPOSIT_RATE = 0.25;
 // ...except these plans, which are paid 100% up front (2026-10-20: the
@@ -32,7 +32,7 @@ const PENDING_MAX_AGE_DAYS = 7;
 // The location ID is fetched from Square once and cached in Script Properties.
 const SQUARE_API_BASE = 'https://connect.squareup.com';
 const SQUARE_VERSION = '2025-01-23';
-// Where Square sends the customer after paying (then thanks.html -> Calendly).
+// Where Square sends the customer after paying (then thanks.html -> schedule.html).
 const AFTER_PAYMENT_URL = 'https://book.cvillegutterpros.com/thanks.html';
 
 // ===== Server-side pricing (AUTHORITATIVE) =====
@@ -179,6 +179,16 @@ function doPost(e) {
     if (action === 'confirm') {
       sendBuyerConfirmationEmail(data);
       return jsonOutput({ ok: true });
+    }
+
+    // Our own scheduler (replaced Calendly 2026-10-22). The body carries only
+    // a booking_holds id; everything about the booking is read back from
+    // Supabase. Lives in jobber_sync.gs; the typeof guard keeps checkout
+    // working if that file is ever removed.
+    if (action === 'online_schedule' || action === 'online_reschedule' || action === 'online_cancel') {
+      return jsonOutput(typeof onlineAction_ === 'function'
+        ? onlineAction_(action, data)
+        : { ok: false, error: 'jobber_sync.gs missing' });
     }
 
     if (action === 'checkout') {
@@ -478,7 +488,7 @@ function toE164(raw) {
 
 function checkPendingPayments() {
   // Once a day, nag the office about paid bookings whose quote never became a
-  // job (customer skipped Calendly). Lives in jobber_sync.gs; the typeof guard
+  // job (customer never picked a date). Lives in jobber_sync.gs; the typeof guard
   // keeps this file working if that file is ever removed.
   if (typeof jobberDailyStuckSweep_ === 'function') {
     try { jobberDailyStuckSweep_(); } catch (e) { /* never block payments */ }
@@ -732,7 +742,7 @@ function sendPaidEmail(lead, receiptUrl) {
   if (receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
-  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re being sent to Calendly to pick their date — watch for the calendar invite. ' +
+  inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They\'re picking their date on our scheduler now — you\'ll get a 📅 booking email the moment they do. ' +
            'They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — ' +
            'the API can\'t set that status, so it stays “Awaiting response” until someone clicks it.</p>';
   inner += metaFooter(lead);

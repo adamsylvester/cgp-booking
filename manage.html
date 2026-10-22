@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex" />
+  <title>Your booking — Charlottesville Gutter Pros</title>
+  <link rel="stylesheet" href="booking.css" />
+</head>
+<body>
+  <!-- Reschedule / cancel. The link in every confirmation and reminder email
+       carries the booking id (?t=…); that id is the whole credential, the
+       same way Calendly's links work. Logic: booking.js -->
+  <div class="bk-page">
+    <div>
+      <div class="bk" id="bk"><div class="bk-loading"><div class="bk-spin"></div>Finding your booking&hellip;</div></div>
+      <div class="bk-foot">Charlottesville Gutter Pros &middot; <a href="tel:+14344224700">434-422-4700</a></div>
+    </div>
+  </div>
+  <script src="booking.js"></script>
+  <script>
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var t = q.get('t') || '';
+      var el = document.getElementById('bk');
+      if (!t) { el.innerHTML = '<div class="bk-loading"><div class="bk-error">This link is missing its booking id. Use the link from your confirmation email, or call 434-422-4700.</div></div>'; return; }
+      window.CGPBooking.mount(el, { token: t });
+    })();
+  </script>
+</body>
+</html>
