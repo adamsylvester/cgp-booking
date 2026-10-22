@@ -32,15 +32,15 @@
       --bg-start: #f6f7f9;
       --bg-end: #f6f7f9;
       --surface: #ffffff;
-      --surface-soft: #f8fbff;
+      --surface-soft: #f3f8fc;
       --surface-muted: #f8fafc;
-      --text: #101828;
+      --text: #18243c;
       --text-muted: #475467;
       --text-subtle: #667085;
       --border: #d9dde4;
       --border-strong: #c4cad4;
-      --primary: #1d4ed8;
-      --primary-dark: #1e40af;
+      --primary: #0a6db0;
+      --primary-dark: #085a93;
       --primary-grad: var(--primary);
       --success: #16a34a;
       --warning: #f59e0b;
@@ -78,12 +78,10 @@
     }
 
     .card {
-      display: grid;
-      grid-template-columns: 1.1fr 0.9fr;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      overflow: hidden;
+      display: block;
+      background: transparent;
+      border: none;
+      border-radius: 0;
       box-shadow: none;
     }
 
@@ -205,11 +203,12 @@
 
     .form-card {
       position: relative;
-      padding: 28px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg);
+      padding: 0;
+      background: transparent;
+      border: none;
       box-shadow: none;
+      max-width: 760px;
+      margin: 0 auto;
     }
 
     .form-title {
@@ -722,12 +721,16 @@
     /* ===== Centered hero header ===== */
     .hero-head { text-align: center; margin: 6px 0 18px; }
     .hero-logo-link { display: inline-block; margin-bottom: 8px; }
-    .hero-logo { width: 150px; height: auto; display: block; transition: opacity .15s ease; }
+    .hero-logo { width: 190px; height: auto; display: block; transition: opacity .15s ease; }
     .hero-logo-link:hover .hero-logo { opacity: .85; }
     .hero-quote { text-align: center; margin: 10px 0 18px; }
-    .hero-title { margin: 0 0 8px; font-size: clamp(30px, 5.5vw, 46px); font-weight: 900; letter-spacing: -0.03em; color: var(--text); }
+    .hero-title { margin: 0 0 8px; font-size: clamp(28px, 5vw, 40px); font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
     .hero-title em { font-style: normal; color: var(--primary); }
     .hero-sub { margin: 0 0 8px; font-size: 16.5px; color: var(--text-muted); }
+    .hero-rating { margin: 0 0 10px; font-size: 14px; }
+    .hero-rating a { color: var(--text); font-weight: 700; text-decoration: none; }
+    .hero-rating a:hover { text-decoration: underline; }
+    .hero-rating .stars { color: #f59e0b; letter-spacing: .04em; }
     .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
     .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
     .hero-phone a:hover { text-decoration: underline; }
@@ -878,7 +881,7 @@
       .house-check { position:absolute; top:9px; right:9px; width:22px; height:22px; border-radius:50%; background:#1d4ed8; color:#fff; display:none; align-items:center; justify-content:center; font-size:13px; font-weight:700; box-shadow:none; z-index:2; }
       .house-opt.selected .house-check { display:flex; }
       /* full-width Step-1 banner */
-      .house-hero { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:none; padding:34px 32px; margin-bottom:22px; text-align:center; }
+      .house-hero { background:transparent; border:none; border-radius:0; box-shadow:none; padding:10px 0 8px; margin-bottom:10px; text-align:center; }
       .house-hero-title { font-size:clamp(22px,3.2vw,30px); font-weight:800; color:var(--text); letter-spacing:-0.02em; margin:0 0 6px; }
       .house-hero-prompt { font-size:20px; font-weight:700; color:var(--text); margin:0 0 6px; }
       .house-hero-sub { font-size:16px; color:var(--text-muted); margin:0 0 6px; }
@@ -934,15 +937,15 @@
       .brand-strip-incl { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; font-weight:600; color:var(--text); }
       .brand-strip-incl span { white-space:nowrap; }
       #bookingCard { display:block; max-width:920px; margin:0 auto; border:none; background:transparent; box-shadow:none; overflow:visible; }
-      #bookingCard .right { border-left:none; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:none; }
+      #bookingCard .right { border-left:none; background:transparent; border:none; border-radius:0; box-shadow:none; padding:0; }
       .field-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
       .arrow-wrap { display:none; }
       @media (max-width:680px){ .plan-grid, .field-row { grid-template-columns:1fr; } }
       @media (max-width:640px){ .brand-strip { justify-content:center; text-align:center; } .brand-strip-info { text-align:center; } .brand-strip-incl { justify-content:center; } }
       /* ===== Numbered step headers for clearer hierarchy ===== */
       .step-head { display:flex; align-items:center; justify-content:center; margin:0 0 16px; padding-top:22px; border-top:1px solid var(--border); }
-      .step-pill { display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; }
-      .step-head .num { flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#fff; color:var(--primary); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
+      .step-pill { display:inline-flex; align-items:center; gap:8px; background:var(--text); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; }
+      .step-head .num { flex:0 0 auto; width:22px; height:22px; border-radius:50%; background:#fff; color:var(--text); font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; }
       .step-head .txt { font-size:12px; font-weight:800; color:#fff; letter-spacing:.1em; }
       .price-wrap .price { color:var(--primary); }
       /* Reviews + what's-included, integrated into the price box */
@@ -970,7 +973,7 @@
       .date-pick { background:#f5f9ff; border:2px solid var(--primary); border-radius:8px; padding:18px 14px 14px; margin:18px 0 10px; box-shadow:none; }
       .date-pick .step-head { border-top:none; padding-top:0; }
       .date-pick-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
-      .step-active { background:#f5f9ff; border:2px solid var(--primary); border-radius:8px; padding:18px 18px 12px; margin:18px 0 10px; box-shadow:none; }
+      .step-active { background:transparent; border:none; border-radius:0; padding:0 0 6px; margin:6px 0 10px; box-shadow:none; }
       .step-active .step-head { border-top:none; padding-top:0; }
       .step-active .zip-field input { background:#fff; }
       /* Compact, centered inputs so the value fills the box and pops. */
@@ -994,9 +997,9 @@
       /* Address autocomplete (Step 1) */
       /* "Start here" block: the one thing on the page a visitor must not scroll past. */
       .addr-start { position:relative; max-width:680px; margin:0 auto; padding:26px 22px 22px; border:2px solid var(--primary); border-radius:10px;
-        background:#f5f8ff; box-shadow:none; }
-      .addr-kicker { display:inline-flex; align-items:center; gap:8px; background:var(--primary); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; margin-bottom:12px; }
-      .addr-kicker-num { width:22px; height:22px; border-radius:50%; background:#fff; color:var(--primary); font-size:13px; display:inline-flex; align-items:center; justify-content:center; }
+        background:#eaf4fa; box-shadow:none; }
+      .addr-kicker { display:inline-flex; align-items:center; gap:8px; background:var(--text); color:#fff; font-size:12px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; padding:7px 14px 7px 7px; border-radius:10px; margin-bottom:12px; }
+      .addr-kicker-num { width:22px; height:22px; border-radius:50%; background:#fff; color:var(--text); font-size:13px; display:inline-flex; align-items:center; justify-content:center; }
       .addr-prompt { font-size:clamp(24px,3.4vw,30px); font-weight:800; letter-spacing:-.02em; margin:0 0 4px; }
       .addr-sub { font-size:15px; color:var(--text-muted); margin:0 0 16px; }
       .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
@@ -1010,6 +1013,10 @@
       @media (prefers-reduced-motion: reduce) { .addr-field input.addr-idle { animation:none; } }
       .addr-start .addr-note { margin-top:12px; }
       .house-hero-prompt-2 { margin-top:28px; padding-top:24px; border-top:1px solid var(--border); margin-bottom:10px; }
+      .form-card.no-price .needs-price { display:none; }
+      .price-hint { margin:4px 0 0; text-align:center; font-size:14px; color:var(--text-muted); }
+      .form-card:not(.no-price) .price-hint { display:none; }
+      .form-card.is-locked .lock-note { display:none; }
       @media (max-width:640px) { .addr-start { padding:20px 14px 16px; border-radius:8px; } .addr-field input { font-size:18px; padding:16px 14px; } }
       .addr-suggest { position:absolute; left:0; right:0; top:100%; z-index:30; margin:4px 0 0; padding:6px; list-style:none; background:#fff; border:1.5px solid var(--border); border-radius:8px; box-shadow:none; max-height:280px; overflow-y:auto; }
       .addr-suggest li { padding:10px 12px; border-radius:8px; cursor:pointer; font-size:15px; font-weight:600; color:var(--text); display:flex; justify-content:space-between; gap:10px; align-items:baseline; }
@@ -1050,18 +1057,14 @@
     <div class="quote-reveal" id="quoteReveal">
     <div class="hero-quote">
       <h1 class="hero-title">Gutter cleaning &mdash; your price in <em>10 seconds.</em></h1>
-      <p class="hero-sub">Instant quote · 25% deposit · pick your date online</p>
+      <p class="hero-sub">Instant price · pick your date · 25% deposit today</p>
+      <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> 4.9 on Google · 800+ reviews</a></p>
     </div>
     <p class="alt-paths">
       Not ready to book? <a href="#other-ways" data-jump>Request a callback</a>
       <span class="alt-dot">·</span>
       <a href="#other-ways" data-jump>Book an assessment</a>
     </p>
-    <div class="rail">
-      <span class="seg on">1 · Home</span>
-      <span class="seg" id="railPlan">2 · Plan</span>
-      <span class="seg" id="railBook">3 · Book</span>
-    </div>
     <section class="house-hero" id="houseHero">
       <!-- Address first (Adam, 2026-10-22): picking a county address fills ZIP,
            square feet and gutter height from the assessor's records
@@ -1086,21 +1089,18 @@
           <div class="img-frame"><picture><source srcset="house-simple.webp" type="image/webp" /><img src="house-simple.png" alt="Simple home — front and back gutter" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Simple</div>
           <div class="house-opt-desc">Front and back gutter</div>
-          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Mill Creek, Greenbrier, Hollymead</div>
         </div>
         <div class="house-opt" data-house="standard">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-standard.webp" type="image/webp" /><img src="house-standard.png" alt="Standard home — multiple sections of gutters" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Standard</div>
           <div class="house-opt-desc">Multiple sections of gutters, uppers and lowers</div>
-          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Forest Lakes, Ashcroft, and Redfields</div>
         </div>
         <div class="house-opt" data-house="complex">
           <div class="house-check">✓</div>
           <div class="img-frame"><picture><source srcset="house-complex.webp" type="image/webp" /><img src="house-complex.png" alt="Complex home — gutters with gables and wings" loading="lazy" decoding="async" /></picture></div>
           <div class="house-opt-name">Complex</div>
           <div class="house-opt-desc">Several sections of gutters with gables and wings</div>
-          <div class="house-opt-note">📍 <strong>Common neighborhoods:</strong><br>Glenmore, Preddy Creek, Fontana, Old Trail</div>
         </div>
         <div class="house-opt" data-house="townhome2">
           <div class="house-check">✓</div>
@@ -1122,8 +1122,8 @@
     <div class="card" id="bookingCard">
       <div class="right">
         <div class="form-card">
-          <h2 class="form-title">Gutter Cleaning Quote &amp; Checkout</h2>
-          <p class="form-subtext">Get your gutter cleaning price instantly with Charlottesville Gutter Pros and book your service without waiting for a callback.</p>
+          <h2 class="form-title">Your gutter cleaning price</h2>
+          <p class="form-subtext">Check the details below and your price shows right away.</p>
 
           <div class="lock-note" id="lockNote">👆 First pick the home above that looks most like yours.</div>
 
@@ -1172,17 +1172,18 @@
           </div>
 
           <p class="zip-note" id="zipNote" style="display:none;"></p>
+          <p class="price-hint" id="priceHint">Enter your square feet above to see your price.</p>
           </div>
 
-          <div class="step-head"><span class="step-pill"><span class="num">4</span><span class="txt">Choose your plan</span></span></div>
-          <div class="plan-grid" id="planGrid">
+          <div class="step-head needs-price"><span class="step-pill"><span class="num">4</span><span class="txt">Choose your plan</span></span></div>
+          <div class="plan-grid needs-price" id="planGrid">
             <label class="plan-opt plan-featured selected" data-plan="basic">
               <span class="plan-badge">★ Most popular</span>
               <input type="radio" name="plan" value="basic" checked />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Basic Cleaning</span>
-                <span class="plan-sub">One-time gutter &amp; downspout cleaning.</span>
+                <span class="plan-sub">One-time gutter &amp; downspout cleaning. 25% deposit today, the rest after the job.</span>
               </span>
               <span class="plan-price-wrap"><span class="plan-price" data-plan-price="basic">$0</span><span class="plan-per" id="planPerFeatured"></span></span>
             </label>
@@ -1193,13 +1194,13 @@
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Gutter Protection Plan</span>
-                <span class="plan-sub">4 cleanings over 2 years — for the price of 3. Paid in full today.</span>
+                <span class="plan-sub">4 cleanings over 2 years for the price of 3. Paid in full today, nothing due later.</span>
               </span>
               <span class="plan-price" data-plan-price="protection">$0</span>
             </label>
           </div>
 
-          <div class="price-wrap">
+          <div class="price-wrap needs-price">
             <div class="price-label">Your Total Price</div>
             <div class="price" id="price">$0</div>
             <div class="price-note">No hidden fees.</div>
@@ -1235,7 +1236,7 @@
             </div>
           </div>
 
-          <div class="contact-panel">
+          <div class="contact-panel needs-price">
             <div class="step-head"><span class="step-pill"><span class="num">5</span><span class="txt">Your details</span></span></div>
             <div class="contact-grid">
               <div class="field">
@@ -1257,7 +1258,7 @@
             </div>
           </div>
 
-          <button class="cta" id="bookBtn" type="button" disabled>
+          <button class="cta needs-price" id="bookBtn" type="button" disabled>
             Next
           </button>
           <div id="formError" class="form-error" style="display:none;"></div>
@@ -1321,7 +1322,7 @@
       <div class="ow-item">
         <button class="ow-toggle" type="button" data-panel="owCallback" aria-expanded="false" aria-controls="owCallback">
           <span class="ow-label"><strong>Request a Callback</strong>
-            <span class="ow-hint">In a hurry now, gutters later.</span></span>
+            <span class="ow-hint">Leave your number and we'll call you.</span></span>
           <span class="ow-cta">Request a callback <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
         </button>
         <div class="ow-body" id="owCallback" hidden>
@@ -1350,7 +1351,7 @@
       <div class="ow-item">
         <button class="ow-toggle" type="button" data-panel="owAssess" aria-expanded="false" aria-controls="owAssess">
           <span class="ow-label"><strong>Book an Assessment</strong>
-            <span class="ow-hint">A known gutter problem to look at.</span></span>
+            <span class="ow-hint">Need a repair or new gutters? Schedule a visit.</span></span>
           <span class="ow-cta">Pick a time <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
         </button>
         <div class="ow-body" id="owAssess" hidden>
@@ -1368,30 +1369,28 @@
     </section>
 
     <div class="reviews-section">
-      <h2 class="reviews-heading">What Homeowners Are Saying</h2>
+      <h2 class="reviews-heading">Reviews from our customers</h2>
       <div class="reviews-grid">
         <div class="review-card">
           <div class="review-stars">★★★★★</div>
           <p class="review-text">
-            Really appreciate the great work! Have used Charlottesville Gutter Pros for estimates and work several times. Always very happy! Thank you!
+            Quick and efficient gutter cleaning and check-up. Professional and friendly employees. Austen and Ryan did a great job!
           </p>
-          <strong class="review-name">Frank Snyder</strong>
+          <strong class="review-name">Pam DeWeese</strong>
         </div>
-
         <div class="review-card">
           <div class="review-stars">★★★★★</div>
           <p class="review-text">
-            Fast, thorough and pleasant service! Thanks, Gutter Pros, for new gutters, leaf guards and downspouts.
+            Arrived as scheduled, explained the process, performed the cleaning in a couple of hours and left no mess. Pictures provided of before and after cleaning. Came in at estimate.
           </p>
-          <strong class="review-name">Andrea Cauble</strong>
+          <strong class="review-name">Keith Littlewood</strong>
         </div>
-
         <div class="review-card">
           <div class="review-stars">★★★★★</div>
           <p class="review-text">
-            We had an excellent experience with Charlottesville Gutter Pros for gutter cleaning, downspout extensions, and leaf guards. The service was timely and the price seemed fair.
+            Team arrived promptly, worked steadily, and did a good cleaning job, repairing one gutter while they were at it. First-rate service in every way.
           </p>
-          <strong class="review-name">Meg Sewell</strong>
+          <strong class="review-name">Mike Evans</strong>
         </div>
       </div>
     </div>
@@ -1626,6 +1625,7 @@
     }
 
     function renderEmptyPrice() {
+      elements.formCard.classList.add('no-price');
       elements.price.textContent = '$0';
       updatePlanCardPrices(0);
       elements.paymentBreakdown.style.display = 'none';
@@ -1637,6 +1637,7 @@
     }
 
     function renderPrice(base) {
+      elements.formCard.classList.remove('no-price');
       const outside = zipStatus() === 'tripFee';
       const fee = outside ? PRICING.outsideAreaFee : 0;
 
@@ -1916,8 +1917,8 @@
       elements.bookBtn.disabled = !(selectedHouse && hasQuote && hasContact && zipOk);
 
       // Progress rail pills light up as the customer moves through the flow.
-      elements.railPlan.classList.toggle('on', !!selectedHouse && hasQuote);
-      elements.railBook.classList.toggle('on', !elements.bookBtn.disabled);
+      if (elements.railPlan) elements.railPlan.classList.toggle('on', !!selectedHouse && hasQuote);
+      if (elements.railBook) elements.railBook.classList.toggle('on', !elements.bookBtn.disabled);
     }
 
     // ===== Sticky pay bar =====
@@ -2566,6 +2567,7 @@
 
       // Lock the form until a home is chosen.
       elements.formCard.classList.add('is-locked');
+      document.getElementById('bookingCard').hidden = true;   // appears once a home is picked
 
       // Contact fields gate the Next button and clear their red border as the user types.
       ['custName', 'custPhone', 'custEmail', 'custAddress'].forEach((id) => {
@@ -2589,6 +2591,7 @@
           selectedHouse = opt.dataset.house;
           window.selectedHouse = selectedHouse;
           elements.formCard.classList.remove('is-locked');
+          document.getElementById('bookingCard').hidden = false;
 
           // Townhomes are flat-priced — hide square footage + stories for them.
           const flat = isHouseFlat(selectedHouse);
