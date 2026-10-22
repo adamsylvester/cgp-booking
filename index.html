@@ -731,6 +731,11 @@
     .hero-rating a { color: var(--text); font-weight: 700; text-decoration: none; }
     .hero-rating a:hover { text-decoration: underline; }
     .hero-rating .stars { color: #f59e0b; letter-spacing: .04em; }
+    .crew-strip { display:flex; justify-content:center; gap:10px; margin:14px auto 6px; max-width:760px; overflow-x:auto; padding:2px 4px 6px; scrollbar-width:none; }
+    .crew-strip::-webkit-scrollbar { display:none; }
+    .crew-strip img { flex:0 0 auto; width:112px; height:112px; object-fit:cover; border-radius:8px; border:1px solid var(--border); background:#eee; }
+    .crew-cap { margin:0 0 14px; text-align:center; font-size:13px; color:var(--text-subtle); }
+    @media (max-width:640px) { .crew-strip { justify-content:flex-start; } .crew-strip img { width:96px; height:96px; } }
     .hero-phone { margin: 0; font-size: 14px; color: var(--text-subtle); }
     .hero-phone a { color: var(--primary); font-weight: 800; text-decoration: none; white-space: nowrap; }
     .hero-phone a:hover { text-decoration: underline; }
@@ -1059,6 +1064,16 @@
       <h1 class="hero-title">Your gutter cleaning price in <em>10 seconds.</em></h1>
       <p class="hero-sub">Instant price · pick your date · 25% deposit today</p>
       <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> 4.9 on Google · 800+ reviews</a></p>
+      <!-- Real crew selfies from recent jobs (CompanyCam #selfie feed, Oct 2026). -->
+      <div class="crew-strip" aria-label="Our crew at recent jobs">
+        <img src="crew-1.webp" alt="Ryan with a happy customer at the front door" loading="lazy" width="400" height="400" />
+        <img src="crew-2.webp" alt="Austin and the crew with customers on the porch" loading="lazy" width="400" height="400" />
+        <img src="crew-3.webp" alt="Ryan with a customer after a gutter cleaning" loading="lazy" width="400" height="400" />
+        <img src="crew-4.webp" alt="Thomas and the crew with a customer" loading="lazy" width="400" height="400" />
+        <img src="crew-5.webp" alt="Thomas and the crew in a customer's yard" loading="lazy" width="400" height="400" />
+        <img src="crew-6.webp" alt="Manuel and the crew with a customer" loading="lazy" width="400" height="400" />
+      </div>
+      <p class="crew-cap">Our crew with customers at jobs this fall.</p>
     </div>
     <p class="alt-paths">
       Not ready to book? <a href="#other-ways" data-jump>Request a callback</a>
