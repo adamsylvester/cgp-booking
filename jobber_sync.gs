@@ -1523,7 +1523,7 @@ function onlineNotifyOffice_(hold, kind, ids, prev) {
   var title = ONLINE_TITLES[hold.service] || 'Appointment';
   var colors = { booked: '#15803d', rescheduled: '#1d4ed8', cancelled: '#f59e0b' };
   var words = { booked: '📅 New online booking', rescheduled: '🔁 Online booking moved', cancelled: '❌ Online booking cancelled' };
-  var inner = statusBanner(colors[kind] || '#475467', words[kind] + ' — ' + title);
+  var inner = (typeof officeBanner_ === 'function' ? officeBanner_(hold) : '') + statusBanner(colors[kind] || '#475467', words[kind] + ' — ' + title);
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(hold.name || 'Unknown') + ' · ' + escapeHtml(onlineWhen_(hold)) + '</h2>';
   if (prev) inner += '<p style="margin:0 0 12px;color:#475467;">Was: ' + escapeHtml(onlineWhen_(prev)) + '</p>';
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(hold.name, hold.phone, hold.email, hold.address) + '</table>';

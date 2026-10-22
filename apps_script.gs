@@ -385,8 +385,16 @@ function logEvent_(data) {
     String(data.house || '').slice(0, 40),
     String(data.plan || '').slice(0, 60),
     data.price === undefined || data.price === null || data.price === '' ? '' : Number(data.price),
-    String(data.detail || '').slice(0, 200),
+    (data.internal ? '[office] ' : '') + String(data.detail || '').slice(0, 200),
   ]);
+}
+
+// Staff booking on a customer's behalf (the page's office mode). Flagged in
+// the office emails so nobody reads it as a web win; the lead's Page column
+// carries "[office]" too, so the sheet can be filtered.
+function officeBanner_(x) {
+  var office = x && (x.office == 1 || /\[office\]/.test(String(x.page || '')) || x.source === 'office');
+  return office ? statusBanner('#6b7280', '🏢 Office booking — a team member entered this for the customer. Not a website lead.') : '';
 }
 
 function logLead(data, status, orderId, priceCheck) {
@@ -865,7 +873,7 @@ function sendCheckoutStartedEmail(data, priceCheck) {
   var name = data.name || 'Unknown';
   var deposit = depositFor(data);
 
-  var inner = '';
+  var inner = officeBanner_(data);
   var payWord = depositRateFor(data.plan) >= 1 ? ' full payment' : ' deposit';
   inner += statusBanner('#f59e0b', '⏳ Checkout started — NOT paid yet. You\'ll get a ✅ PAID email the moment the $' + deposit + payWord + ' lands.');
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(name) + ' — $' + Number(data.finalPrice || 0) + ' quote</h2>';
@@ -899,7 +907,7 @@ function sendPaidEmail(lead, receiptUrl) {
   var balance = Math.max(0, Number(lead.total || 0) - Number(lead.deposit || 0));
   var paidInFull = balance === 0 && Number(lead.total || 0) > 0;
 
-  var inner = '';
+  var inner = officeBanner_(lead);
   inner += statusBanner('#16a34a', '✅ PAID — $' + lead.deposit + (paidInFull ? ' PAID IN FULL. ' : ' deposit received. ') + 'This booking is real.');
   inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">' + escapeHtml(lead.name) + ' — $' + lead.total + ' ' + escapeHtml(String(lead.plan)) + '</h2>';
   inner += sectionHead('Customer');

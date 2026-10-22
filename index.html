@@ -836,6 +836,14 @@
   </style>
 </head>
 <body>
+  <!-- Office mode (2026-10-22): Will / Vicki / Farrell booking on a customer's
+       behalf. Everything still works the same, but every funnel event, the
+       lead row and the booking hold carry source=office so web stats stay
+       honest. On via ?office=1 or the tiny "Staff" link at the bottom; sticks
+       on that device until turned off. -->
+  <div class="office-bar" id="officeBar" hidden>Office booking mode &mdash; this visit is not counted in website stats.
+    <button type="button" id="officeOff">Turn off</button></div>
+
   <div class="wrap">
     <div class="hero-head">
       <a class="hero-logo-link" href="https://cvillegutterpros.com" target="_blank" rel="noopener">
@@ -949,6 +957,10 @@
       .pay-card { min-height:48px; margin:0 0 12px; }
       .pay-go { width:100%; }
       .pay-fine { margin-top:10px; }
+      .office-bar { position:sticky; top:0; z-index:50; background:#fff7e6; color:#92400e; border-bottom:1px solid #fde68a; font-size:13px; font-weight:700; text-align:center; padding:7px 12px; }
+      .office-bar button { font:inherit; font-size:12px; margin-left:10px; padding:3px 10px; border-radius:999px; border:1px solid #f59e0b; background:#fff; color:#92400e; cursor:pointer; }
+      .staff-link { display:block; text-align:center; margin:28px 0 8px; font-size:11px; color:#c7cdd6; text-decoration:none; }
+      .staff-link:hover { color:var(--text-subtle); }
       .date-pick { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 14px 14px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
       .date-pick .step-head { border-top:none; padding-top:0; }
       .date-pick-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
@@ -1343,6 +1355,31 @@
     // Apps Script can't create a live 25% checkout (network error, Square down).
     // APPS_SCRIPT_URL is the deployed Google Apps Script Web App.
     const SQUARE_FALLBACK_URL = 'https://square.link/u/1CK0Bclg';
+
+    // ----- Office mode (staff booking for a customer): not counted in stats -----
+    (function () {
+      var q = new URLSearchParams(location.search);
+      var on = null;
+      if (q.get('office') === '1') on = true;
+      if (q.get('office') === '0') on = false;
+      try {
+        if (on === null) on = localStorage.getItem('cgp_office') === '1';
+        else localStorage.setItem('cgp_office', on ? '1' : '0');
+      } catch (_) { on = !!on; }
+      window.cgpOffice = !!on;
+      function paint() {
+        var bar = document.getElementById('officeBar');
+        if (bar) bar.hidden = !window.cgpOffice;
+        var link = document.getElementById('staffLink');
+        if (link) link.textContent = window.cgpOffice ? 'Staff mode on' : 'Staff';
+      }
+      function set(v) { window.cgpOffice = v; try { localStorage.setItem('cgp_office', v ? '1' : '0'); } catch (_) {} paint(); }
+      document.addEventListener('DOMContentLoaded', function () {
+        paint();
+        var off = document.getElementById('officeOff'); if (off) off.addEventListener('click', function () { set(false); });
+        var link = document.getElementById('staffLink'); if (link) link.addEventListener('click', function (ev) { ev.preventDefault(); set(!window.cgpOffice); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      });
+    })();
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
 
     // ZIP codes in the City of Charlottesville + Albemarle County (no trip fee).
@@ -1728,7 +1765,8 @@
         finalPrice: currentQuote.finalPrice,
         deposit: currentQuote.deposit,
         userAgent: navigator.userAgent,
-        page: location.href,
+        page: location.href + (window.cgpOffice ? ' [office]' : ''),
+        office: window.cgpOffice ? 1 : 0,
       };
     }
 
@@ -2030,7 +2068,7 @@
       pendingPayload = payload;
       const sec = document.getElementById('datePick');
       const frame = document.getElementById('datePickFrame');
-      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold&v=' + Date.now();
+      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold' + (window.cgpOffice ? '&office=1' : '') + '&v=' + Date.now();
       sec.hidden = false;
       elements.bookBtn.disabled = true;
       elements.bookBtn.textContent = 'Pick a time below ↓';
@@ -2463,7 +2501,9 @@
             price: extra && extra.price !== undefined && extra.price !== ''
                    ? Number(extra.price) : null,
             detail: extra && extra.detail ? String(extra.detail) : null,
+            source: window.cgpOffice ? 'office' : 'booking_page',
           };
+          if (window.cgpOffice) payload.internal = 'office';
           // sendBeacon can't set headers, and Supabase needs an apikey — so
           // fetch with keepalive, which still completes across a navigation.
           fetch(SB_URL, {
@@ -2554,5 +2594,6 @@
 
   <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
   <script src="https://link.msgsndr.com/js/form_embed.js"></script>
+<a class="staff-link" href="#" id="staffLink">Staff</a>
 </body>
 </html>

@@ -67,8 +67,9 @@
   }
   function track(event, extra) {
     try {
+      var office = false; try { office = /[?&]office=1/.test(location.search) || localStorage.getItem('cgp_office') === '1'; } catch (_) {}
       var p = Object.assign({ action: 'event', event: event, page: location.pathname,
-        device: matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop' }, extra || {});
+        device: matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop', internal: office ? 'office' : undefined }, extra || {});
       try { p.session = sessionStorage.getItem('cgp_sid') || localStorage.getItem('cgp_sid') || ''; } catch (_) {}
       navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([JSON.stringify(p)], { type: 'text/plain;charset=utf-8' }));
     } catch (_) { /* analytics never blocks a booking */ }
@@ -80,6 +81,7 @@
     var S = {
       mode: opts.token ? 'manage' : (opts.mode === 'hold' ? 'hold' : 'book'),
       confirmed: !!opts.confirmed,
+      office: !!opts.office,
       service: opts.service || 'cleaning',
       embed: !!opts.embed,
       token: opts.token || '',
@@ -395,7 +397,7 @@
         zip: S.zip || (String(v('address')).match(/\b\d{5}\b/) || [''])[0],
         notes: v('notes'), website: v('website'),
         lead_timestamp: S.service === 'cleaning' ? (l.timestamp || '') : '',
-        source: S.embed ? 'booking-page-embed' : 'booking-page',
+        source: S.office ? 'office' : (S.embed ? 'booking-page-embed' : 'booking-page'),
       };
       set({ step: 'busy', busyMsg: 'Booking your time…' });
       api(body).then(function (r) {
@@ -417,7 +419,7 @@
       api({
         op: 'hold', service: S.service, start: S.picked.start.toISOString(),
         name: l.name || '', email: l.email || '', phone: l.phone || '', address: l.address || '',
-        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: 'pick-then-pay',
+        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: S.office ? 'office' : 'pick-then-pay',
       }).then(function (r) {
         if (!r.ok) { S.err = friendly(r.error, r._status); return loadSlots().then(function () { set({ step: 'calendar' }); }); }
         try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}
