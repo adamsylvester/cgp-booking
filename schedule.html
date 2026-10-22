@@ -26,6 +26,8 @@
       window.CGPBooking.mount(document.getElementById('bk'), {
         service: q.get('service') === 'assessment' ? 'assessment' : 'cleaning',
         embed: embed,
+        // mode=hold: pick-then-pay — hold the time, tell the booking page, no form
+        mode: q.get('mode') === 'hold' ? 'hold' : undefined,
       });
     })();
   </script>
