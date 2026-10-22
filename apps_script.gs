@@ -191,6 +191,13 @@ function doPost(e) {
         : { ok: false, error: 'jobber_sync.gs missing' });
     }
 
+    // Day-before reminder, fired by Postgres (booking_queue_reminders) with
+    // only the hold id, so the email leaves from THIS account like every
+    // other booking email (Adam, 2026-10-22: everything from adam@cvillegutterpros.com).
+    if (action === 'reminder') {
+      return jsonOutput(onlineReminder(data));
+    }
+
     // Card paid right on the page (Square Web Payments SDK, 2026-10-22).
     if (action === 'pay') {
       return jsonOutput(squarePayInline(data));
@@ -449,6 +456,31 @@ function createSquareCheckout(data) {
     throw new Error('Square did not return a payment link URL');
   }
   return { url: result.payment_link.url, orderId: result.payment_link.order_id || '' };
+}
+
+// ===== Day-before reminder for an online booking =====
+function onlineReminder(data) {
+  var holdId = String((data && data.hold) || '');
+  if (!/^[0-9a-f-]{36}$/i.test(holdId)) return { ok: false, error: 'bad_hold' };
+  if (typeof onlineHold_ !== 'function') return { ok: false, error: 'jobber_sync.gs missing' };
+  var hold = onlineHold_(holdId);
+  if (!hold || !hold.id) return { ok: false, error: 'hold_not_found' };
+  if (hold.status !== 'booked' || !hold.email) return { ok: false, error: 'not_booked' };
+  var title = (typeof ONLINE_TITLES !== 'undefined' && ONLINE_TITLES[hold.service]) || 'appointment';
+  var tz = 'America/New_York', start = new Date(hold.start_at);
+  var first = escapeHtml(String(hold.name || 'there').split(' ')[0]);
+  var when = Utilities.formatDate(start, tz, 'EEEE, MMMM d') + ' at ' + Utilities.formatDate(start, tz, 'h:mma').toLowerCase();
+  var manage = (typeof ONLINE_MANAGE_URL !== 'undefined' ? ONLINE_MANAGE_URL : 'https://book.cvillegutterpros.com/manage.html?t=') + hold.id;
+  var inner = '<h2 style="margin:0 0 8px;color:#1d4ed8;">See you tomorrow, ' + first + '!</h2>' +
+    '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">Just a reminder that your ' + escapeHtml(title.toLowerCase()) + ' is tomorrow, <strong>' + escapeHtml(when) + '</strong>' +
+    (hold.address ? ' at ' + escapeHtml(hold.address) : '') + '.</p>' +
+    '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">Your technician will call or text on the way. Please be home for the appointment.</p>' +
+    '<p style="margin:18px 0 6px;"><a href="' + manage + '" style="display:inline-block;padding:11px 18px;border-radius:999px;font-weight:700;text-decoration:none;border:1px solid #1d4ed8;color:#1d4ed8;">Need to change it?</a></p>' +
+    '<p style="margin-top:22px;font-size:13px;color:#475467;line-height:1.5;">Questions? Just reply to this email — it goes straight to our office.</p>' +
+    '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>';
+  MailApp.sendEmail({ to: hold.email, subject: 'Reminder: your ' + title + ' is tomorrow', htmlBody: emailShell(inner),
+                      replyTo: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME });
+  return { ok: true };
 }
 
 // ===== Card paid on the page (Square Web Payments SDK, 2026-10-22) =====
