@@ -938,6 +938,17 @@
       .price-incl { display:flex; flex-wrap:wrap; justify-content:center; gap:6px 16px; font-size:12.5px; font-weight:600; color:var(--text); }
       .price-incl span { white-space:nowrap; }
       /* Step 1 is the only required input zone — highlight it as the active step. */
+      .pay-step { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 18px 14px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
+      .pay-step .step-head { border-top:none; padding-top:0; }
+      .pay-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
+      .pay-box { background:#fff; border:1px solid var(--border); border-radius:12px; padding:16px; max-width:520px; }
+      .pay-row { display:flex; justify-content:space-between; align-items:baseline; font-size:15px; color:var(--text-muted); margin:0 0 12px; }
+      .pay-row strong { font-size:22px; color:var(--text); }
+      .pay-wallet:not(:empty) { margin:0 0 12px; display:grid; gap:8px; }
+      .pay-wallet:not(:empty)::after { content:'or pay with card'; display:block; text-align:center; font-size:12px; color:var(--text-subtle); }
+      .pay-card { min-height:48px; margin:0 0 12px; }
+      .pay-go { width:100%; }
+      .pay-fine { margin-top:10px; }
       .date-pick { background:#f5f9ff; border:2px solid var(--primary); border-radius:16px; padding:18px 14px 14px; margin:18px 0 10px; box-shadow:0 6px 18px rgba(29,78,216,.12); }
       .date-pick .step-head { border-top:none; padding-top:0; }
       .date-pick-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
@@ -1207,6 +1218,24 @@
       <div class="step-head"><span class="num">4</span><span class="txt">Pick your day &amp; time</span></div>
       <p class="date-pick-sub">Pick a time, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. We hold the time for 30 minutes while you pay.</p>
       <iframe id="datePickFrame" title="Pick a date and time" style="width:100%;height:720px;border:0;display:block;border-radius:12px;background:#fff"></iframe>
+    </section>
+
+    <!-- Card paid right here (Square Web Payments SDK, 2026-10-22). The card
+         fields are Square's own iframes; the page only ever sees a one-time
+         token, which the Apps Script charges for the server-computed deposit.
+         If the SDK can't load, the old hosted Square checkout takes over. -->
+    <section class="pay-step" id="payStep" hidden>
+      <div class="step-head"><span class="num">5</span><span class="txt">Pay your deposit</span></div>
+      <p class="pay-sub"><strong id="payHeld">Your time</strong> is held for you for 30 minutes.</p>
+      <div class="pay-box">
+        <div class="pay-row"><span>Due today</span><strong id="payAmount">$0</strong></div>
+        <div id="payWallet" class="pay-wallet"></div>
+        <div id="payCard" class="pay-card"></div>
+        <button class="cta pay-go" id="payNow" type="button">Pay deposit</button>
+        <div id="payError" class="form-error" style="display:none;"></div>
+        <p class="microcopy pay-fine">Secure payment by Square. Your card details go straight to Square and never touch our site.</p>
+        <p class="microcopy"><a href="#" id="payFallback">Trouble paying? Use Square's checkout page instead</a></p>
+      </div>
     </section>
 
     <div class="paybar" id="payBar" hidden>
@@ -2020,10 +2049,143 @@
       if (d.type === 'cgp.held') {
         pendingPayload.hold = d.token;
         pendingPayload.holdStart = d.start_at;
-        startCheckout(pendingPayload);
+        showPayStep(pendingPayload, d);
       } else if (d.type === 'cgp.skip') {
         startCheckout(pendingPayload);
       }
+    });
+
+    // ----- Card on the page (Square Web Payments SDK) -----
+    // Production ids are public (they only identify the seller to Square).
+    // ?squaretest=1 switches to Square's sandbox so the whole paid path can be
+    // rehearsed with test cards; the Apps Script then charges the sandbox too.
+    const SQUARE_TEST = /[?&]squaretest=1/.test(location.search);
+    const SQUARE = SQUARE_TEST
+      ? { sdk: 'https://sandbox.web.squarecdn.com/v1/square.js', appId: 'SANDBOX_APP_ID_TBD', locationId: 'SANDBOX_LOCATION_TBD', env: 'sandbox' }
+      : { sdk: 'https://web.squarecdn.com/v1/square.js', appId: 'PROD_APP_ID_TBD', locationId: 'PROD_LOCATION_TBD', env: 'production' };
+    let squareCard = null, squarePayments = null, payIdempotency = '';
+
+    function loadSquareSdk() {
+      return new Promise((resolve, reject) => {
+        if (window.Square) return resolve();
+        const s = document.createElement('script');
+        s.src = SQUARE.sdk; s.async = true;
+        s.onload = () => resolve(); s.onerror = () => reject(new Error('square sdk failed to load'));
+        document.head.appendChild(s);
+        setTimeout(() => reject(new Error('square sdk timeout')), 12000);
+      });
+    }
+
+    function whenText(iso) {
+      try {
+        const d = new Date(iso);
+        return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d);
+      } catch (_) { return 'Your time'; }
+    }
+
+    async function showPayStep(payload, held) {
+      const sec = document.getElementById('payStep');
+      const deposit = Number(payload.deposit || currentQuote.deposit || 0);
+      document.getElementById('payHeld').textContent = whenText(held.start_at);
+      document.getElementById('payAmount').textContent = '$' + deposit;
+      document.getElementById('payNow').textContent = (depositRateFor(payload.plan) >= 1 ? 'Pay $' + deposit + ' now' : 'Pay $' + deposit + ' deposit');
+      document.getElementById('datePick').hidden = true;
+      sec.hidden = false;
+      setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+      try { if (window.cgpTrack) window.cgpTrack('pay_step_shown'); } catch (_) {}
+      if (/TBD$/.test(SQUARE.appId)) { return startCheckout(payload); }   // not configured yet → hosted checkout
+      try {
+        await loadSquareSdk();
+        squarePayments = window.Square.payments(SQUARE.appId, SQUARE.locationId);
+        squareCard = await squarePayments.card();
+        await squareCard.attach('#payCard');
+        attachWallets(payload, deposit).catch(() => {});
+      } catch (err) {
+        console.warn('Card box unavailable, using hosted checkout:', err);
+        startCheckout(payload);
+      }
+    }
+
+    // Apple Pay (needs the domain verification file on this site) and Google
+    // Pay. Each is optional: if Square says no, the card box is still there.
+    async function attachWallets(payload, deposit) {
+      const req = squarePayments.paymentRequest({
+        countryCode: 'US', currencyCode: 'USD',
+        total: { amount: deposit.toFixed(2), label: 'Gutter cleaning deposit' },
+      });
+      const wallet = document.getElementById('payWallet');
+      try {
+        const applePay = await squarePayments.applePay(req);
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'apple-pay-button';
+        b.setAttribute('aria-label', 'Apple Pay');
+        b.style.cssText = '-webkit-appearance:-apple-pay-button;-apple-pay-button-type:pay;-apple-pay-button-style:black;height:44px;width:100%;border-radius:8px;';
+        b.addEventListener('click', () => walletPay(applePay, payload));
+        wallet.appendChild(b);
+      } catch (_) { /* no Apple Pay here */ }
+      try {
+        const googlePay = await squarePayments.googlePay(req);
+        const g = document.createElement('div'); g.id = 'payGoogle'; wallet.appendChild(g);
+        await googlePay.attach('#payGoogle', { buttonColor: 'black', buttonType: 'pay', buttonSizeMode: 'fill' });
+        g.addEventListener('click', () => walletPay(googlePay, payload));
+      } catch (_) { /* no Google Pay here */ }
+    }
+
+    async function walletPay(method, payload) {
+      try {
+        const r = await method.tokenize();
+        if (r.status === 'OK') await chargeToken(r.token, payload);
+        else showPayError('That didn\'t go through. Try the card box below.');
+      } catch (err) { showPayError('That didn\'t go through. Try the card box below.'); }
+    }
+
+    function showPayError(msg) {
+      const e = document.getElementById('payError');
+      e.textContent = msg; e.style.display = msg ? 'block' : 'none';
+    }
+
+    async function chargeToken(token, payload) {
+      const btn = document.getElementById('payNow');
+      btn.disabled = true; const label = btn.textContent; btn.textContent = 'Charging your card…';
+      showPayError('');
+      if (!payIdempotency) payIdempotency = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2));
+      const body = Object.assign({}, payload, { action: 'pay', sourceId: token, idempotency: payIdempotency, env: SQUARE.env, session: window.cgpSession || '' });
+      let out = null;
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 40000);
+        const res = await fetch(APPS_SCRIPT_URL, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: controller.signal });
+        clearTimeout(timer);
+        out = await res.json();
+      } catch (err) {
+        console.warn('pay request failed:', err);
+      }
+      if (out && out.ok && out.paid) {
+        try { if (window.cgpTrack) window.cgpTrack('deposit_paid_card', { price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
+        btn.textContent = 'Paid — one moment…';
+        window.location.href = 'thanks.html';
+        return;
+      }
+      payIdempotency = '';   // a fresh attempt gets a fresh key (a decline is final for that key)
+      btn.disabled = false; btn.textContent = label;
+      if (out && out.error === 'declined') showPayError('Your card was declined. Check the number and expiry, or try another card.');
+      else if (out && out.error) showPayError('Payment didn\'t go through (' + out.error + '). Try again, or use Square\'s checkout page below.');
+      else showPayError('We couldn\'t reach our payment server. Try again, or use Square\'s checkout page below.');
+    }
+
+    document.getElementById('payNow').addEventListener('click', async () => {
+      if (!squareCard || !pendingPayload) return;
+      showPayError('');
+      let r;
+      try { r = await squareCard.tokenize(); } catch (err) { return showPayError('Please check the card details.'); }
+      if (r.status !== 'OK') {
+        const why = (r.errors && r.errors[0] && r.errors[0].message) || 'Please check the card details.';
+        return showPayError(why);
+      }
+      chargeToken(r.token, pendingPayload);
+    });
+    document.getElementById('payFallback').addEventListener('click', (ev) => {
+      ev.preventDefault();
+      if (pendingPayload) startCheckout(pendingPayload);
     });
 
     async function startCheckout(payload) {

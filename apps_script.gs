@@ -191,6 +191,11 @@ function doPost(e) {
         : { ok: false, error: 'jobber_sync.gs missing' });
     }
 
+    // Card paid right on the page (Square Web Payments SDK, 2026-10-22).
+    if (action === 'pay') {
+      return jsonOutput(squarePayInline(data));
+    }
+
     if (action === 'checkout') {
       // Server recomputes the price from raw inputs and charges ITS number.
       var priced = computeServerPrice(data);
@@ -245,6 +250,13 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  // The card box on the page needs the Square location id (not a secret).
+  if (e && e.parameter && e.parameter.square) {
+    try {
+      var env = squareEnv_({ env: e.parameter.square === 'sandbox' ? 'sandbox' : 'production' });
+      return jsonOutput({ ok: true, locationId: getSquareLocationId(env.token, env.base, env.locationKey), sandbox: env.sandbox });
+    } catch (err) { return jsonOutput({ ok: false, error: String(err) }); }
+  }
   var p = (e && e.parameter) || {};
 
   // Read the funnel events. The leads spreadsheet stays PRIVATE — it holds
@@ -439,23 +451,137 @@ function createSquareCheckout(data) {
   return { url: result.payment_link.url, orderId: result.payment_link.order_id || '' };
 }
 
-// First ACTIVE Square location, cached in Script Properties after the first lookup.
-function getSquareLocationId(token) {
+// ===== Card paid on the page (Square Web Payments SDK, 2026-10-22) =====
+// The card box on book.cvillegutterpros.com tokenizes the card inside Square's
+// own iframes; we only ever see a one-time token. This charges it for the
+// SERVER-computed deposit, writes the row as PAID at once, and leaves the
+// Jobber work (client/quote/job + confirmation) to the minute checker so the
+// customer isn't kept waiting on Jobber's API: squareSweepPaidRows_ picks up
+// any PAID row that has no Jobber client yet.
+//
+// env 'sandbox' (page opened with ?squaretest=1) uses SQUARE_SANDBOX_TOKEN and
+// Square's sandbox API, so the whole paid path can be rehearsed with test cards.
+
+function squareEnv_(data) {
   var props = PropertiesService.getScriptProperties();
-  var cached = props.getProperty('SQUARE_LOCATION_ID');
+  if (data && data.env === 'sandbox') {
+    var st = props.getProperty('SQUARE_SANDBOX_TOKEN');
+    if (!st) throw new Error('SQUARE_SANDBOX_TOKEN script property is not set');
+    return { token: st, base: 'https://connect.squareupsandbox.com', locationKey: 'SQUARE_SANDBOX_LOCATION_ID', sandbox: true };
+  }
+  var token = props.getProperty('SQUARE_PAYMENTS_TOKEN') || props.getProperty('SQUARE_ACCESS_TOKEN');
+  if (!token) throw new Error('SQUARE_ACCESS_TOKEN script property is not set');
+  return { token: token, base: SQUARE_API_BASE, locationKey: 'SQUARE_LOCATION_ID', sandbox: false };
+}
+
+function squarePayInline(data) {
+  var sourceId = String(data.sourceId || '');
+  if (!sourceId) return { ok: false, error: 'missing_token' };
+  var priced = computeServerPrice(data);
+  if (!priced || !(priced.deposit >= 1)) return { ok: false, error: 'bad_price' };
+  var priceCheck = (Number(data.finalPrice) === priced.total && depositFor(data) === priced.deposit)
+    ? '✓ verified (card on page)'
+    : '⚠️ MISMATCH: client sent $' + data.finalPrice + ', server computed $' + priced.total + ' — charged server price (card on page)';
+  data.finalPrice = priced.total;
+  data.deposit = priced.deposit;
+  data.basePrice = priced.base;
+  data.outsideArea = priced.fee > 0;
+
+  var env;
+  try { env = squareEnv_(data); } catch (err) { return { ok: false, error: String(err) }; }
+
+  // One charge per attempt: the page sends the same idempotency key when it
+  // retries after a network blip, and Square returns the same payment.
+  var idem = /^[0-9a-f-]{36}$/i.test(String(data.idempotency || '')) ? String(data.idempotency) : Utilities.getUuid();
+  var body = {
+    idempotency_key: idem,
+    source_id: sourceId,
+    amount_money: { amount: priced.deposit * 100, currency: 'USD' },
+    location_id: getSquareLocationId(env.token, env.base, env.locationKey),
+    autocomplete: true,
+    note: (depositRateFor(data.plan) >= 1 ? 'Gutter Cleaning — ' : 'Gutter Cleaning Deposit — ') + (data.planName || 'Booking') +
+          (depositRateFor(data.plan) >= 1 ? ' (paid in full, $' + priced.total + ')' : ' (25% of $' + priced.total + ')'),
+    reference_id: String(data.hold || '').slice(0, 40) || undefined,
+  };
+  if (data.email) body.buyer_email_address = String(data.email).trim();
+  if (data.verificationToken) body.verification_token = String(data.verificationToken);
+
+  var payment;
+  try {
+    payment = squareRequest(env.token, 'POST', '/v2/payments', body, env.base).payment;
+  } catch (err) {
+    var msg = String(err);
+    var declined = /CARD_DECLINED|INSUFFICIENT_FUNDS|CVV_FAILURE|ADDRESS_VERIFICATION_FAILURE|INVALID_CARD|CARD_EXPIRED|GENERIC_DECLINE|INVALID_EXPIRATION|VERIFY_CVV|VERIFY_AVS|CARD_NOT_SUPPORTED|TRANSACTION_LIMIT|CARD_TOKEN_USED|PAN_FAILURE/.test(msg);
+    return { ok: false, error: declined ? 'declined' : 'square_error', detail: msg.slice(0, 200) };
+  }
+  if (!payment || (payment.status !== 'COMPLETED' && payment.status !== 'APPROVED')) {
+    return { ok: false, error: 'not_completed', detail: payment ? payment.status : 'no payment' };
+  }
+
+  var receiptUrl = payment.receipt_url || '';
+  var lock = LockService.getScriptLock();
+  lock.tryLock(20000);
+  try {
+    if (env.sandbox) data.name = 'ZZZ SANDBOX — ' + (data.name || '');
+    logLead(data, STATUS.PAID, payment.order_id || payment.id, priceCheck);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    var row = sheet.getLastRow();
+    sheet.getRange(row, COL.PAID_AT).setValue(new Date());
+    if (receiptUrl) sheet.getRange(row, COL.PAYMENT_LINK).setValue(receiptUrl);
+    if (data.hold && typeof onlineRememberHold_ === 'function') {
+      try { onlineRememberHold_(data.hold); } catch (e) { /* the sweep will still schedule from the hold */ }
+    }
+  } finally {
+    lock.releaseLock();
+  }
+  try { sendPaidEmail(rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]), receiptUrl); } catch (e) { /* never block */ }
+  // Jobber + confirmation: squareSweepPaidRows_ (every minute) does it, so this
+  // answer reaches the customer in seconds rather than after Jobber's API.
+  return { ok: true, paid: true, paymentId: payment.id, receipt: receiptUrl, sandbox: env.sandbox };
+}
+
+// PAID rows that have no Jobber client yet (card paid on the page, or an
+// earlier Jobber failure): create the records and schedule the held time.
+function squareSweepPaidRows_() {
+  if (!jobberSyncEnabled_()) return;
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+  var firstRow = Math.max(2, lastRow - 99);
+  var vals = sheet.getRange(firstRow, 1, lastRow - firstRow + 1, JOBBER_LAST_COL).getValues();
+  var now = new Date();
+  vals.forEach(function (rowVals, i) {
+    if (String(rowVals[COL.STATUS - 1]) !== STATUS.PAID) return;
+    if (String(rowVals[JCOL.CLIENT - 1] || '')) return;
+    var paidAt = new Date(rowVals[COL.PAID_AT - 1]);
+    if (isNaN(paidAt) || (now - paidAt) > 2 * 86400000) return;
+    var sheetRow = firstRow + i;
+    var receiptUrl = String(rowVals[COL.PAYMENT_LINK - 1] || '');
+    pushBookingToJobber_(rowToLead(rowVals), sheetRow, receiptUrl);
+    if (typeof onlineAfterPaid_ === 'function') {
+      try { onlineAfterPaid_(sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
+    }
+  });
+}
+
+// First ACTIVE Square location, cached in Script Properties after the first lookup.
+function getSquareLocationId(token, base, cacheKey) {
+  var props = PropertiesService.getScriptProperties();
+  var key = cacheKey || 'SQUARE_LOCATION_ID';
+  var cached = props.getProperty(key);
   if (cached) return cached;
 
-  var result = squareRequest(token, 'GET', '/v2/locations', null);
+  var result = squareRequest(token, 'GET', '/v2/locations', null, base);
   var locations = (result.locations || []).filter(function(loc) {
     return loc.status === 'ACTIVE';
   });
   if (!locations.length) throw new Error('No active Square locations found');
 
-  props.setProperty('SQUARE_LOCATION_ID', locations[0].id);
+  props.setProperty(key, locations[0].id);
   return locations[0].id;
 }
 
-function squareRequest(token, method, path, body) {
+function squareRequest(token, method, path, body, base) {
   var options = {
     method: method.toLowerCase(),
     headers: {
@@ -467,7 +593,7 @@ function squareRequest(token, method, path, body) {
   };
   if (body) options.payload = JSON.stringify(body);
 
-  var response = UrlFetchApp.fetch(SQUARE_API_BASE + path, options);
+  var response = UrlFetchApp.fetch((base || SQUARE_API_BASE) + path, options);
   var code = response.getResponseCode();
   var parsed = JSON.parse(response.getContentText() || '{}');
   if (code < 200 || code >= 300) {
@@ -502,6 +628,9 @@ function checkPendingPayments() {
   // Self-installs the hourly CompanyCam snapshot sync the first minute this
   // code runs (property-guarded, so the steady-state cost is one property read).
   try { ccEnsureSnapshotTrigger_(); } catch (e) { /* never block payments */ }
+
+  // Card-on-page payments are already PAID; give them their Jobber records.
+  try { squareSweepPaidRows_(); } catch (e) { /* never block payments */ }
 
   var token = PropertiesService.getScriptProperties().getProperty('SQUARE_ACCESS_TOKEN');
   if (!token) return;
