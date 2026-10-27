@@ -1652,7 +1652,7 @@
       return elements.zipInput.value.replace(/\D/g, '').slice(0, 5);
     }
 
-    // Virginia ZIPs more than 40 miles from the shop can't book online either
+    // Virginia ZIPs more than 30 miles from the shop can't book online either
     // (Adam, 2026-10-27). Checked once per ZIP against the tech portal, the
     // same rule the scheduler uses; until the answer is back the ZIP counts as
     // trip-fee, and handleSubmit waits for the answer before taking money.
@@ -2334,7 +2334,7 @@
         showFormError('Please fill out all four fields correctly before continuing.');
         return;
       }
-      if (zipChecks[getZip()]) await zipChecks[getZip()];   // the 40-mile answer, if still on its way
+      if (zipChecks[getZip()]) await zipChecks[getZip()];   // the 30-mile answer, if still on its way
       const zip = zipStatus();
       if (zip === 'partial') {
         showFormError('Enter your 5-digit ZIP code so we can confirm your service area.');
