@@ -1652,11 +1652,29 @@
       return elements.zipInput.value.replace(/\D/g, '').slice(0, 5);
     }
 
+    // Virginia ZIPs more than 40 miles from the shop can't book online either
+    // (Adam, 2026-10-27). Checked once per ZIP against the tech portal, the
+    // same rule the scheduler uses; until the answer is back the ZIP counts as
+    // trip-fee, and handleSubmit waits for the answer before taking money.
+    const farZips = new Map();   // zip -> miles
+    const zipChecks = {};
+    function checkZipDistance(zip) {
+      if (zipChecks[zip]) return zipChecks[zip];
+      zipChecks[zip] = fetch('https://team.cvillegutterpros.com/api/book', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ op: 'zip', zip }),
+      }).then((r) => r.json()).then((r) => {
+        if (r && r.ok && r.in_area === false) { farZips.set(zip, r.miles); renderZipNote(); calculatePrice(); updateBookBtnState(); }
+        return r;
+      }).catch(() => null);
+      return zipChecks[zip];
+    }
+
     // 'partial' (not 5 digits yet) | 'inArea' | 'tripFee' | 'unserved'
     function zipStatus() {
       const zip = getZip();
       if (zip.length < 5) return 'partial';
       if (IN_AREA_ZIPS.has(zip)) return 'inArea';
+      if (farZips.has(zip)) return 'unserved';
       if (/^2[234]\d{3}$/.test(zip)) return 'tripFee';
       return 'unserved';
     }
@@ -1671,8 +1689,12 @@
       } else if (status === 'tripFee') {
         note.textContent = '✓ Great news, we service your area! Your price includes a $' + PRICING.outsideAreaFee + ' trip fee.';
         note.classList.add('trip-fee');
+        checkZipDistance(getZip());
       } else if (status === 'unserved') {
-        note.textContent = 'Sorry, that ZIP is outside our service area. Contact us and we\'ll see what we can do.';
+        const miles = farZips.get(getZip());
+        note.textContent = miles
+          ? 'Sorry, that ZIP is about ' + miles + ' miles from us, outside the area we serve. Call us at 434-422-4700 and we\'ll see what we can do.'
+          : 'Sorry, that ZIP is outside our service area. Contact us and we\'ll see what we can do.';
         note.classList.add('unserved');
       }
       note.style.display = status === 'partial' ? 'none' : 'block';
@@ -2312,6 +2334,7 @@
         showFormError('Please fill out all four fields correctly before continuing.');
         return;
       }
+      if (zipChecks[getZip()]) await zipChecks[getZip()];   // the 40-mile answer, if still on its way
       const zip = zipStatus();
       if (zip === 'partial') {
         showFormError('Enter your 5-digit ZIP code so we can confirm your service area.');
@@ -2319,7 +2342,9 @@
         return;
       }
       if (zip === 'unserved') {
-        showFormError('Sorry, we can\'t book that ZIP code online. Use the contact link below and we\'ll see what we can do.');
+        showFormError(farZips.has(getZip())
+          ? 'Sorry, that ZIP is outside the area we serve (about ' + farZips.get(getZip()) + ' miles from us). Call us at 434-422-4700 and we\'ll see what we can do.'
+          : 'Sorry, we can\'t book that ZIP code online. Use the contact link below and we\'ll see what we can do.');
         elements.zipInput.focus();
         return;
       }
