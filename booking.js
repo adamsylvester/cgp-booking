@@ -27,6 +27,8 @@
   var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
   var TZ = 'America/New_York';
   var PHONE = '434-422-4700';
+  // A US number we can call or text: 10 digits, a leading 1 is fine.
+  function usPhone(p) { return /^[2-9]\d{9}$/.test(String(p || '').replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '')); }
   var COMPANY = 'Charlottesville Gutter Pros';
   var DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -203,7 +205,7 @@
       var d = list[0] ? list[0].start : null;
       var h = '<div class="bk-times"><h3>' + (d ? fmt(d, { weekday: 'long', month: 'long', day: 'numeric' }) : '') + '</h3>';
       if (list.length && list.every(function (s) { return s.far; })) {
-        h += '<div class="far-note">Our crew is working about ' + Math.round(list[0].miles) + ' miles from you that day. You can still book it &mdash; we\'ll call ahead with a tighter arrival time.</div>';
+        h += '<div class="far-note">Our crew is working about ' + Math.round(list[0].miles) + ' miles from you that day. You can still book it, and we\'ll call ahead with a tighter arrival time.</div>';
       }
       h += '<div class="bk-times-list">';
       list.forEach(function (s, i) {
@@ -219,7 +221,8 @@
     function zipAsk() {
       return '<div class="bk-zip"><label for="bkZip">Where is the property? Enter the ZIP code</label>' +
         '<div class="row"><input id="bkZip" inputmode="numeric" maxlength="5" autocomplete="postal-code" placeholder="22901" value="' + esc(S.zip) + '" data-1p-ignore />' +
-        '<span class="hint">We\'ll show the days our team is already near you.</span></div></div>';
+        '<span class="hint">We\'ll show the days our team is already near you.</span></div>' +
+        (S.err ? '<div class="bk-error">' + esc(S.err) + '</div>' : '') + '</div>';
     }
 
     function form() {
@@ -343,7 +346,19 @@
       var zipEl = root.querySelector('#bkZip');
       if (zipEl) zipEl.addEventListener('input', function () {
         var z = zipEl.value.replace(/\D/g, '').slice(0, 5); zipEl.value = z;
-        if (z.length === 5 && z !== S.zip) { S.zip = z; S.err = ''; S.step = 'loading'; render(); loadSlots().then(function () { set({ step: 'calendar' }); }).catch(function (e) { set({ step: 'error', err: String(e.message || e) }); }); }
+        if (z.length === 5 && z !== S.zip) {
+          S.zip = z; S.err = ''; S.step = 'loading'; render();
+          // Service-area check first: a ZIP far from the shop stops here with
+          // a "call us" instead of putting a Virginia Beach visit on the calendar.
+          api({ op: 'zip', zip: z }).then(function (r) {
+            if (r && r.ok && r.in_area === false) {
+              S.zip = '';
+              set({ step: 'zip', err: 'Sorry, ' + z + ' is ' + (r.miles ? 'about ' + r.miles + ' miles from us, ' : '') + 'outside the area we serve. Call us at ' + PHONE + ' and we\'ll see what we can do.' });
+              return;
+            }
+            return loadSlots().then(function () { set({ step: 'calendar' }); });
+          }).catch(function (e) { set({ step: 'error', err: String(e.message || e) }); });
+        }
       });
       var f = root.querySelector('form.bk-form');
       if (f) f.addEventListener('submit', function (ev) { ev.preventDefault(); submit(f); });
@@ -376,6 +391,8 @@
       if (err === 'slot_taken') return 'That time was just taken by someone else. Please pick another.';
       if (err === 'payment_not_found') return 'We could not find the deposit for this booking. Call or text ' + PHONE + ' and we\'ll sort it out.';
       if (err === 'missing_fields') return 'Please check your name, email and phone number.';
+      if (err === 'bad_phone') return 'Please enter a US phone number we can call or text.';
+      if (err === 'out_of_area') return 'Sorry, that address is outside the area we serve. Call us at ' + PHONE + ' and we\'ll see what we can do.';
       if (err === 'not_active') return 'This booking is no longer active.';
       return 'Something went wrong (' + (err || status || 'network') + '). Please try again or call ' + PHONE + '.';
     }
@@ -386,7 +403,7 @@
       var problems = [];
       if (!v('first') || !v('last')) problems.push('name');
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v('email'))) problems.push('email');
-      if (v('phone').replace(/\D/g, '').length < 10) problems.push('phone number');
+      if (!usPhone(v('phone'))) problems.push('a US phone number');
       if (S.service === 'assessment') { if (!v('address')) problems.push('property address'); if (!v('notes')) problems.push('what you need done'); if (!v('home')) problems.push('the "I\'ll be home" box'); }
       if (problems.length) { errEl.textContent = 'Please fill in: ' + problems.join(', ') + '.'; errEl.classList.add('on'); return; }
       var btn = f.querySelector('.bk-submit'); btn.disabled = true;

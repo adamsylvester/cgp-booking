@@ -267,28 +267,39 @@ function jobberEnsureClient_(lead) {
 
   // New client — the property rides along in the same mutation.
   var names = jobberSplitName_(lead.name);
-  var data = jobberGql_(
-    'mutation($input: ClientCreateInput!) {' +
-    '  clientCreate(input: $input) {' +
-    '    client { id clientProperties(first: 5) { nodes { id address { street } } } }' +
-    '    userErrors { message path }' +
-    '  }' +
-    '}',
-    {
-      input: {
-        firstName: names.first,
-        lastName: names.last,
-        emails: email ? [{ description: 'MAIN', address: email, primary: true }] : [],
-        phones: phone ? [{ description: 'MOBILE', number: phone, primary: true, smsAllowed: true }] : [],
-        properties: [{ address: jobberAddress_(lead) }],
-        sourceAttribution: { sourceText: 'Online booking (book.cvillegutterpros.com)' },
-        receivesReminders: true,
-        receivesReviewRequests: true,
-      },
-    }
-  );
-
-  var payload = jobberCheckErrors_(data.clientCreate, 'clientCreate');
+  var create = function (sms) {
+    var data = jobberGql_(
+      'mutation($input: ClientCreateInput!) {' +
+      '  clientCreate(input: $input) {' +
+      '    client { id clientProperties(first: 5) { nodes { id address { street } } } }' +
+      '    userErrors { message path }' +
+      '  }' +
+      '}',
+      {
+        input: {
+          firstName: names.first,
+          lastName: names.last,
+          emails: email ? [{ description: 'MAIN', address: email, primary: true }] : [],
+          phones: phone ? [{ description: 'MOBILE', number: phone, primary: true, smsAllowed: sms }] : [],
+          properties: [{ address: jobberAddress_(lead) }],
+          sourceAttribution: { sourceText: 'Online booking (book.cvillegutterpros.com)' },
+          receivesReminders: true,
+          receivesReviewRequests: true,
+        },
+      }
+    );
+    return jobberCheckErrors_(data.clientCreate, 'clientCreate');
+  };
+  var payload;
+  try {
+    payload = create(true);
+  } catch (err) {
+    // Jobber refuses a number it cannot text (a landline, a foreign number:
+    // 2026-10-24 a +234 number killed the whole booking). The client still
+    // belongs in Jobber, just without the text toggle.
+    if (!/cannot receive text/i.test(String(err))) throw err;
+    payload = create(false);
+  }
   var client = payload.client;
   var props = (client.clientProperties && client.clientProperties.nodes) || [];
   if (!props.length) throw new Error('Client created but no property came back.');
@@ -780,13 +791,17 @@ function jobberDepositNote_(lead, receiptUrl) {
   return lines.join('\n');
 }
 
-function jobberNotifyFailure_(lead, err, doingWhat) {
+// free = nothing was charged (an assessment), so the banner must not claim a
+// deposit the office then goes looking for in Square (Vicki, 2026-10-27).
+function jobberNotifyFailure_(lead, err, doingWhat, free) {
   try {
     MailApp.sendEmail({
       to: NOTIFICATION_EMAIL,
-      subject: '⚠️ Jobber sync failed: ' + (lead.name || 'booking') + ' — money is fine, Jobber is not',
+      subject: '⚠️ Jobber sync failed: ' + (lead.name || 'booking') + (free ? ' — nothing was charged, Jobber is missing it' : ' — money is fine, Jobber is not'),
       htmlBody: emailShell(
-        statusBanner('#dc2626', '⚠️ The deposit was collected, but Jobber did not get the booking.') +
+        statusBanner('#dc2626', free
+          ? '⚠️ Jobber did not get this booking. No money was taken (assessments are free).'
+          : '⚠️ The deposit was collected, but Jobber did not get the booking.') +
         '<p style="margin:0 0 12px;line-height:1.5;">Failed while ' + escapeHtml(doingWhat) + '. ' +
         'Enter this one in Jobber by hand, then look at the error below.</p>' +
         '<table style="border-collapse:collapse;width:100%;">' +
@@ -1286,7 +1301,7 @@ function onlineAction_(action, data) {
     return { ok: false, error: 'unknown_action' };
   } catch (err) {
     onlineHoldUpdate_(hold.id, { error: String(err).slice(0, 400) });
-    jobberNotifyFailure_(onlineLead_(hold), err, action.replace('online_', '') + ' for an online ' + hold.service + ' booking');
+    jobberNotifyFailure_(onlineLead_(hold), err, action.replace('online_', '') + ' for an online ' + hold.service + ' booking', hold.service === 'assessment');
     return { ok: false, error: String(err).slice(0, 300) };
   }
 }
