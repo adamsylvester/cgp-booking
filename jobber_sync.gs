@@ -97,6 +97,15 @@ const JOBBER_LINE_TAXABLE = false;
 // who owns online bookings: ['Z2lkOi8vSm9iYmVyL1VzZXIvMTIzNDU='].
 const JOBBER_ASSIGN_USER_IDS = [];
 
+// Every online assessment lands assigned to the Assessments lane account and
+// Todd (Adam, 2026-10-27), the way the office assigns them by hand, so Todd
+// sees it on his calendar without anyone touching the request. Jobber has two
+// "Todd Miller" users; ...ODE1MzI3 is the active one (...ODE0NzAz is deactivated).
+const JOBBER_ASSESSMENT_ASSIGN_IDS = [
+  'Z2lkOi8vSm9iYmVyL1VzZXIvMTgxNzM5Mw==',   // Assessments
+  'Z2lkOi8vSm9iYmVyL1VzZXIvODE1MzI3',       // Todd Miller
+];
+
 // ===== Extra sheet columns (added by setupJobberColumns) =====
 const JCOL = {
   CLIENT: 23, REQUEST: 24, QUOTE: 25, JOB: 26, VISIT_AT: 27, SYNC: 28,
@@ -975,7 +984,7 @@ function jobberCreateAssessmentRequest_(clientId, propertyId, lead, ev) {
               time: Utilities.formatDate(end, tz, 'HH:mm:ss'),
               timezone: tz,
             },
-            teamMemberIdsToAssign: JOBBER_ASSIGN_USER_IDS.length ? JOBBER_ASSIGN_USER_IDS : null,
+            teamMemberIdsToAssign: JOBBER_ASSESSMENT_ASSIGN_IDS,
           },
         },
       },
