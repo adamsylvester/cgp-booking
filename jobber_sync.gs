@@ -92,10 +92,13 @@ const GPP_FREE_CLEANINGS = 1;
 // online prices are meant to be tax-inclusive.
 const JOBBER_LINE_TAXABLE = false;
 
-// Jobber user IDs to auto-assign new online-booking jobs to.
-// Leave EMPTY to create the job unassigned (safest). Fill it once you decide
-// who owns online bookings: ['Z2lkOi8vSm9iYmVyL1VzZXIvMTIzNDU='].
-const JOBBER_ASSIGN_USER_IDS = [];
+// Jobber user IDs every new online-booking CLEANING job is assigned to.
+// Adam, 2026-10-28: "these should be assigned to GC1, not left unassigned!"
+// GC1 is the new-gutter-cleaning lane account; the office moves the visit to
+// a real crew from there, the same as every other first-time cleaning.
+const JOBBER_ASSIGN_USER_IDS = [
+  'Z2lkOi8vSm9iYmVyL1VzZXIvMTc2ODU2Mw==',   // GC1
+];
 
 // Every online assessment lands assigned to the Assessments lane account and
 // Todd (Adam, 2026-10-27), the way the office assigns them by hand, so Todd
