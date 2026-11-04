@@ -972,7 +972,7 @@ function buildBuyerEmailHtml(data) {
   inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">Thanks, ' + firstName + '! Your $' + deposit +
            (depositRateFor(data.plan) >= 1 ? ' payment is in — you\'re paid in full.' : ' deposit is in.') + '</h2>';
   inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">';
-  inner += 'We are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
+  inner += 'You are on the books for your gutter cleaning, and your service date is set. Our crew will take it from there - you will get a reminder before we head your way.';
   inner += '</p>';
   inner += sectionHead('Your quote');
   inner += '<table style="border-collapse:collapse;width:100%;">' + quoteSummaryRows(data) + '</table>';
