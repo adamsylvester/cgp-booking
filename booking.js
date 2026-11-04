@@ -108,7 +108,14 @@
 
     function postHeight() {
       if (!S.embed) return;
-      try { parent.postMessage({ type: 'cgp.height', height: document.documentElement.scrollHeight }, '*'); } catch (_) {}
+      // Measure the widget itself, not the document: documentElement.scrollHeight
+      // never drops below the iframe's own height, so the frame could grow for
+      // the calendar but never shrink back for the small "held" card.
+      try {
+        var el = document.querySelector('.bk-page') || document.body;
+        var h = Math.ceil(el.getBoundingClientRect().bottom + (window.scrollY || 0)) + 8;
+        parent.postMessage({ type: 'cgp.height', height: h }, '*');
+      } catch (_) {}
     }
     function set(patch) { Object.assign(S, patch); render(); }
 
