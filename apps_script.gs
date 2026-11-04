@@ -477,12 +477,15 @@ function onlineReminder(data) {
   var title = (typeof ONLINE_TITLES !== 'undefined' && ONLINE_TITLES[hold.service]) || 'appointment';
   var tz = 'America/New_York', start = new Date(hold.start_at);
   var first = escapeHtml(String(hold.name || 'there').split(' ')[0]);
-  var when = Utilities.formatDate(start, tz, 'EEEE, MMMM d') + ' at ' + Utilities.formatDate(start, tz, 'h:mma').toLowerCase();
+  var end = new Date(hold.end_at);
+  var when = Utilities.formatDate(start, tz, 'EEEE, MMMM d');
+  // Arrival window, not a start time (Adam, 2026-11-04): the crew can show up any time in it.
+  var win = Utilities.formatDate(start, tz, 'h:mma').toLowerCase() + (isNaN(end) ? '' : ' to ' + Utilities.formatDate(end, tz, 'h:mma').toLowerCase());
   var manage = (typeof ONLINE_MANAGE_URL !== 'undefined' ? ONLINE_MANAGE_URL : 'https://book.cvillegutterpros.com/manage.html?t=') + hold.id;
   var inner = '<h2 style="margin:0 0 8px;color:#1d4ed8;">See you tomorrow, ' + first + '!</h2>' +
     '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">Just a reminder that your ' + escapeHtml(title.toLowerCase()) + ' is tomorrow, <strong>' + escapeHtml(when) + '</strong>' +
     (hold.address ? ' at ' + escapeHtml(hold.address) : '') + '.</p>' +
-    '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">Your technician will call or text on the way. Please be home for the appointment.</p>' +
+    '<p style="margin:0 0 14px;color:#475467;line-height:1.5;">Our crew will arrive <strong>any time between ' + escapeHtml(win) + '</strong>. Your technician will call or text on the way. Please be home for the whole window.</p>' +
     '<p style="margin:18px 0 6px;"><a href="' + manage + '" style="display:inline-block;padding:11px 18px;border-radius:999px;font-weight:700;text-decoration:none;border:1px solid #1d4ed8;color:#1d4ed8;">Need to change it?</a></p>' +
     '<p style="margin-top:22px;font-size:13px;color:#475467;line-height:1.5;">Questions? Just reply to this email — it goes straight to our office.</p>' +
     '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>';

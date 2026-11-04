@@ -37,7 +37,10 @@
   function dayKey(d) { return new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d); }
   function timeStr(d) { return fmt(d, { hour: 'numeric', minute: '2-digit' }).toLowerCase().replace(' ', ''); }
   function longDate(d) { return fmt(d, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }); }
-  function range(a, b) { return timeStr(a) + ' - ' + timeStr(b) + ', ' + longDate(a); }
+  // Customer-facing time = an ARRIVAL WINDOW (Adam, 2026-11-04): the crew can
+  // show up any time between start and end, not "at" the start.
+  function windowStr(a, b) { return timeStr(a) + ' to ' + timeStr(b); }
+  function range(a, b) { return 'We\'ll arrive between ' + windowStr(a, b) + ' on ' + longDate(a); }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function ics(d) { return d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, ''); }
 
@@ -154,7 +157,7 @@
       if (extra && extra.back) h += '<button class="bk-back" type="button" data-act="back" aria-label="Back">&larr;</button>';
       h += '<div class="bk-brand"><div class="bk-logo">CGP</div><div class="bk-company">' + COMPANY + '</div></div>';
       h += '<h1 class="bk-title">' + esc(svc.title || '') + '</h1>';
-      h += '<div class="bk-meta">' + ICON.clock + '<span>' + dur + '</span></div>';
+      h += '<div class="bk-meta">' + ICON.clock + '<span>' + dur + ' arrival window</span></div>';
       h += '<div class="bk-meta">' + ICON.pin + '<span>Client\'s Home</span></div>';
       if (extra && extra.when) h += '<div class="bk-meta when">' + ICON.cal + '<span>' + esc(extra.when) + '</span></div>';
       h += '<div class="bk-meta">' + ICON.globe + '<span>Eastern Time - US &amp; Canada</span></div>';
@@ -207,10 +210,11 @@
       if (list.length && list.every(function (s) { return s.far; })) {
         h += '<div class="far-note">Our crew is working about ' + Math.round(list[0].miles) + ' miles from you that day. You can still book it, and we\'ll call ahead with a tighter arrival time.</div>';
       }
+      h += '<p class="bk-win-note">Pick an arrival window. Our crew can arrive any time inside it, and we\'ll call or text on the way.</p>';
       h += '<div class="bk-times-list">';
       list.forEach(function (s, i) {
         var picked = S.picked === s;
-        h += '<div class="bk-slot' + (picked ? ' picked' : '') + '"><button type="button" class="t" data-act="pick" data-i="' + i + '">' + timeStr(s.start) + '</button>';
+        h += '<div class="bk-slot' + (picked ? ' picked' : '') + '"><button type="button" class="t" data-act="pick" data-i="' + i + '">' + windowStr(s.start, s.end) + '</button>';
         if (picked) h += '<button type="button" class="next" data-act="next-step">' + (S.mode === 'hold' ? 'Pay deposit' : 'Next') + '</button>';
         h += '</div>';
       });
@@ -443,7 +447,7 @@
         try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}
         track('time_held', { plan: S.service });
         try { parent.postMessage({ type: 'cgp.held', service: S.service, token: r.token, start_at: r.hold.start_at, end_at: r.hold.end_at, expires_at: r.expires_at || null }, '*'); } catch (_) {}
-        set({ step: 'busy', busyMsg: timeStr(S.picked.start) + ' on ' + fmt(S.picked.start, { weekday: 'long', month: 'long', day: 'numeric' }) + ' is held for you for 30 minutes. Sending you to secure checkout\u2026' });
+        set({ step: 'busy', busyMsg: 'Your ' + windowStr(S.picked.start, S.picked.end) + ' arrival window on ' + fmt(S.picked.start, { weekday: 'long', month: 'long', day: 'numeric' }) + ' is held for you for 30 minutes. Sending you to secure checkout\u2026' });
       }).catch(function () { S.err = friendly('', 'network'); set({ step: 'calendar' }); });
     }
 

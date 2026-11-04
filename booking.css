@@ -82,6 +82,7 @@ body.embed .bk { box-shadow: none; }
 .bk-slot.picked button.t { background: #6b7280; border-color: #6b7280; color: #fff; }
 .bk-slot button.next { background: var(--bk-primary); border-color: var(--bk-primary); color: #fff; }
 .bk-slot button.next:hover { background: var(--bk-primary-dark); }
+.bk-times .bk-win-note { font-size: 12.5px; color: #475467; margin: 0 0 10px; line-height: 1.4; }
 .bk-times-list { max-height: 460px; overflow-y: auto; padding-right: 2px; }
 .bk-empty { color: var(--bk-muted); font-size: 14px; line-height: 1.5; padding: 20px 0; }
 

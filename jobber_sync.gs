@@ -42,7 +42,7 @@ const JOBBER_CLIENT_TAG = '📅 Online Booking';
 // Calendly decides WHEN. These only fill gaps Calendly doesn't tell us.
 const SCHED = {
   jobMinutes: 90,           // job length, used only if Calendly sends no end time
-  arrivalWindowMinutes: 60, // customer-facing "we'll arrive between" cushion
+  arrivalWindowMinutes: 60, // fallback only: the Jobber arrival window = the block the customer picked (2026-11-04)
   timeZone: 'America/New_York',
 };
 
@@ -507,7 +507,9 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
       // but nobody has decided how often a plan visit actually recurs. To make
       // plans recurring, add `recurrence` (an iCal rule) to `scheduling` below.
       invoicing: { invoicingType: 'FIXED_PRICE', invoicingSchedule: 'ON_COMPLETION' },
-      arrivalWindow: { durationInMinutes: SCHED.arrivalWindowMinutes },
+      // The customer was promised "we arrive any time between start and end",
+      // so Jobber's arrival window IS that block (Adam, 2026-11-04).
+      arrivalWindow: { durationInMinutes: Math.max(15, Math.round((end - start) / 60000)) || SCHED.arrivalWindowMinutes },
       allowReviewRequest: true,
       notes: [{ message: jobberDepositNote_(lead, receiptUrl), pinned: true }],
     };
@@ -1455,10 +1457,17 @@ function onlineCancel_(hold) {
 
 // ----- emails ---------------------------------------------------------------
 
-function onlineWhen_(hold) {
+// Customer-facing time = an ARRIVAL WINDOW (Adam, 2026-11-04): the crew can
+// show up any time between start and end, never "at" the start.
+function onlineDay_(hold) {
+  return Utilities.formatDate(new Date(hold.start_at), SCHED.timeZone, 'EEEE, MMMM d, yyyy');
+}
+function onlineWindow_(hold) {
   var tz = SCHED.timeZone, s = new Date(hold.start_at), e = new Date(hold.end_at);
-  return Utilities.formatDate(s, tz, 'EEEE, MMMM d, yyyy') + ' · ' +
-         Utilities.formatDate(s, tz, 'h:mm a').toLowerCase() + ' – ' + Utilities.formatDate(e, tz, 'h:mm a').toLowerCase() + ' (Eastern)';
+  return Utilities.formatDate(s, tz, 'h:mm a').toLowerCase() + ' to ' + Utilities.formatDate(e, tz, 'h:mm a').toLowerCase();
+}
+function onlineWhen_(hold) {
+  return onlineDay_(hold) + ' · ' + onlineWindow_(hold) + ' arrival window (Eastern)';
 }
 
 function onlineGoogleCalLink_(hold, title) {
@@ -1467,7 +1476,7 @@ function onlineGoogleCalLink_(hold, title) {
     '&text=' + encodeURIComponent(title + ' - ' + FROM_NAME) +
     '&dates=' + f(hold.start_at) + '/' + f(hold.end_at) +
     '&location=' + encodeURIComponent(hold.address || '') +
-    '&details=' + encodeURIComponent('We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id);
+    '&details=' + encodeURIComponent('We will arrive any time between ' + onlineWindow_(hold) + '. We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id);
 }
 
 // A real calendar invitation (METHOD:REQUEST), so Gmail / Apple Mail show the
@@ -1484,7 +1493,7 @@ function onlineIcs_(hold, title) {
     'DTSTAMP:' + f(new Date()), 'DTSTART:' + f(hold.start_at), 'DTEND:' + f(hold.end_at),
     'SUMMARY:' + esc(title + ' - ' + FROM_NAME),
     'LOCATION:' + esc(hold.address),
-    'DESCRIPTION:' + esc('We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id),
+    'DESCRIPTION:' + esc('We will arrive any time between ' + onlineWindow_(hold) + '. We will call or text on the way. Reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id),
     'ORGANIZER;CN=' + esc(FROM_NAME) + ':mailto:' + FROM_ADDRESS,
     'ATTENDEE;CN=' + esc(hold.name) + ';RSVP=FALSE:mailto:' + hold.email,
     'STATUS:CONFIRMED', 'SEQUENCE:0',
@@ -1497,7 +1506,7 @@ function onlineSendCustomerEmail_(hold, kind, lead) {
   var title = ONLINE_TITLES[hold.service] || 'Appointment';
   var first = escapeHtml(String(hold.name || 'there').split(' ')[0]);
   var tz = SCHED.timeZone, start = new Date(hold.start_at);
-  var short = Utilities.formatDate(start, tz, 'EEE, MMM d') + ' at ' + Utilities.formatDate(start, tz, 'h:mm a').toLowerCase();
+  var short = Utilities.formatDate(start, tz, 'EEE, MMM d') + ', ' + onlineWindow_(hold);
   var manage = ONLINE_MANAGE_URL + hold.id;
   var btn = function (href, label, solid) {
     return '<a href="' + href + '" style="display:inline-block;margin:0 8px 8px 0;padding:11px 18px;border-radius:999px;font-weight:700;text-decoration:none;' +
@@ -1512,10 +1521,11 @@ function onlineSendCustomerEmail_(hold, kind, lead) {
   } else {
     subject = (kind === 'rescheduled' ? 'Rescheduled: ' : 'Confirmed: ') + title + ' with ' + FROM_NAME + ' on ' + short;
     inner += '<h2 style="margin:0 0 8px;color:#1d4ed8;">' + (kind === 'rescheduled' ? 'You\'re rescheduled' : 'You\'re scheduled') + ', ' + first + '!</h2>';
-    inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">A calendar invitation is attached. Your technician will call or text on the way.</p>';
+    inner += '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">A calendar invitation is attached. Our crew can arrive <strong>any time in your arrival window</strong>, and your technician will call or text on the way.</p>';
     inner += '<table style="border-collapse:collapse;width:100%;">';
     inner += rowBold('What', escapeHtml(title));
-    inner += rowBold('When', escapeHtml(onlineWhen_(hold)));
+    inner += rowBold('When', escapeHtml(onlineDay_(hold)));
+    inner += rowBold('Arrival window', escapeHtml(onlineWindow_(hold)) + ' (Eastern)');
     if (hold.address) inner += row('Where', escapeHtml(hold.address));
     inner += '</table>';
     if (lead && Number(lead.total || 0) > 0) {

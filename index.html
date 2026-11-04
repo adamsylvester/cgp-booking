@@ -1339,7 +1339,7 @@
          in hold mode posts cgp.held (send them to Square) or cgp.skip (no date). -->
     <section class="date-pick" id="datePick" hidden>
       <div class="step-head"><span class="step-pill"><span class="num">6</span><span class="txt">Pick your day &amp; time</span></span></div>
-      <p class="date-pick-sub">Pick a time, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. We hold the time for 30 minutes while you pay.</p>
+      <p class="date-pick-sub">Pick an arrival window, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. Our crew can arrive any time in that window. We hold it for 30 minutes while you pay.</p>
       <iframe id="datePickFrame" title="Pick a date and time" style="width:100%;height:720px;border:0;display:block;border-radius:8px;background:#fff"></iframe>
     </section>
 
@@ -2447,17 +2447,21 @@
       });
     }
 
-    function whenText(iso) {
+    // The held block is an ARRIVAL WINDOW: the crew can show up any time in it.
+    function whenText(startIso, endIso) {
       try {
-        const d = new Date(iso);
-        return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(d);
+        const tz = 'America/New_York';
+        const t = d => new Intl.DateTimeFormat('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(d).toLowerCase().replace(' ', '');
+        const s = new Date(startIso), e = new Date(endIso);
+        const day = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'long', month: 'long', day: 'numeric' }).format(s);
+        return 'Your ' + t(s) + (isNaN(e) ? '' : ' to ' + t(e)) + ' arrival window on ' + day;
       } catch (_) { return 'Your time'; }
     }
 
     async function showPayStep(payload, held) {
       const sec = document.getElementById('payStep');
       const deposit = Number(payload.deposit || currentQuote.deposit || 0);
-      document.getElementById('payHeld').textContent = whenText(held.start_at);
+      document.getElementById('payHeld').textContent = whenText(held.start_at, held.end_at);
       document.getElementById('payAmount').textContent = '$' + deposit;
       document.getElementById('payNow').textContent = (depositRateFor(payload.plan) >= 1 ? 'Pay $' + deposit + ' now' : 'Pay $' + deposit + ' deposit');
       document.getElementById('datePick').hidden = true;
