@@ -149,10 +149,12 @@
       } else {
         if (S.service === 'cleaning' && S.lead && S.lead.zip) S.zip = String(S.lead.zip).replace(/\D/g, '').slice(0, 5);
         if (S.zipIn && S.zipIn.length === 5) S.zip = S.zipIn;   // the page's ZIP beats a stale lead on this device
-        p = p.then(function () {
-          if (S.service === 'assessment' && !S.zip) { set({ step: 'zip' }); return; }
-          return loadSlots().then(function () { set({ step: 'calendar' }); });
-        });
+        if (S.service === 'assessment' && !S.zip) {
+          p = p.then(function () { set({ step: 'zip' }); });
+        } else {
+          // Service row and slots in parallel: the calendar is the slow one.
+          p = Promise.all([p, loadSlots()]).then(function () { set({ step: 'calendar' }); });
+        }
       }
       p.catch(function (e) { set({ step: 'error', err: String(e.message || e) }); });
     }
