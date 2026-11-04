@@ -88,6 +88,7 @@
       confirmed: !!opts.confirmed,
       office: !!opts.office,
       minutes: Number(opts.minutes) > 0 ? Math.round(Number(opts.minutes)) : null,   // window length from the house size
+      zipIn: String(opts.zip || '').replace(/\D/g, '').slice(0, 5),               // from the booking page (time first, details later)
       service: opts.service || 'cleaning',
       embed: !!opts.embed,
       token: opts.token || '',
@@ -140,6 +141,7 @@
         });
       } else {
         if (S.service === 'cleaning' && S.lead && S.lead.zip) S.zip = String(S.lead.zip).replace(/\D/g, '').slice(0, 5);
+        if (S.zipIn && S.zipIn.length === 5) S.zip = S.zipIn;   // the page's ZIP beats a stale lead on this device
         p = p.then(function () {
           if (S.service === 'assessment' && !S.zip) { set({ step: 'zip' }); return; }
           return loadSlots().then(function () { set({ step: 'calendar' }); });
@@ -196,7 +198,7 @@
       if (anyFar) h += '<div class="bk-legend"><i></i> Our crew is across town that day &mdash; a highlighted day gets you a tighter arrival window.</div>';
       if (!S.slots.length) {
         h += '<div class="bk-empty">No online times in the next ' + (S.svc.horizon_days || 60) + ' days. Call or text us at <a href="tel:+1' + PHONE.replace(/\D/g, '') + '">' + PHONE + '</a> and we\'ll find you a spot.' +
-          (S.mode === 'hold' ? '<p style="margin:14px 0 0"><button type="button" class="bk-btn" data-act="skip">Pay the deposit now, we\'ll call to set a date</button></p>' : '') + '</div>';
+          (S.mode === 'hold' ? '<p style="margin:14px 0 0"><button type="button" class="bk-btn" data-act="skip">Skip this for now, we\'ll call to set a date</button></p>' : '') + '</div>';
       }
       h += '</div>';
       return h;
@@ -215,7 +217,7 @@
       list.forEach(function (s, i) {
         var picked = S.picked === s;
         h += '<div class="bk-slot' + (picked ? ' picked' : '') + '"><button type="button" class="t" data-act="pick" data-i="' + i + '">' + windowStr(s.start, s.end) + '</button>';
-        if (picked) h += '<button type="button" class="next" data-act="next-step">' + (S.mode === 'hold' ? 'Pay deposit' : 'Next') + '</button>';
+        if (picked) h += '<button type="button" class="next" data-act="next-step">' + 'Next' + '</button>';
         h += '</div>';
       });
       h += '</div></div>';
@@ -296,6 +298,19 @@
       return h;
     }
 
+    // Hold mode, after the pick: the window is theirs for 30 minutes; the
+    // booking page shows the details step right below this card.
+    function held() {
+      var s = S.picked.start, e = S.picked.end;
+      var h = '<div class="bk-done"><div class="bk-check-big">&#10003;</div><h2>Your window is held</h2>';
+      h += '<div class="bk-card"><div class="t">' + esc(S.svc.title) + '</div>';
+      h += '<div class="bk-meta">' + ICON.cal + '<span>' + esc(range(s, e)) + '</span></div>';
+      h += '<div class="bk-meta">' + ICON.clock + '<span>Held for 30 minutes while you finish up</span></div></div>';
+      h += '<p class="lead">Fill in your details below, then pay the deposit to lock it in.</p>';
+      h += '<div class="bk-manage"><a href="#" data-act="rehold">Pick a different time</a></div></div>';
+      return h;
+    }
+
     function manage() {
       var hd = S.hold, st = new Date(hd.start_at), en = new Date(hd.end_at);
       var active = hd.status === 'booked' || hd.status === 'held';
@@ -334,6 +349,7 @@
       }
       else if (S.step === 'form') h = info({ back: true, when: range(S.picked.start, S.picked.end) }) + '<div class="bk-main">' + form() + '</div>';
       else if (S.step === 'busy') h = '<div class="bk-loading"><div class="bk-spin"></div>' + esc(S.busyMsg || 'Booking your time&hellip;') + '</div>';
+      else if (S.step === 'held') h = held();
       else if (S.step === 'done') { h = done(S.hold, S.doneKind); wide = true; }
       else if (S.step === 'manage') { h = manage(); wide = true; }
       root.className = 'bk' + (wide ? ' is-wide' : '');
@@ -382,8 +398,9 @@
       }
       else if (a === 'skip') {
         try { parent.postMessage({ type: 'cgp.skip', service: S.service }, '*'); } catch (_) {}
-        set({ step: 'busy', busyMsg: 'Sending you to secure checkout\u2026' });
+        set({ step: 'busy', busyMsg: 'No problem. Fill in your details below and we\'ll call to set a date.' });
       }
+      else if (a === 'rehold') { S.picked = null; S.step = 'loading'; render(); loadSlots().then(function () { set({ step: 'calendar' }); }).catch(function (e) { set({ step: 'error', err: String(e.message || e) }); }); }
       else if (a === 'back') set({ step: 'calendar' });
       else if (a === 'reschedule') { S.step = 'loading'; render(); loadSlots().then(function () { set({ step: 'calendar' }); }).catch(function (e) { set({ step: 'error', err: String(e.message || e) }); }); }
       else if (a === 'cancel-ask') set({ confirmCancel: true, err: '' });
@@ -439,15 +456,16 @@
       var l = S.lead || {};
       set({ step: 'busy', busyMsg: 'Holding your time\u2026' });
       api({
+        // Time first, details next (2026-11-04): the hold starts with no contact;
+        // the booking page's details step puts the name on it (op hold_contact).
         op: 'hold', service: S.service, start: S.picked.start.toISOString(),
-        name: l.name || '', email: l.email || '', phone: l.phone || '', address: l.address || '',
-        zip: S.zip || l.zip || '', notes: l.notes || '', lead_timestamp: l.timestamp || '', source: S.office ? 'office' : 'pick-then-pay', minutes: S.minutes,
+        address: l.address || '', zip: S.zip || l.zip || '', source: S.office ? 'office' : 'pick-then-pay', minutes: S.minutes,
       }).then(function (r) {
         if (!r.ok) { S.err = friendly(r.error, r._status); return loadSlots().then(function () { set({ step: 'calendar' }); }); }
         try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}
         track('time_held', { plan: S.service });
         try { parent.postMessage({ type: 'cgp.held', service: S.service, token: r.token, start_at: r.hold.start_at, end_at: r.hold.end_at, expires_at: r.expires_at || null }, '*'); } catch (_) {}
-        set({ step: 'busy', busyMsg: 'Your ' + windowStr(S.picked.start, S.picked.end) + ' arrival window on ' + fmt(S.picked.start, { weekday: 'long', month: 'long', day: 'numeric' }) + ' is held for you for 30 minutes. Sending you to secure checkout\u2026' });
+        set({ step: 'held' });
       }).catch(function () { S.err = friendly('', 'network'); set({ step: 'calendar' }); });
     }
 

@@ -983,6 +983,9 @@
       .price-incl span { white-space:nowrap; }
       /* Step 1 is the only required input zone — highlight it as the active step. */
       .pay-step { background:#f5f9ff; border:2px solid var(--primary); border-radius:8px; padding:18px 18px 14px; margin:18px 0 10px; box-shadow:none; }
+      .details-step { background:#f5f9ff; border:2px solid var(--primary); border-radius:8px; padding:18px 18px 14px; margin:18px 0 10px; box-shadow:none; }
+      .details-step .step-head { border-top:none; padding-top:0; }
+      .details-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
       .pay-step .step-head { border-top:none; padding-top:0; }
       .pay-sub { margin:0 0 12px; font-size:14px; color:var(--text-muted); line-height:1.45; }
       .pay-box { background:#fff; border:1px solid var(--border); border-radius:8px; padding:16px; max-width:520px; }
@@ -1297,50 +1300,57 @@
             </div>
           </div>
 
-          <div class="contact-panel needs-price">
-            <div class="step-head"><span class="step-pill"><span class="num">5</span><span class="txt">Your details</span></span></div>
-            <div class="contact-grid">
-              <div class="field">
-                <label for="custName">Full Name</label>
-                <input id="custName" type="text" autocomplete="name" />
-              </div>
-              <div class="field">
-                <label for="custPhone">Phone</label>
-                <input id="custPhone" type="tel" autocomplete="tel" />
-              </div>
-              <div class="field">
-                <label for="custEmail">Email</label>
-                <input id="custEmail" type="email" autocomplete="email" />
-              </div>
-              <div class="field field-full">
-                <label for="custNotes">Anything unique about your gutters? (optional)</label>
-                <textarea id="custNotes" rows="3" placeholder="e.g. my gutters are overflowing in the back"></textarea>
-              </div>
-            </div>
-          </div>
-
-          <button class="cta needs-price" id="bookBtn" type="button" disabled>
-            Next
-          </button>
-          <div id="formError" class="form-error" style="display:none;"></div>
-
-          <p class="microcopy">Next you'll pick your service date, then pay the deposit to lock it in.</p>
-          <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
-          <p class="microcopy">
-            Need something else?
-            <a class="contact-link" href="https://cvillegutterpros.com/contact/">Contact us</a>
-          </p>
         </div>
       </div>
     </div>
 
-    <!-- Pick-then-pay (2026-10-22): after the details, the customer picks a
-         time — held for 30 minutes — and THEN pays the deposit. schedule.html
-         in hold mode posts cgp.held (send them to Square) or cgp.skip (no date). -->
+    <!-- Pick-then-pay (2026-10-22), time FIRST (2026-11-04): as soon as the
+         price is known the picker opens here; the customer picks a window
+         (held 30 minutes), THEN gives their details, THEN pays the deposit.
+         schedule.html in hold mode posts cgp.held or cgp.skip (no date). -->
     <section class="date-pick" id="datePick" hidden>
-      <div class="step-head"><span class="step-pill"><span class="num">6</span><span class="txt">Pick your day &amp; time</span></span></div>
-      <p class="date-pick-sub">Pick an arrival window, then pay your <strong id="datePickDeposit">deposit</strong> to lock it in. Our crew can arrive any time in that window. We hold it for 30 minutes while you pay.</p>
+      <div class="step-head"><span class="step-pill"><span class="num">5</span><span class="txt">Pick your day &amp; time</span></span></div>
+      <p class="date-pick-sub">Pick an arrival window. Our crew can arrive any time in that window. We hold it for 30 minutes while you add your details and pay your <strong id="datePickDeposit">deposit</strong>.</p>
       <iframe id="datePickFrame" title="Pick a date and time" style="width:100%;height:720px;border:0;display:block;border-radius:8px;background:#fff"></iframe>
+    </section>
+
+    <!-- Details AFTER the time (Adam, 2026-11-04): the picked window is held
+         first; this step puts a name on it (api/book op hold_contact, which
+         also restarts the 30-minute clock), then the deposit locks it in. -->
+    <section class="details-step" id="detailsStep" hidden>
+      <div class="step-head"><span class="step-pill"><span class="num">6</span><span class="txt">Your details</span></span></div>
+      <p class="details-sub" id="detailsSub">Your window is held. Tell us who it's for, then pay the deposit to lock it in.</p>
+      <div class="contact-panel">
+        <div class="contact-grid">
+        <div class="field">
+          <label for="custName">Full Name</label>
+          <input id="custName" type="text" autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="custPhone">Phone</label>
+          <input id="custPhone" type="tel" autocomplete="tel" />
+        </div>
+        <div class="field">
+          <label for="custEmail">Email</label>
+          <input id="custEmail" type="email" autocomplete="email" />
+        </div>
+        <div class="field field-full">
+          <label for="custNotes">Anything unique about your gutters? (optional)</label>
+          <textarea id="custNotes" rows="3" placeholder="e.g. my gutters are overflowing in the back"></textarea>
+        </div>
+      </div>
+      </div>
+
+      <button class="cta" id="bookBtn" type="button" disabled>
+        Continue to payment →
+      </button>
+      <div id="formError" class="form-error" style="display:none;"></div>
+
+      <p class="microcopy" style="font-weight:600;">Secure checkout powered by Square</p>
+      <p class="microcopy">
+        Need something else?
+        <a class="contact-link" href="https://cvillegutterpros.com/contact/">Contact us</a>
+      </p>
     </section>
 
     <!-- Card paid right here (Square Web Payments SDK, 2026-10-22). The card
@@ -1717,6 +1727,7 @@
       currentQuote = { basePrice: 0, plan: selectedPlan, finalPrice: 0 };
       updateBookBtnState();
       updatePayBar();
+      syncDatePicker();
     }
 
     function renderPrice(base) {
@@ -1745,7 +1756,7 @@
       elements.meterRestLabel.textContent = payInFull ? 'Nothing due after the job' : '$' + balance + ' after the job';
       elements.meterDep.style.width = Math.round(rate * 100) + '%';
       elements.paymentBreakdown.style.display = 'grid';
-      elements.bookBtn.textContent = 'Pick your date →';
+      elements.bookBtn.textContent = 'Continue to payment →';
       const dd = document.getElementById('datePickDeposit');
       if (dd) dd.textContent = payInFull ? `$${deposit} payment` : `$${deposit} deposit`;
 
@@ -1759,6 +1770,7 @@
       currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
       updatePayBar();
+      syncDatePicker();   // time first: the picker opens the moment there's a price
     }
 
     let calculationTimer;
@@ -2011,13 +2023,19 @@
     let bookBtnInView = false;
 
     function updatePayBar() {
-      // Hidden while the date picker is open: the next step is in the picker, not the bar.
-      const show = currentQuote.finalPrice > 0 && !bookBtnInView && !pendingPayload;
+      // Points at the picker until a window is held; gone once the next step
+      // (details, then pay) is right there on the page.
+      const show = currentQuote.finalPrice > 0 && !heldSlot && !skippedDate && !pickerInView && !bookBtnInView;
       elements.payBar.hidden = !show;
       document.body.classList.toggle('has-paybar', show);
     }
 
     function handlePayBarClick() {
+      if (!heldSlot && !skippedDate) {
+        // Time first: the next thing to do is pick a window.
+        document.getElementById('datePick').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
       if (elements.bookBtn.disabled) {
         // Not ready yet (details missing) — take them to the form instead.
         elements.bookBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -2366,15 +2384,51 @@
         payload.session = window.cgpSession || '';
       } catch (_) { /* analytics never blocks a booking */ }
 
-      // Stash on this device: the date picker reads it (name, email, phone,
-      // ZIP) and the thanks page finds the held time through it.
+      // Stash on this device: the thanks page reads it (and finds the held
+      // time through cgp_hold, which the picker set when the window was held).
       try {
         localStorage.setItem('cgp_lastLead', JSON.stringify(payload));
-        localStorage.removeItem('cgp_hold');
         if (window.cgpSession) localStorage.setItem('cgp_sid', window.cgpSession);
       } catch (_) { /* ignore quota / private-mode errors */ }
 
-      openDatePicker(payload);
+      if (heldSlot) return attachContact(payload);
+      if (skippedDate) return startCheckout(payload);
+      showFormError('Pick an arrival window above first.');
+      document.getElementById('datePick').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    // Time first, details next: the window is already held; this puts the
+    // customer's name on it (and restarts the 30-minute clock) before paying.
+    const BOOK_API = 'https://team.cvillegutterpros.com/api/book';
+    async function attachContact(payload) {
+      const btn = elements.bookBtn, label = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Saving…';
+      let out = null;
+      try {
+        const res = await fetch(BOOK_API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+          op: 'hold_contact', token: heldSlot.token, name: payload.name, email: payload.email, phone: payload.phone,
+          address: payload.address, zip: payload.zip, notes: payload.notes, lead_timestamp: payload.timestamp, website: '' }) });
+        out = await res.json();
+      } catch (_) { out = null; }
+      btn.textContent = label; btn.disabled = false;
+      if (out && out.ok) {
+        payload.hold = heldSlot.token;
+        payload.holdStart = heldSlot.start_at;
+        pendingPayload = payload;
+        try { if (window.cgpTrack) window.cgpTrack('details_saved'); } catch (_) {}
+        showPayStep(payload, heldSlot);
+        return;
+      }
+      if (out && (out.error === 'expired' || out.error === 'not_found')) {
+        // The 30 minutes ran out while they typed: back to the calendar.
+        heldSlot = null;
+        showFormError('Sorry, your held time ran out. Pick a window again and we\'ll hold it for another 30 minutes.');
+        openDatePicker(payload, { keepDetails: true });
+        document.getElementById('datePick').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      if (out && out.error === 'bad_phone') { elements.custPhone.classList.add('invalid'); showFormError('Please enter a US phone number we can call or text.'); elements.custPhone.focus(); return; }
+      showFormError('We couldn\'t save your details. Check your connection and try again.');
     }
 
     // Pick-then-pay. The scheduler iframe holds the slot for 30 minutes and
@@ -2392,18 +2446,74 @@
       return Math.min(180, m);
     }
     let pendingPayload = null;
-    function openDatePicker(payload) {
+    let heldSlot = null;        // {token, start_at, end_at, ...} once the picker holds a window
+    let skippedDate = false;    // 'we'll call to set a date'
+    let pickerMinutes = null, pickerZip = '';
+    let pickerInView = false;
+    function openDatePicker(payload, opts) {
+      opts = opts || {};
       pendingPayload = payload;
       const sec = document.getElementById('datePick');
       const frame = document.getElementById('datePickFrame');
       payload.minutes = jobMinutes(payload);
-      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold&minutes=' + payload.minutes + (window.cgpOffice ? '&office=1' : '') + '&v=' + Date.now();
+      pickerMinutes = payload.minutes; pickerZip = getZip();
+      heldSlot = null; skippedDate = false;
+      try { localStorage.removeItem('cgp_hold'); } catch (_) {}
+      frame.src = 'schedule.html?service=cleaning&embed=1&mode=hold&minutes=' + payload.minutes + '&zip=' + encodeURIComponent(pickerZip) + (window.cgpOffice ? '&office=1' : '') + '&v=' + Date.now();
       sec.hidden = false;
-      elements.bookBtn.disabled = true;
-      elements.bookBtn.textContent = 'Pick a time below ↓';
+      if (!opts.keepDetails) document.getElementById('detailsStep').hidden = true;
+      document.getElementById('payStep').hidden = true;
       updatePayBar();
-      setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       try { if (window.cgpTrack) window.cgpTrack('date_picker_opened'); } catch (_) {}
+    }
+    function closeDatePicker() {
+      const sec = document.getElementById('datePick');
+      if (sec.hidden) return;
+      sec.hidden = true;
+      document.getElementById('datePickFrame').src = 'about:blank';
+      pendingPayload = null; heldSlot = null; skippedDate = false; pickerMinutes = null;
+      document.getElementById('detailsStep').hidden = true;
+      document.getElementById('payStep').hidden = true;
+      updatePayBar();
+    }
+    // Time first (2026-11-04): the picker opens by itself once there's a real
+    // price for a home in our area, and reloads only if the window length or
+    // the ZIP changes (a new hold is needed then anyway).
+    function syncDatePicker() {
+      const sec = document.getElementById('datePick');
+      const zs = zipStatus();
+      const ready = !!selectedHouse && currentQuote.finalPrice > 0 && (zs === 'inArea' || zs === 'tripFee');
+      if (!ready) { closeDatePicker(); return; }
+      const payload = buildLeadPayload();
+      const mins = jobMinutes(payload);
+      const active = !sec.hidden || heldSlot || skippedDate;   // the picker hides itself behind the pay step
+      if (active && pickerMinutes === mins && pickerZip === getZip()) {
+        // Same window, maybe a different plan: keep the hold, refresh the money.
+        if (pendingPayload) pendingPayload = Object.assign({}, pendingPayload, payload, { minutes: pendingPayload.minutes, hold: pendingPayload.hold, holdStart: pendingPayload.holdStart });
+        if (!document.getElementById('payStep').hidden) {
+          const dep = Number(currentQuote.deposit || 0);
+          document.getElementById('payAmount').textContent = '$' + dep;
+          document.getElementById('payNow').textContent = (depositRateFor(selectedPlan) >= 1 ? 'Pay $' + dep + ' now' : 'Pay $' + dep + ' deposit');
+        }
+        return;
+      }
+      openDatePicker(payload);
+    }
+    function showDetailsStep() {
+      const sec = document.getElementById('detailsStep');
+      document.getElementById('detailsSub').textContent = heldSlot
+        ? 'Your window is held. Tell us who it\'s for, then pay the deposit to lock it in.'
+        : 'Tell us who to call and we\'ll set the date with you after the deposit.';
+      elements.bookBtn.textContent = heldSlot ? 'Continue to payment →' : 'Continue to secure checkout →';
+      sec.hidden = false;
+      document.getElementById('payStep').hidden = true;
+      updateBookBtnState();
+      updatePayBar();
+      setTimeout(() => {
+        sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        if (!elements.custName.value) setTimeout(() => elements.custName.focus({ preventScroll: true }), 400);
+      }, 50);
+      try { if (window.cgpTrack) window.cgpTrack('details_step_shown'); } catch (_) {}
     }
     window.addEventListener('message', (ev) => {
       const d = ev.data;
@@ -2414,11 +2524,13 @@
       }
       if (!pendingPayload) return;
       if (d.type === 'cgp.held') {
+        heldSlot = d; skippedDate = false;
         pendingPayload.hold = d.token;
         pendingPayload.holdStart = d.start_at;
-        showPayStep(pendingPayload, d);
+        showDetailsStep();
       } else if (d.type === 'cgp.skip') {
-        startCheckout(pendingPayload);
+        heldSlot = null; skippedDate = true;
+        showDetailsStep();
       }
     });
 
@@ -2469,6 +2581,7 @@
       setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       try { if (window.cgpTrack) window.cgpTrack('pay_step_shown'); } catch (_) {}
       if (/TBD$/.test(SQUARE.appId)) { return startCheckout(payload); }   // not configured yet → hosted checkout
+      if (squareCard) return;   // card box already on the page (they re-picked a time and came back)
       try {
         await loadSquareSdk();
         squarePayments = window.Square.payments(SQUARE.appId, SQUARE.locationId);
@@ -2642,6 +2755,10 @@
           bookBtnInView = entries[0].isIntersecting;
           updatePayBar();
         }, { rootMargin: '0px 0px -10px 0px' }).observe(elements.bookBtn);
+        new IntersectionObserver((entries) => {
+          pickerInView = entries[0].isIntersecting;
+          updatePayBar();
+        }, { rootMargin: '0px 0px -10px 0px' }).observe(document.getElementById('datePick'));
       }
 
       // Plan radios: update the total and which card is highlighted.
