@@ -374,7 +374,7 @@ function orphanDepositEmail_(data) {
       statusBanner('#f59e0b', '⚠️ Someone just landed on the thank-you page after paying, but this device had never filled in our form.') +
       '<p style="line-height:1.6;">Most likely they paid through an old Square link, not the booking page, so there is no lead row and no held time. ' +
       'Open <a href="https://app.squareup.com/dashboard/sales/transactions">Square → Transactions</a>, find the newest payment (' +
-      escapeHtml(Utilities.formatDate(new Date(), SCHED.timeZone, 'MMM d, h:mm a')) + ' Eastern), and call that customer to set their date and settle the right deposit.</p>' +
+      escapeHtml(Utilities.formatDate(new Date(), SCHED_TZ_FOR_EVENTS, 'MMM d, h:mm a')) + ' Eastern), and call that customer to set their date and settle the right deposit.</p>' +
       '<table style="border-collapse:collapse;width:100%;">' +
       row('Device', escapeHtml(String(data.device || '—'))) +
       row('Page', escapeHtml(String(data.page || '—'))) +
