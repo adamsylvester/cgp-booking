@@ -1358,6 +1358,7 @@ function onlineSchedule_(hold) {
   hold.status = 'booked';
   onlineSendCustomerEmail_(hold, 'booked');
   onlineNotifyOffice_(hold, 'booked', ids, null);
+  onlineClientNote_(hold, 'booked', ids, null);
   return { ok: true, jobId: ids.jobber_job_id || '', requestId: ids.jobber_request_id || '' };
 }
 
@@ -1444,6 +1445,7 @@ function onlineReschedule_(hold, prev) {
   hold.status = 'booked';
   onlineSendCustomerEmail_(hold, 'rescheduled');
   onlineNotifyOffice_(hold, 'rescheduled', ids, prev);
+  onlineClientNote_(hold, 'rescheduled', ids, prev);
   return { ok: true };
 }
 
@@ -1452,7 +1454,45 @@ function onlineReschedule_(hold, prev) {
 function onlineCancel_(hold) {
   onlineNotifyOffice_(hold, 'cancelled', hold, null);
   onlineSendCustomerEmail_(hold, 'cancelled');
+  onlineClientNote_(hold, 'cancelled', hold, null);
   return { ok: true };
+}
+
+// Vicki (2026-11-06): "could we have AI put this in the notes so it is
+// visible to anyone pulling up the account?" Every online booking, move and
+// cancellation leaves a plain note on the Jobber client — the same What /
+// When / Arrival window / Where block the customer's email shows.
+function onlineClientNote_(hold, kind, ids, prev) {
+  try {
+    var clientId = (ids && ids.jobber_client_id) || hold.jobber_client_id || (prev && prev.jobber_client_id) || '';
+    if (!clientId) return;
+    var title = ONLINE_TITLES[hold.service] || 'Appointment';
+    var head = kind === 'cancelled' ? '📅 Online booking CANCELLED by the customer'
+             : kind === 'rescheduled' ? '📅 Online booking MOVED by the customer'
+             : '📅 Booked online at book.cvillegutterpros.com';
+    var lines = [head, 'What: ' + title];
+    if (kind === 'cancelled') {
+      lines.push('Was: ' + onlineDay_(hold) + ', ' + onlineWindow_(hold) + ' arrival window (Eastern)');
+    } else {
+      if (kind === 'rescheduled' && prev && prev.start_at) {
+        lines.push('Was: ' + onlineDay_(prev) + ', ' + onlineWindow_(prev));
+      }
+      lines.push('When: ' + onlineDay_(hold));
+      lines.push('Arrival window: ' + onlineWindow_(hold) + ' (Eastern)');
+    }
+    if (hold.address) lines.push('Where: ' + hold.address + (hold.zip && hold.address.indexOf(hold.zip) === -1 ? ' ' + hold.zip : ''));
+    if (hold.phone) lines.push('Phone: ' + hold.phone);
+    if (hold.notes) lines.push('They told us: ' + String(hold.notes).trim());
+    if (kind !== 'cancelled') lines.push('Customer can reschedule or cancel: ' + ONLINE_MANAGE_URL + hold.id);
+    var data = jobberGql_(
+      'mutation($id: EncodedId!, $input: ClientCreateNoteInput!) {' +
+      '  clientCreateNote(clientId: $id, input: $input) { clientNote { id } userErrors { message } }' +
+      '}', { id: clientId, input: { message: lines.join('\n'), pinned: false } });
+    jobberCheckErrors_(data.clientCreateNote, 'clientCreateNote');
+  } catch (e) {
+    // The booking is already on the calendar; a missing note must never fail it.
+    try { onlineHoldUpdate_(hold.id, { error: ('client note: ' + String(e)).slice(0, 400) }); } catch (e2) {}
+  }
 }
 
 // ----- emails ---------------------------------------------------------------
@@ -1631,6 +1671,7 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
     hold.status = 'booked';
     onlineSendCustomerEmail_(hold, 'booked', lead);
     onlineNotifyOffice_(hold, 'booked', ids, null);
+    onlineClientNote_(hold, 'booked', ids, null);
   } catch (err) {
     onlineHoldUpdate_(holdId, { error: String(err).slice(0, 400) });
     jobberNotifyFailure_(lead, err, 'scheduling the time they picked before paying');
