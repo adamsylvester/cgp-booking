@@ -145,6 +145,10 @@
       if (!sid) { try { sid = (lead && lead.session) || localStorage.getItem('cgp_sid') || ''; } catch (_) {} }
       const evt = {
         action: 'event', event: 'deposit_paid', session: sid,
+        // No lead and no hold on this device = a payment our page did not
+        // start (an old Square link, another browser). The script emails the
+        // office so somebody calls them instead of the scheduler failing.
+        orphan: (!lead && !hasHold) ? 1 : 0,
         device: matchMedia('(max-width: 760px)').matches ? 'mobile' : 'desktop',
         page: location.pathname, price: lead && lead.finalPrice ? lead.finalPrice : '',
         plan: lead && (lead.planName || lead.plan) ? (lead.planName || lead.plan) : '',
@@ -181,6 +185,13 @@
       js.onload = () => window.CGPBooking.mount(document.getElementById('bk'), { token: holdToken, confirmed: true });
       js.onerror = () => { window.location.replace(target); };
       document.head.appendChild(js);
+    } else if (!lead) {
+      // Paid, but this device never filled in our form (2026-11-06: a customer
+      // reached Square through an old flat link). The scheduler would only
+      // answer "payment not found", so promise a call instead.
+      document.getElementById('thanksH1').textContent = 'Thanks! Your payment is in.';
+      document.getElementById('thanksP').textContent = 'We\u2019ll call or text you to set your date. Want it sooner? Call or text 434-422-4700 and we\u2019ll book it right now.';
+      const spin = document.querySelector('.spinner'); if (spin) spin.hidden = true;
     } else {
       document.getElementById('thanksH1').textContent = 'Thanks! One last step.';
       document.getElementById('thanksP').textContent = 'Sending you to pick a date for your gutter cleaning\u2026';

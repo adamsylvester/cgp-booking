@@ -161,6 +161,7 @@ function doPost(e) {
     // failure must never touch checkout, so it can't throw past this block.
     if (action === 'event') {
       try { logEvent_(data); } catch (err) { /* analytics is never load-bearing */ }
+      try { if (data.event === 'deposit_paid' && String(data.orphan) === '1') orphanDepositEmail_(data); } catch (err) { /* never block */ }
       return jsonOutput({ ok: true });
     }
 
@@ -360,6 +361,26 @@ const EVENTS_MAX_ROWS = 5000;
 // jobber_sync.gs owns SCHED.timeZone, but this file must work even if that
 // file is absent, so the timezone is named here independently.
 const SCHED_TZ_FOR_EVENTS = 'America/New_York';
+
+// thanks.html reached with no lead and no hold on the device: someone paid
+// through a route our page did not start (2026-11-06: the old flat $25 Square
+// link). We cannot know who, so the office looks at Square's newest payment
+// and calls them — the scheduler would only tell the customer "not found".
+function orphanDepositEmail_(data) {
+  MailApp.sendEmail({
+    to: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME,
+    subject: '⚠️ A deposit was paid but we have no booking for it — check Square and call them',
+    htmlBody: emailShell(
+      statusBanner('#f59e0b', '⚠️ Someone just landed on the thank-you page after paying, but this device had never filled in our form.') +
+      '<p style="line-height:1.6;">Most likely they paid through an old Square link, not the booking page, so there is no lead row and no held time. ' +
+      'Open <a href="https://app.squareup.com/dashboard/sales/transactions">Square → Transactions</a>, find the newest payment (' +
+      escapeHtml(Utilities.formatDate(new Date(), SCHED.timeZone, 'MMM d, h:mm a')) + ' Eastern), and call that customer to set their date and settle the right deposit.</p>' +
+      '<table style="border-collapse:collapse;width:100%;">' +
+      row('Device', escapeHtml(String(data.device || '—'))) +
+      row('Page', escapeHtml(String(data.page || '—'))) +
+      '</table>'),
+  });
+}
 
 function logEvent_(data) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();

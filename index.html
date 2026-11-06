@@ -1470,10 +1470,12 @@
 
   <script>
     // ===== CONFIG =====
-    // SQUARE_FALLBACK_URL is the old flat-$25 payment link — only used if the
-    // Apps Script can't create a live 25% checkout (network error, Square down).
+    // There is NO flat-$25 fallback link any more (2026-11-06). On Nov 5 a
+    // customer's checkout request never reached the Apps Script, the page sent
+    // her to the old $25 link, Square bounced her to thanks.html with nothing
+    // on our side knowing who she was, and the scheduler could not find a
+    // payment. A payment we cannot trace is worse than an error message.
     // APPS_SCRIPT_URL is the deployed Google Apps Script Web App.
-    const SQUARE_FALLBACK_URL = 'https://square.link/u/1CK0Bclg';
 
     // ----- Office mode (staff booking for a customer): not counted in stats -----
     (function () {
@@ -2689,40 +2691,47 @@
       // request; the redirects below wait for it only briefly.
       const snapshotUpload = sendBookingSnapshots(payload);
 
-      let serverReached = false;
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 15000);
-        const res = await fetch(APPS_SCRIPT_URL, {
-          method: 'POST',
-          body: JSON.stringify(Object.assign({}, payload, { action: 'checkout' })),
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          signal: controller.signal,
-        });
-        clearTimeout(timer);
-        // Parse BEFORE claiming the server was reached. A broken Apps Script
-        // still answers 200 — with an HTML error page — so a response alone
-        // proves nothing. Only our own JSON means the lead was really logged.
-        const out = await res.json();
-        serverReached = true;
-        if (out && out.ok && out.checkoutUrl) {
-          await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
-          window.location.href = out.checkoutUrl;
-          return;
+      // Two tries: Apps Script cold starts plus the Square call can run past
+      // 15 s on a phone, and one slow answer must not cost us the booking.
+      let serverReached = false, lastErr = '';
+      for (const waitMs of [15000, 30000]) {
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), waitMs);
+          const res = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify(Object.assign({}, payload, { action: 'checkout' })),
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            signal: controller.signal,
+          });
+          clearTimeout(timer);
+          // Parse BEFORE claiming the server was reached. A broken Apps Script
+          // still answers 200 — with an HTML error page — so a response alone
+          // proves nothing. Only our own JSON means the lead was really logged.
+          const out = await res.json();
+          serverReached = true;
+          if (out && out.ok && out.checkoutUrl) {
+            await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
+            window.location.href = out.checkoutUrl;
+            return;
+          }
+          lastErr = String((out && out.error) || 'no_checkout_url');
+          console.warn('Checkout link not returned:', lastErr);
+          break;   // the server answered; asking again would log a second lead
+        } catch (err) {
+          lastErr = String(err && err.name === 'AbortError' ? 'timeout' : err);
+          console.warn('Checkout request failed:', err);
         }
-        console.warn('Checkout link not returned:', out && out.error);
-      } catch (err) {
-        console.warn('Checkout request failed:', err);
       }
 
-      // Fallback: use the flat $25 payment link so the booking isn't lost.
-      // Only re-send the lead if the server never got the checkout request
-      // (it already logged the lead + emailed the office if it responded).
+      // No untraceable fallback payment (2026-11-06). Tell them plainly and keep
+      // the lead: the office gets the beacon'd lead row + email and calls back.
       if (!serverReached) sendLead(payload);
+      try { if (window.cgpTrack) window.cgpTrack('checkout_failed', { detail: (serverReached ? 'server: ' : 'unreached: ') + lastErr.slice(0, 120), price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
+      startCheckout.busy = false;
       elements.bookBtn.textContent = originalLabel;
       elements.bookBtn.disabled = false;
-      await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
-      window.location.href = SQUARE_FALLBACK_URL;
+      showFormError('We couldn\'t start the secure checkout just now. Please try again in a moment, or call or text us at 434-422-4700 and we\'ll book it by phone \u2014 we have your details.');
     }
 
     function init() {

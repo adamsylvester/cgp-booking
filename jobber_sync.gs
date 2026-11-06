@@ -1351,7 +1351,12 @@ function onlineSchedule_(hold) {
   if (hold.status === 'booked' && (hold.jobber_job_id || hold.jobber_request_id)) return { ok: true, already: true };
   if (hold.status !== 'held' && hold.status !== 'booked') return { ok: false, error: 'hold_' + hold.status };
   var ids = hold.service === 'assessment' ? onlineScheduleAssessment_(hold) : onlineScheduleCleaning_(hold);
-  if (ids.error) return { ok: false, error: ids.error };
+  if (ids.error) {
+    // The customer sees "call or text us"; the office should not have to wait
+    // for that call (2026-11-06: a paid customer gave up after two tries).
+    if (ids.error === 'payment_not_found') { try { onlinePaymentNotFoundEmail_(hold); } catch (e) { /* never block */ } }
+    return { ok: false, error: ids.error };
+  }
   var patch = { status: 'booked' };
   Object.keys(ids).forEach(function (k) { if (ids[k]) patch[k] = ids[k]; });
   onlineHoldUpdate_(hold.id, patch);
@@ -1360,6 +1365,21 @@ function onlineSchedule_(hold) {
   onlineNotifyOffice_(hold, 'booked', ids, null);
   onlineClientNote_(hold, 'booked', ids, null);
   return { ok: true, jobId: ids.jobber_job_id || '', requestId: ids.jobber_request_id || '' };
+}
+
+function onlinePaymentNotFoundEmail_(hold) {
+  MailApp.sendEmail({
+    to: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME,
+    subject: '⚠️ Tried to schedule online, no deposit found: ' + (hold.name || hold.email || 'unknown'),
+    htmlBody: emailShell(
+      statusBanner('#f59e0b', '⚠️ A customer picked a time on the scheduler but we have no PAID lead row for their email, so nothing went to Jobber.') +
+      '<p style="line-height:1.6;">They were told to call or text. Please call them first: check <a href="https://app.squareup.com/dashboard/sales/transactions">Square</a> for a payment under this name or email (an old flat link shows up as “Gutter Cleaning Deposit”), then book the time by hand or send a fresh quote.</p>' +
+      '<table style="border-collapse:collapse;width:100%;">' +
+      contactRows(hold.name, hold.phone, hold.email, hold.address) +
+      row('Wanted', escapeHtml(onlineWhen_(hold))) +
+      row('Hold', escapeHtml(String(hold.id || ''))) +
+      '</table>'),
+  });
 }
 
 // The paid cleaning: find the PAID row with no job yet (newest for this
