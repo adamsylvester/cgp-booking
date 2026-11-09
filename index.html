@@ -2544,7 +2544,12 @@
     // SQUARE_CARD_LIVE: flip to true once the sandbox rehearsal has passed and
     // the production token is in place; until then real customers get the
     // hosted Square checkout as before.
-    const SQUARE_CARD_LIVE = true;
+    // OFF 2026-11-09: the card box never completed a real payment. The server
+    // charges with SQUARE_PAYMENTS_TOKEN (Square account MLJ4M2DHFJK0V) but for
+    // location LY862H05F9ENY, which belongs to the other Square account, so
+    // Square answers "Not authorized to take payments with location_id". Turn
+    // back on only after the token, app id and location all belong to ONE account.
+    const SQUARE_CARD_LIVE = false;
     const SQUARE = SQUARE_TEST
       ? { sdk: 'https://sandbox.web.squarecdn.com/v1/square.js', appId: 'sandbox-sq0idb-D1kxs2r8L6bhfRshU6CH4w', locationId: 'LMQGNRYSTAQS0', env: 'sandbox' }
       : { sdk: 'https://web.squarecdn.com/v1/square.js', appId: SQUARE_CARD_LIVE ? 'sq0idp-jup3sOKF-EuYNnheFKsZBQ' : 'PROD_APP_ID_TBD', locationId: 'LY862H05F9ENY', env: 'production' };
@@ -2582,7 +2587,19 @@
       sec.hidden = false;
       setTimeout(() => sec.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
       try { if (window.cgpTrack) window.cgpTrack('pay_step_shown'); } catch (_) {}
-      if (/TBD$/.test(SQUARE.appId)) { return startCheckout(payload); }   // not configured yet → hosted checkout
+      if (/TBD$/.test(SQUARE.appId)) {   // card box off → Square's hosted checkout
+        const go = document.getElementById('payNow');
+        document.getElementById('payCard').style.display = 'none';
+        document.getElementById('payFallback').parentElement.style.display = 'none';
+        showPayError('');
+        go.disabled = true; go.textContent = 'Opening Square\'s secure checkout…';
+        const sent = await startCheckout(payload);
+        if (!sent) {
+          go.disabled = false; go.textContent = 'Continue to secure checkout';
+          showPayError('We couldn\'t open the secure checkout just now. Tap the button to try again, or call or text us at 434-422-4700 and we\'ll book it by phone.');
+        }
+        return;
+      }
       if (squareCard) return;   // card box already on the page (they re-picked a time and came back)
       try {
         await loadSquareSdk();
@@ -2656,6 +2673,8 @@
         return;
       }
       payIdempotency = '';   // a fresh attempt gets a fresh key (a decline is final for that key)
+      // Every failed charge leaves a trace (none did before 2026-11-09).
+      try { if (window.cgpTrack) window.cgpTrack('pay_failed', { detail: (out ? String(out.error || 'no_error') + ' ' + String(out.detail || '') : 'unreached').slice(0, 200), price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
       btn.disabled = false; btn.textContent = label;
       if (out && out.error === 'declined') showPayError('Your card was declined. Check the number and expiry, or try another card.');
       else if (out && out.error) showPayError('Payment didn\'t go through (' + out.error + '). Try again, or use Square\'s checkout page below.');
@@ -2663,7 +2682,8 @@
     }
 
     document.getElementById('payNow').addEventListener('click', async () => {
-      if (!squareCard || !pendingPayload) return;
+      if (!pendingPayload) return;
+      if (!squareCard) return showPayStep(pendingPayload, heldSlot || {});
       showPayError('');
       let r;
       try { r = await squareCard.tokenize(); } catch (err) { return showPayError('Please check the card details.'); }
@@ -2713,7 +2733,7 @@
           if (out && out.ok && out.checkoutUrl) {
             await Promise.race([snapshotUpload, snapshotTimeout(SNAPSHOT_EXTRA_WAIT_MS)]);
             window.location.href = out.checkoutUrl;
-            return;
+            return true;
           }
           lastErr = String((out && out.error) || 'no_checkout_url');
           console.warn('Checkout link not returned:', lastErr);
