@@ -533,7 +533,13 @@ function squareEnv_(data) {
     if (!st) throw new Error('SQUARE_SANDBOX_TOKEN script property is not set');
     return { token: st, base: 'https://connect.squareupsandbox.com', locationKey: 'SQUARE_SANDBOX_LOCATION_ID', sandbox: true };
   }
-  var token = props.getProperty('SQUARE_PAYMENTS_TOKEN') || props.getProperty('SQUARE_ACCESS_TOKEN');
+  // The card-on-page token and the payment-links token belong to DIFFERENT
+  // Square accounts, so each needs its own remembered location. Sharing one
+  // (2026-10-22 to 2026-11-09) made Square refuse every card charge with
+  // "Not authorized to take payments with location_id".
+  var payToken = props.getProperty('SQUARE_PAYMENTS_TOKEN');
+  if (payToken) return { token: payToken, base: SQUARE_API_BASE, locationKey: 'SQUARE_PAYMENTS_LOCATION_ID', sandbox: false };
+  var token = props.getProperty('SQUARE_ACCESS_TOKEN');
   if (!token) throw new Error('SQUARE_ACCESS_TOKEN script property is not set');
   return { token: token, base: SQUARE_API_BASE, locationKey: 'SQUARE_LOCATION_ID', sandbox: false };
 }
@@ -557,11 +563,14 @@ function squarePayInline(data) {
   // One charge per attempt: the page sends the same idempotency key when it
   // retries after a network blip, and Square returns the same payment.
   var idem = /^[0-9a-f-]{36}$/i.test(String(data.idempotency || '')) ? String(data.idempotency) : Utilities.getUuid();
+  var locationId;
+  try { locationId = getSquareLocationId(env.token, env.base, env.locationKey); }
+  catch (err) { return { ok: false, error: 'square_error', detail: String(err).slice(0, 200) }; }
   var body = {
     idempotency_key: idem,
     source_id: sourceId,
     amount_money: { amount: priced.deposit * 100, currency: 'USD' },
-    location_id: getSquareLocationId(env.token, env.base, env.locationKey),
+    location_id: locationId,
     autocomplete: true,
     note: (depositRateFor(data.plan) >= 1 ? 'Gutter Cleaning — ' : 'Gutter Cleaning Deposit — ') + (data.planName || 'Booking') +
           (depositRateFor(data.plan) >= 1 ? ' (paid in full, $' + priced.total + ')' : ' (25% of $' + priced.total + ')'),
@@ -576,7 +585,9 @@ function squarePayInline(data) {
   } catch (err) {
     var msg = String(err);
     var declined = /CARD_DECLINED|INSUFFICIENT_FUNDS|CVV_FAILURE|ADDRESS_VERIFICATION_FAILURE|INVALID_CARD|CARD_EXPIRED|GENERIC_DECLINE|INVALID_EXPIRATION|VERIFY_CVV|VERIFY_AVS|CARD_NOT_SUPPORTED|TRANSACTION_LIMIT|CARD_TOKEN_USED|PAN_FAILURE/.test(msg);
-    return { ok: false, error: declined ? 'declined' : 'square_error', detail: msg.slice(0, 200) };
+    // `location` is not a secret (the page already carries one); it lets a
+    // fake-card probe confirm the page and the server name the same location.
+    return { ok: false, error: declined ? 'declined' : 'square_error', detail: msg.slice(0, 200), location: locationId };
   }
   if (!payment || (payment.status !== 'COMPLETED' && payment.status !== 'APPROVED')) {
     return { ok: false, error: 'not_completed', detail: payment ? payment.status : 'no payment' };

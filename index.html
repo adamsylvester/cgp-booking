@@ -2677,7 +2677,15 @@
       try { if (window.cgpTrack) window.cgpTrack('pay_failed', { detail: (out ? String(out.error || 'no_error') + ' ' + String(out.detail || '') : 'unreached').slice(0, 200), price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
       btn.disabled = false; btn.textContent = label;
       if (out && out.error === 'declined') showPayError('Your card was declined. Check the number and expiry, or try another card.');
-      else if (out && out.error) showPayError('Payment didn\'t go through (' + out.error + '). Try again, or use Square\'s checkout page below.');
+      else if (out && out.error === 'square_error') {
+        // Square refused the request itself (nothing was charged). Don't leave
+        // the customer at a dead end: open Square's own checkout for them.
+        showPayError('Our card box is having trouble, so we\'re opening Square\'s secure checkout for you. Nothing was charged.');
+        btn.disabled = true; btn.textContent = 'Opening Square\'s secure checkout…';
+        const sent = await startCheckout(payload);
+        if (!sent) { btn.disabled = false; btn.textContent = label; showPayError('We couldn\'t take the payment just now. Nothing was charged. Please try again in a minute, or call or text us at 434-422-4700 and we\'ll book it by phone.'); }
+      }
+      else if (out && out.error) showPayError('That payment didn\'t go through, and nothing was charged. Try again, or use Square\'s checkout page below.');
       else showPayError('We couldn\'t reach our payment server. Try again, or use Square\'s checkout page below.');
     }
 
