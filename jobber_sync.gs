@@ -1855,8 +1855,9 @@ function onlineSlotLostEmails_(hold, lead) {
 
 
 // ===== Photo emails =====
-// After a visit is completed in Jobber, email the client the CompanyCam
-// timeline (the public photo page) for their property.
+// Every evening at 8pm Eastern, email each client whose visit was completed in
+// Jobber that day the CompanyCam timeline (the public photo page) for their
+// property. One batch a day, by Adam's choice (2026-11-10).
 //   PHOTO_EMAIL_MODE script property: off (default) | test (every email goes
 //   to the office instead of the client) | live.
 // Completed visits come from the Supabase mirror (refreshed every 5 min); the
@@ -1864,20 +1865,16 @@ function onlineSlotLostEmails_(hold, lead) {
 // Every decision is one row on the "Photo Emails" tab, which is also the
 // "already handled" list.
 const PHOTO_EMAIL_SHEET = 'Photo Emails';
-const PHOTO_EMAIL_WAIT_MIN = 45;    // let the crew finish uploading first
-const PHOTO_EMAIL_GIVE_UP_H = 6;    // still no photos by then: log it and move on
-const PHOTO_EMAIL_MAX_AGE_H = 30;   // never email about a visit older than this
+const PHOTO_EMAIL_HOUR = 20;        // the daily run, Eastern
+const PHOTO_EMAIL_MAX_AGE_H = 25;   // since last night's run, with a little overlap
 const PHOTO_EMAIL_MIN_PHOTOS = 3;
-const PHOTO_EMAIL_HOURS = [8, 20];  // only send between 8am and 8pm Eastern
 
 function photoEmailSweep() {
   var mode = PropertiesService.getScriptProperties().getProperty('PHOTO_EMAIL_MODE') || 'off';
   if (mode !== 'live' && mode !== 'test') return;
-  var hour = Number(Utilities.formatDate(new Date(), SCHED.timeZone, 'H'));
-  if (hour < PHOTO_EMAIL_HOURS[0] || hour >= PHOTO_EMAIL_HOURS[1]) return;
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;
-  try { photoEmailRun_(mode, 25, true); } finally { lock.releaseLock(); }
+  try { photoEmailRun_(mode, 60, true); } finally { lock.releaseLock(); }
 }
 
 // Editor check: sends up to 2 of the latest real ones to the office only and
@@ -1886,14 +1883,15 @@ function photoEmailTest() {
   Logger.log(JSON.stringify(photoEmailRun_('test', 2, false), null, 1));
 }
 
-// Run once from the editor: installs the 15-minute sweep.
+// Run once from the editor: installs the daily 8pm Eastern run.
 function photoEmailSetup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'photoEmailSweep') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('photoEmailSweep').timeBased().everyMinutes(15).create();
+  ScriptApp.newTrigger('photoEmailSweep').timeBased().atHour(PHOTO_EMAIL_HOUR).nearMinute(0)
+    .everyDays(1).inTimezone(SCHED.timeZone).create();
   photoEmailSheet_();
-  Logger.log('Photo email sweep installed. Mode: ' +
+  Logger.log('Photo email run installed, daily at 8pm Eastern. Mode: ' +
     (PropertiesService.getScriptProperties().getProperty('PHOTO_EMAIL_MODE') || 'off'));
 }
 function photoEmailModeTest() { photoEmailSetMode_('test'); }
@@ -1937,16 +1935,12 @@ function photoEmailRun_(mode, max, keepLog) {
     var v = visits[i];
     if (seen[v.visit_id]) continue;
     var done = new Date(v.completed_at);
-    var ageH = (now - done) / 3600000;
-    if (ageH * 60 < PHOTO_EMAIL_WAIT_MIN) continue;
-    var waiting = ageH < PHOTO_EMAIL_GIVE_UP_H;
     var res;
     try {
       res = photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now);
     } catch (e) {
-      res = { status: waiting ? 'wait' : 'error: ' + String(e && e.message || e).slice(0, 120) };
+      res = { status: 'error: ' + String(e && e.message || e).slice(0, 120) };
     }
-    if (res.status === 'wait' || (res.retry && waiting)) continue;   // look again next run
     out.push({ client: v.client_name, status: res.status, to: res.to || '', photos: res.photos || 0 });
     if (sheet) {
       sheet.appendRow([now, v.visit_id, v.client_name || '', v.property_street || '',
@@ -1973,8 +1967,7 @@ function photoEmailCompletedVisits_(now) {
   return JSON.parse(resp.getContentText() || '[]');
 }
 
-// One visit -> { status, to, photos, link, retry }. retry = "not ready yet,
-// worth another look" (no project / too few photos while the visit is fresh).
+// One visit -> { status, to, photos, link }.
 function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
   var data = jobberGql_(
     'query($id: EncodedId!) { visit(id: $id) { isComplete ' +
@@ -1993,7 +1986,7 @@ function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
   var street = addr.street1 || v.property_street, postal = addr.postalCode || v.property_postal;
   var key = ccAddrKey_(street, postal);
   var project = key ? ccFindProject_(ccToken, key) : null;
-  if (!project) return { status: 'skipped: no CompanyCam project at this address', retry: true };
+  if (!project) return { status: 'skipped: no CompanyCam project at this address' };
 
   // Photos taken on the day the visit was completed (Eastern), client-safe only.
   var day = Utilities.formatDate(done, tz, 'yyyy-MM-dd');
@@ -2002,7 +1995,7 @@ function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
     start + '&end_date=' + (start + 86400), null) || [];
   var count = photos.filter(function (p) { return !p.internal; }).length;
   if (count < PHOTO_EMAIL_MIN_PHOTOS) {
-    return { status: 'skipped: only ' + count + ' photos that day', photos: count, retry: true };
+    return { status: 'skipped: only ' + count + ' photos that day', photos: count };
   }
   if (!project.public || !project.public_url) {
     return { status: 'skipped: timeline is not public in CompanyCam', photos: count };
