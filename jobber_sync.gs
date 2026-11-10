@@ -277,13 +277,33 @@ function jobberEnsureClient_(lead) {
     };
   }
 
+  // Email and phone found nobody. A repeat customer with a new email would
+  // become a second client here, and Jobber's CompanyCam link would then open
+  // a second project at the same house. So look the ADDRESS up too: same
+  // house + same last name = the same person, reuse them. Same house with a
+  // different name (sold, new property manager) stays a new client and the
+  // office gets a "possible duplicate" email to decide.
+  var atAddress = [];
+  try { atAddress = jobberFindByAddress_(lead); } catch (err) {
+    Logger.log('Address lookup failed (booking unaffected): ' + err);
+  }
+  var same = null;
+  for (var a = 0; a < atAddress.length; a++) {
+    if (!atAddress[a].archived && jobberSameLastName_(lead.name, atAddress[a].lastName)) { same = atAddress[a]; break; }
+  }
+  if (same) {
+    jobberTagClient_(same.clientId);
+    jobberAddressMatchEmail_(lead, atAddress, same, null);
+    return { clientId: same.clientId, propertyId: same.propertyId };
+  }
+
   // New client — the property rides along in the same mutation.
   var names = jobberSplitName_(lead.name);
   var create = function (sms) {
     var data = jobberGql_(
       'mutation($input: ClientCreateInput!) {' +
       '  clientCreate(input: $input) {' +
-      '    client { id clientProperties(first: 5) { nodes { id address { street } } } }' +
+      '    client { id jobberWebUri clientProperties(first: 5) { nodes { id address { street } } } }' +
       '    userErrors { message path }' +
       '  }' +
       '}',
@@ -317,7 +337,122 @@ function jobberEnsureClient_(lead) {
   if (!props.length) throw new Error('Client created but no property came back.');
 
   jobberTagClient_(client.id);
+  if (atAddress.length) jobberAddressMatchEmail_(lead, atAddress, null, client.jobberWebUri);
   return { clientId: client.id, propertyId: props[0].id };
+}
+
+// --- Address lookup (2026-11-10) -------------------------------------------
+// House number + street name with the suffix dropped and the compass word
+// shortened, so "635 W Main Street" and "635 West Main St" are the same house
+// (and 123 North Main is never 123 South Main).
+const JOBBER_ADDR_SKIP = { street: 1, st: 1, road: 1, rd: 1, drive: 1, dr: 1,
+  lane: 1, ln: 1, avenue: 1, ave: 1, court: 1, ct: 1, circle: 1, cir: 1,
+  place: 1, pl: 1, trail: 1, trl: 1, boulevard: 1, blvd: 1, highway: 1,
+  hwy: 1, way: 1, terrace: 1, ter: 1, run: 1, parkway: 1, pkwy: 1 };
+const JOBBER_ADDR_COMPASS = { north: 'n', south: 's', east: 'e', west: 'w' };
+
+function jobberAddrParts_(street) {
+  var s = String(street || '').toLowerCase().split(/[,\n]/)[0]
+            .replace(/\b(apt|unit|suite|ste|#).*$/, '')
+            .replace(/[^a-z0-9 ]+/g, ' ').replace(/ +/g, ' ').trim();
+  var parts = s.split(' ');
+  if (!/^\d+$/.test(parts[0] || '')) return null;
+  var words = parts.slice(1).filter(function (w) { return !JOBBER_ADDR_SKIP[w]; })
+                   .map(function (w) { return JOBBER_ADDR_COMPASS[w] || w; });
+  // A street that is ONLY a suffix word ("12 Run Rd") keeps its words.
+  if (!words.length) words = parts.slice(1);
+  if (!words.length) return null;
+  // Search Jobber on the first real word, not on a lone "w".
+  var real = words.filter(function (w) { return w.length > 1; });
+  return { num: parts[0], name: words.join(' '), first: real[0] || words[0] };
+}
+
+// Every Jobber property at the booking's address, with who owns it.
+function jobberFindByAddress_(lead) {
+  var want = jobberAddrParts_(lead.address);
+  if (!want) return [];
+  var zip = String(lead.zip || '').replace(/\D/g, '').slice(0, 5);
+  var data = jobberGql_(
+    'query($term: String!) {' +
+    '  properties(first: 25, searchTerm: $term) {' +
+    '    nodes {' +
+    '      id address { street city postalCode }' +
+    '      client { id firstName lastName companyName isArchived jobberWebUri }' +
+    '    }' +
+    '  }' +
+    '}',
+    { term: want.num + ' ' + want.first }
+  );
+  var nodes = (data.properties && data.properties.nodes) || [];
+  var out = [];
+  nodes.forEach(function (n) {
+    var addr = n.address || {};
+    var got = jobberAddrParts_(addr.street);
+    if (!got || !n.client || got.num !== want.num || got.name !== want.name) return;
+    var theirZip = String(addr.postalCode || '').replace(/\D/g, '').slice(0, 5);
+    if (zip && theirZip && zip !== theirZip) return;
+    out.push({
+      clientId: n.client.id, propertyId: n.id,
+      firstName: n.client.firstName || '', lastName: n.client.lastName || '',
+      company: n.client.companyName || '', archived: !!n.client.isArchived,
+      uri: n.client.jobberWebUri || '', street: addr.street || '',
+    });
+  });
+  return out;
+}
+
+// "Mary Smith-Jones" books; the client on file is "Smith" -> same person.
+function jobberSameLastName_(fullName, clientLast) {
+  var norm = function (s) { return String(s || '').toLowerCase().replace(/[^a-z \-]/g, '').split(/[ \-]+/).filter(String); };
+  var words = String(fullName || '').trim().split(/\s+/);
+  if (words.length < 2) return false;          // one word typed: not enough to go on
+  var theirs = norm(clientLast);
+  // Either half of a hyphenated last name counts.
+  return norm(words[words.length - 1]).some(function (w) { return w.length > 1 && theirs.indexOf(w) !== -1; });
+}
+
+// Tells the office what the address lookup did. `same` = the client the
+// booking was put on; otherwise a new client was made (newUri) and the
+// people already at that address are listed so someone can merge or leave it.
+function jobberAddressMatchEmail_(lead, atAddress, same, newUri) {
+  try {
+    var who = function (c) {
+      var label = [c.firstName, c.lastName].join(' ').trim() || c.company || 'Client';
+      if (c.company && label !== c.company) label += ' (' + c.company + ')';
+      return '<li style="margin:0 0 6px;"><a href="' + escapeHtml(c.uri) + '">' + escapeHtml(label) + '</a> at ' +
+             escapeHtml(c.street) + (c.archived ? ' (archived)' : '') + '</li>';
+    };
+    var body = same
+      ? statusBanner('#1d4ed8', 'Online booking added to an existing client (same address, same last name).') +
+        '<p style="margin:0 0 12px;line-height:1.5;">They booked with an email and phone that are not on the Jobber client. ' +
+        'Add them to the client if they should get reminders there.</p><ul style="padding-left:18px;">' + who(same) + '</ul>'
+      : statusBanner('#d97706', 'Possible duplicate: this address already belongs to another client in Jobber.') +
+        '<p style="margin:0 0 12px;line-height:1.5;">The last name is different, so a new client was made' +
+        (newUri ? ' (<a href="' + escapeHtml(newUri) + '">open it</a>)' : '') + '. ' +
+        'If it is the same household, merge them in Jobber. If the house changed hands, nothing to do.</p>' +
+        '<p style="margin:0 0 6px;">Already at this address:</p><ul style="padding-left:18px;">' + atAddress.map(who).join('') + '</ul>';
+    MailApp.sendEmail({
+      to: NOTIFICATION_EMAIL,
+      subject: (same ? 'Online booking matched by address: ' : 'Possible duplicate client: ') + (lead.name || 'booking'),
+      htmlBody: emailShell(body +
+        '<p style="margin:14px 0 6px;">This booking:</p><table style="border-collapse:collapse;width:100%;">' +
+        contactRows(lead.name, lead.phone, lead.email, lead.address) + '</table>'),
+      from: FROM_ADDRESS,
+      name: FROM_NAME,
+    });
+  } catch (e) { Logger.log('Address match email failed (booking unaffected): ' + e); }
+}
+
+// Read-only check from the editor: what would the address lookup do?
+function testAddressLookup() {
+  [['Peter Castiglione', '1516 Chesapeake St, Charlottesville, VA', '22902'],
+   ['Jane Newowner', '1516 Chesapeake Street', '22902'],
+   ['Nobody Here', '999999 Nowhere Rd', '22901']].forEach(function (t) {
+    var hits = jobberFindByAddress_({ address: t[1], zip: t[2] });
+    var same = hits.filter(function (h) { return !h.archived && jobberSameLastName_(t[0], h.lastName); })[0];
+    Logger.log(t[0] + ' @ ' + t[1] + ' -> ' + hits.length + ' at address, ' +
+               (same ? 'REUSE ' + same.firstName + ' ' + same.lastName : hits.length ? 'NEW + duplicate email' : 'NEW'));
+  });
 }
 
 // Puts the Calendly chip on the client. Best-effort: a tagging hiccup must
