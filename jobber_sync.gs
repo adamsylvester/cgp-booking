@@ -1852,3 +1852,184 @@ function onlineSlotLostEmails_(hold, lead) {
         '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>') });
   } catch (e) { /* never block */ }
 }
+
+
+// ===== Photo emails =====
+// After a visit is completed in Jobber, email the client the CompanyCam
+// timeline (the public photo page) for their property.
+//   PHOTO_EMAIL_MODE script property: off (default) | test (every email goes
+//   to the office instead of the client) | live.
+// Completed visits come from the Supabase mirror (refreshed every 5 min); the
+// client's email comes from Jobber; the project is matched by street address.
+// Every decision is one row on the "Photo Emails" tab, which is also the
+// "already handled" list.
+const PHOTO_EMAIL_SHEET = 'Photo Emails';
+const PHOTO_EMAIL_WAIT_MIN = 45;    // let the crew finish uploading first
+const PHOTO_EMAIL_GIVE_UP_H = 6;    // still no photos by then: log it and move on
+const PHOTO_EMAIL_MAX_AGE_H = 30;   // never email about a visit older than this
+const PHOTO_EMAIL_MIN_PHOTOS = 3;
+const PHOTO_EMAIL_HOURS = [8, 20];  // only send between 8am and 8pm Eastern
+
+function photoEmailSweep() {
+  var mode = PropertiesService.getScriptProperties().getProperty('PHOTO_EMAIL_MODE') || 'off';
+  if (mode !== 'live' && mode !== 'test') return;
+  var hour = Number(Utilities.formatDate(new Date(), SCHED.timeZone, 'H'));
+  if (hour < PHOTO_EMAIL_HOURS[0] || hour >= PHOTO_EMAIL_HOURS[1]) return;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return;
+  try { photoEmailRun_(mode, 25, true); } finally { lock.releaseLock(); }
+}
+
+// Editor check: sends up to 2 of the latest real ones to the office only and
+// writes nothing to the sheet, so it can be run again and again.
+function photoEmailTest() {
+  Logger.log(JSON.stringify(photoEmailRun_('test', 2, false), null, 1));
+}
+
+// Run once from the editor: installs the 15-minute sweep.
+function photoEmailSetup() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'photoEmailSweep') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('photoEmailSweep').timeBased().everyMinutes(15).create();
+  photoEmailSheet_();
+  Logger.log('Photo email sweep installed. Mode: ' +
+    (PropertiesService.getScriptProperties().getProperty('PHOTO_EMAIL_MODE') || 'off'));
+}
+function photoEmailModeTest() { photoEmailSetMode_('test'); }
+function photoEmailModeLive() { photoEmailSetMode_('live'); }
+function photoEmailModeOff() { photoEmailSetMode_('off'); }
+function photoEmailSetMode_(m) {
+  PropertiesService.getScriptProperties().setProperty('PHOTO_EMAIL_MODE', m);
+  Logger.log('PHOTO_EMAIL_MODE = ' + m);
+}
+
+function photoEmailSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(PHOTO_EMAIL_SHEET);
+  if (!sheet) {
+    sheet = ss.insertSheet(PHOTO_EMAIL_SHEET);
+    sheet.appendRow(['Logged', 'Visit id', 'Client', 'Address', 'Completed', 'Status', 'Sent to', 'Photos', 'Link']);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, 9).setFontWeight('bold').setFontColor('#ffffff').setBackground('#1d4ed8');
+  }
+  return sheet;
+}
+
+function photoEmailRun_(mode, max, keepLog) {
+  var props = PropertiesService.getScriptProperties();
+  var ccToken = props.getProperty('CC_ACCESS_TOKEN');
+  if (!ccToken) throw new Error('CC_ACCESS_TOKEN is not set');
+  var tz = SCHED.timeZone, now = new Date();
+  var sheet = keepLog ? photoEmailSheet_() : null;
+  var seen = {}, sentKeys = {};
+  if (sheet && sheet.getLastRow() > 1) {
+    var from = Math.max(2, sheet.getLastRow() - 1500);
+    sheet.getRange(from, 1, sheet.getLastRow() - from + 1, 9).getValues().forEach(function (r) {
+      seen[r[1]] = 1;
+      if (String(r[5]).indexOf('sent') === 0) sentKeys[r[6] + '|' + r[8]] = 1;
+    });
+  }
+  var out = [];
+  var visits = photoEmailCompletedVisits_(now);
+  if (!keepLog) visits.reverse();   // the editor test wants the newest ones
+  for (var i = 0; i < visits.length && out.length < max; i++) {
+    var v = visits[i];
+    if (seen[v.visit_id]) continue;
+    var done = new Date(v.completed_at);
+    var ageH = (now - done) / 3600000;
+    if (ageH * 60 < PHOTO_EMAIL_WAIT_MIN) continue;
+    var waiting = ageH < PHOTO_EMAIL_GIVE_UP_H;
+    var res;
+    try {
+      res = photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now);
+    } catch (e) {
+      res = { status: waiting ? 'wait' : 'error: ' + String(e && e.message || e).slice(0, 120) };
+    }
+    if (res.status === 'wait' || (res.retry && waiting)) continue;   // look again next run
+    out.push({ client: v.client_name, status: res.status, to: res.to || '', photos: res.photos || 0 });
+    if (sheet) {
+      sheet.appendRow([now, v.visit_id, v.client_name || '', v.property_street || '',
+        Utilities.formatDate(done, tz, 'yyyy-MM-dd HH:mm'), res.status, res.to || '', res.photos || '', res.link || '']);
+    }
+  }
+  return out;
+}
+
+function photoEmailCompletedVisits_(now) {
+  var props = PropertiesService.getScriptProperties();
+  var base = String(props.getProperty('SUPABASE_URL') || '').replace(/\/$/, '');
+  var key = props.getProperty('SUPABASE_SERVICE_KEY');
+  if (!base || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY not set');
+  var since = new Date(now.getTime() - PHOTO_EMAIL_MAX_AGE_H * 3600000).toISOString();
+  var resp = UrlFetchApp.fetch(base + '/rest/v1/visits_mirror' +
+    '?select=visit_id,client_name,property_street,property_postal,completed_at' +
+    '&is_complete=is.true&deleted_at=is.null&completed_at=gte.' + encodeURIComponent(since) +
+    '&order=completed_at.asc&limit=200', {
+    muteHttpExceptions: true, headers: { apikey: key, Authorization: 'Bearer ' + key } });
+  if (resp.getResponseCode() >= 300) {
+    throw new Error('Supabase visits_mirror -> ' + resp.getResponseCode() + ' ' + resp.getContentText().slice(0, 200));
+  }
+  return JSON.parse(resp.getContentText() || '[]');
+}
+
+// One visit -> { status, to, photos, link, retry }. retry = "not ready yet,
+// worth another look" (no project / too few photos while the visit is fresh).
+function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
+  var data = jobberGql_(
+    'query($id: EncodedId!) { visit(id: $id) { isComplete ' +
+    'client { firstName isCompany isArchived emails { address primary } } ' +
+    'property { address { street1 postalCode } } } }', { id: v.visit_id });
+  var visit = data && data.visit;
+  if (!visit || !visit.isComplete) return { status: 'skipped: no longer completed in Jobber' };
+  var client = visit.client || {};
+  var emails = client.emails || [];
+  var pick = emails.filter(function (e) { return e.primary; })[0] || emails[0];
+  var email = pick && String(pick.address || '').trim();
+  if (!email) return { status: 'skipped: no email on the client' };
+  if (/@cvillegutterpros\.com$/i.test(email)) return { status: 'skipped: internal client' };
+
+  var addr = (visit.property && visit.property.address) || {};
+  var street = addr.street1 || v.property_street, postal = addr.postalCode || v.property_postal;
+  var key = ccAddrKey_(street, postal);
+  var project = key ? ccFindProject_(ccToken, key) : null;
+  if (!project) return { status: 'skipped: no CompanyCam project at this address', retry: true };
+
+  // Photos taken on the day the visit was completed (Eastern), client-safe only.
+  var day = Utilities.formatDate(done, tz, 'yyyy-MM-dd');
+  var start = Math.floor(Utilities.parseDate(day + ' 00:00', tz, 'yyyy-MM-dd HH:mm').getTime() / 1000);
+  var photos = ccRequest_(ccToken, 'get', '/projects/' + project.id + '/photos?per_page=50&start_date=' +
+    start + '&end_date=' + (start + 86400), null) || [];
+  var count = photos.filter(function (p) { return !p.internal; }).length;
+  if (count < PHOTO_EMAIL_MIN_PHOTOS) {
+    return { status: 'skipped: only ' + count + ' photos that day', photos: count, retry: true };
+  }
+  if (!project.public || !project.public_url) {
+    return { status: 'skipped: timeline is not public in CompanyCam', photos: count };
+  }
+  var link = project.public_url;
+  if (sentKeys[email + '|' + link + '|' + day]) return { status: 'skipped: already sent for this day', to: email, photos: count };
+
+  var first = client.isCompany ? '' : String(client.firstName || '').trim();
+  var today = Utilities.formatDate(now, tz, 'yyyy-MM-dd') === day;
+  var when = today ? 'today' : 'on ' + Utilities.formatDate(done, tz, 'EEEE');
+  var shortStreet = String(street || '').trim();
+  var inner =
+    '<h2 style="margin:0 0 8px;color:#1d4ed8;">Your photos are ready' + (first ? ', ' + escapeHtml(first) : '') + '</h2>' +
+    '<p style="margin:0 0 18px;color:#475467;line-height:1.5;">We finished up at <strong>' + escapeHtml(shortStreet) + '</strong> ' + when +
+    '. Our crew took photos while they worked so you can see exactly what we did, including the spots you can\'t see from the ground.</p>' +
+    '<p style="margin:0 0 6px;"><a href="' + link + '" style="display:inline-block;padding:12px 22px;border-radius:999px;font-weight:700;' +
+    'text-decoration:none;background:#1d4ed8;color:#fff;">See your photos</a></p>' +
+    '<p style="margin-top:22px;font-size:13px;color:#475467;line-height:1.5;">Questions about anything you see? Just reply to this email. It goes straight to our office.</p>' +
+    '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>';
+  var subject = 'Photos from your gutter service at ' + shortStreet;
+  var to = email;
+  if (mode !== 'live') {
+    to = NOTIFICATION_EMAIL;
+    subject = '[TEST, would go to ' + email + '] ' + subject;
+  }
+  MailApp.sendEmail({ to: to, subject: subject, htmlBody: emailShell(inner),
+                      replyTo: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME });
+  sentKeys[email + '|' + link + '|' + day] = 1;
+  return { status: mode === 'live' ? 'sent' : 'sent (test, to office)', to: email, photos: count, link: link + '|' + day };
+}
