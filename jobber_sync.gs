@@ -2022,7 +2022,7 @@ function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
     'text-decoration:none;background:#1d4ed8;color:#fff;">See your photos</a></p>' +
     '<p style="margin-top:22px;font-size:13px;color:#475467;line-height:1.5;">Questions about anything you see? Just reply to this email. It goes straight to our office.</p>' +
     '<p style="margin-top:22px;font-size:12px;color:#98a2b3;">' + FROM_NAME + ' · 434-422-4700</p>';
-  var subject = 'Photos from your gutter service at ' + shortStreet;
+  var subject = 'Photos from your service at ' + shortStreet;
   var to = email;
   if (mode !== 'live') {
     to = NOTIFICATION_EMAIL;
