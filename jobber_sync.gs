@@ -2032,9 +2032,11 @@ function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
 // ===========================================================================
 // Replaces the agency's GoHighLevel form + Zapier (2026-11-13). The Elementor
 // form's Webhook action posts here with ?action=website_lead&key=<secret>.
-// Order matters: the office email goes FIRST, so a Jobber or Quo problem can
-// never lose a lead. Then Jobber (client + request), then the customer text
-// and email, each behind its own switch in Script Properties:
+// Jobber (client + request) goes first and Jobber's own notification alerts
+// the office. The office email is the safety net: it is sent only when the
+// lead did not reach Jobber. Then the customer text and email. Switches in
+// Script Properties:
+//   WEBSITE_LEAD_OFFICE_EMAIL_ON  '1' = also email the office every lead
 //   WEBSITE_LEAD_KEY        shared secret that must match ?key= (required)
 //   WEBSITE_LEAD_JOBBER_ON  '1' = create the Jobber client + request
 //   WEBSITE_LEAD_TEXT_ON    '1' = text the customer from Quo
@@ -2141,11 +2143,9 @@ function websiteLead_(p) {
     return { ok: true, skipped: spam };
   }
 
-  // 1. Office email. First, and on its own, so nothing below can lose the lead.
-  try { websiteOfficeEmail_(lead); res.office = 'sent'; }
-  catch (err) { res.office = 'error: ' + String(err).slice(0, 200); }
-
-  // 2. Jobber client + request.
+  // 1. Jobber client + request. Jobber's own "new request" notification is
+  // the office's alert (Adam, 2026-11-13: a second email per lead is redundant).
+  var jobberErr = null;
   if (websiteProp_('WEBSITE_LEAD_JOBBER_ON') === '1') {
     var lock = LockService.getScriptLock();
     try {
@@ -2153,12 +2153,21 @@ function websiteLead_(p) {
       var made = jobberEnsureClient_(lead);
       res.jobber = websiteCreateRequest_(made.clientId, made.propertyId, lead);
     } catch (err) {
+      jobberErr = err;
       res.jobber = 'error: ' + String(err).slice(0, 300);
-      jobberNotifyFailure_(lead, err, 'creating the client/request for a website form lead', true);
     } finally {
       try { lock.releaseLock(); } catch (ignore) {}
     }
   } else { res.jobber = 'off'; }
+
+  // 2. Office email: only when the lead did NOT reach Jobber (step off or
+  // failed), or when WEBSITE_LEAD_OFFICE_EMAIL_ON = '1'. So nothing is ever
+  // lost, and nothing extra is sent on a normal day.
+  var inJobber = res.jobber && res.jobber !== 'off' && !jobberErr;
+  if (!inJobber || websiteProp_('WEBSITE_LEAD_OFFICE_EMAIL_ON') === '1') {
+    try { websiteOfficeEmail_(lead, jobberErr); res.office = 'sent'; }
+    catch (err) { res.office = 'error: ' + String(err).slice(0, 200); }
+  } else { res.office = 'off (in Jobber)'; }
 
   // 3. Text the customer from Quo.
   var firstName = jobberSplitName_(lead.name).first || 'there';
@@ -2181,8 +2190,13 @@ function websiteLead_(p) {
   return { ok: true, result: res };
 }
 
-function websiteOfficeEmail_(lead) {
-  var inner = '<h2 style="margin:0 0 16px;color:#1d4ed8;">New website request: ' + escapeHtml(lead.name) + '</h2>';
+function websiteOfficeEmail_(lead, jobberErr) {
+  var inner = '';
+  if (jobberErr) {
+    inner += statusBanner('#dc2626', 'This website request did NOT reach Jobber. Please enter it in Jobber by hand.') +
+      '<p style="margin:0 0 12px;font-size:12px;color:#b42318;white-space:pre-wrap;">' + escapeHtml(String(jobberErr).slice(0, 400)) + '</p>';
+  }
+  inner += '<h2 style="margin:0 0 16px;color:#1d4ed8;">New website request: ' + escapeHtml(lead.name) + '</h2>';
   inner += '<table style="border-collapse:collapse;width:100%;">' +
     contactRows(lead.name, lead.phone, lead.email, lead.addressTyped || lead.address);
   if (lead.service) inner += row('Services needed', escapeHtml(lead.service));
@@ -2193,7 +2207,7 @@ function websiteOfficeEmail_(lead) {
     inner += '<p style="margin:0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(lead.problem) + '</p>';
   }
   if (lead.page) inner += '<p style="margin-top:18px;font-size:12px;color:#667085;">Sent from ' + escapeHtml(lead.page) + '</p>';
-  var opts = { to: WEBSITE_LEAD_OFFICE_EMAIL, subject: 'New Webform Submitted ' + lead.name,
+  var opts = { to: WEBSITE_LEAD_OFFICE_EMAIL, subject: (jobberErr ? 'NOT IN JOBBER: ' : '') + 'New Webform Submitted ' + lead.name,
     htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME };
   if (lead.email) opts.replyTo = lead.email;
   MailApp.sendEmail(opts);
