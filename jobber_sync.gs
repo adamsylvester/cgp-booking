@@ -2068,11 +2068,14 @@ function websiteFields_(p) {
   return out;
 }
 
-function websitePick_(f, patterns) {
+// used (optional) collects the keys that were read, so whatever is left over
+// (a landing page's own questions, the referral form's "your name") can be
+// written on the request instead of being dropped.
+function websitePick_(f, patterns, used) {
   var keys = Object.keys(f);
   for (var i = 0; i < patterns.length; i++) {
     for (var j = 0; j < keys.length; j++) {
-      if (patterns[i].test(keys[j]) && f[keys[j]]) return f[keys[j]];
+      if (patterns[i].test(keys[j]) && f[keys[j]]) { if (used) used[keys[j]] = 1; return f[keys[j]]; }
     }
   }
   return '';
@@ -2080,26 +2083,27 @@ function websitePick_(f, patterns) {
 
 function websiteParseLead_(p) {
   var f = websiteFields_(p);
-  var first = websitePick_(f, [/^first/]);
-  var last = websitePick_(f, [/^last/]);
+  var used = {};
+  var first = websitePick_(f, [/^first/], used);
+  var last = websitePick_(f, [/^last/], used);
   var lead = {
-    name: (first || last) ? (first + ' ' + last).trim() : websitePick_(f, [/^(full )?name$/, /name/]),
-    email: websitePick_(f, [/e ?mail/]),
-    phone: websitePick_(f, [/phone/, /^num/, /mobile|cell/]),
-    address: websitePick_(f, [/^(street )?address/, /street/, /address/]),
-    problem: websitePick_(f, [/problem/, /^message/, /comment/, /detail/, /how can we/]),
-    city: websitePick_(f, [/^city/]),
-    consent: websitePick_(f, [/consent/]),
-    heard: websitePick_(f, [/hear/]),
-    service: websitePick_(f, [/service/]),
-    page: websitePick_(f, [/page url/, /referr?er/]) || String(p.page || ''),
+    name: (first || last) ? (first + ' ' + last).trim() : websitePick_(f, [/^(full )?name$/, /name/], used),
+    email: websitePick_(f, [/e ?mail/], used),
+    phone: websitePick_(f, [/phone/, /^num/, /mobile|cell/], used),
+    address: websitePick_(f, [/^(street )?address/, /street/, /address/], used),
+    problem: websitePick_(f, [/problem/, /^message/, /comment/, /detail/, /how can we/], used),
+    city: websitePick_(f, [/^city/], used),
+    consent: websitePick_(f, [/consent/], used),
+    heard: websitePick_(f, [/hear/], used),
+    service: websitePick_(f, [/service/], used),
+    page: websitePick_(f, [/page url/, /referr?er/], used) || String(p.page || ''),
     form: String(p.form_name || p['form[name]'] || p.form || ''),
   };
   // Jobber gets "street, city" with the ZIP on its own field; the office email
   // and the sheet keep exactly what the customer typed.
   // The long contact form asks for street, city and postal code separately;
   // the short quote form has one address box. Both end up as one line here.
-  var zipBox = websitePick_(f, [/postal/, /zip/]).replace(/[^0-9-]/g, '');
+  var zipBox = websitePick_(f, [/postal/, /zip/], used).replace(/[^0-9-]/g, '');
   if (lead.city && lead.address.toLowerCase().indexOf(lead.city.toLowerCase()) === -1) lead.address += ', ' + lead.city;
   if (zipBox && lead.address.indexOf(zipBox) === -1) lead.address += ' ' + zipBox;
   var zip = /\b(\d{5})(?:-\d{4})?\s*$/.exec(lead.address);
@@ -2107,6 +2111,10 @@ function websiteParseLead_(p) {
   lead.addressTyped = lead.address;
   lead.consent = /^(on|yes|true|1)$/i.test(lead.consent) ? 'yes' : 'no';
   lead.address = lead.address.replace(/[\s,]*\b\d{5}(?:-\d{4})?\s*$/, '').replace(/[\s,]+(VA|Virginia)\.?\s*$/i, '').trim();
+  // Everything the form sent that no rule above read, as "Label: answer" lines.
+  lead.extras = Object.keys(f).filter(function (k) {
+    return !used[k] && f[k] && !/^(page url|website url|recaptcha|g recaptcha response|form heading|form intro|promo banner|promo terms|services label)$/.test(k);
+  }).map(function (k) { return k.charAt(0).toUpperCase() + k.slice(1) + ': ' + f[k]; });
   lead.sourceText = WEBSITE_LEAD_SOURCE;
   lead.skipBookingTag = true;
   return lead;
@@ -2218,6 +2226,7 @@ function websiteOfficeEmail_(lead, jobberErr) {
     inner += sectionHead('What problems are you having');
     inner += '<p style="margin:0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(lead.problem) + '</p>';
   }
+  if (lead.extras && lead.extras.length) inner += '<p style="margin:12px 0 0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(lead.extras.join('\n')) + '</p>';
   if (lead.page) inner += '<p style="margin-top:18px;font-size:12px;color:#667085;">Sent from ' + escapeHtml(lead.page) + '</p>';
   var opts = { to: WEBSITE_LEAD_OFFICE_EMAIL, subject: (jobberErr ? 'NOT IN JOBBER: ' : '') + 'New Webform Submitted ' + lead.name,
     htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME };
@@ -2240,6 +2249,7 @@ function websiteCreateRequest_(clientId, propertyId, lead) {
   if (lead.service) note.push('Services needed: ' + lead.service);
   if (lead.problem) note.push('What problems are you having: ' + lead.problem);
   if (lead.heard) note.push('How Did You Hear About CGP: ' + lead.heard);
+  (lead.extras || []).forEach(function (line) { note.push(line); });
   note.push('Agreed to text messages on the form: ' + (lead.consent || 'no'));
   try {
     jobberGql_(
