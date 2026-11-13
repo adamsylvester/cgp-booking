@@ -2135,6 +2135,10 @@ function websiteLead_(p) {
   var key = websiteProp_('WEBSITE_LEAD_KEY');
   if (!key || String(p.key || '') !== key) return { ok: false, error: 'bad key' };
 
+  // Job applications (the Careers form) are not leads: no Jobber, just an
+  // email to whoever handles hiring, with the resume.
+  if (/career|resume|application/i.test(String(p['form[name]'] || p.form_name || ''))) return websiteCareer_(p);
+
   var lead = websiteParseLead_(p);
   var spam = websiteSpamReason_(lead);
   var digits = websitePhone10_(lead.phone);
@@ -2224,7 +2228,7 @@ function websiteOfficeEmail_(lead, jobberErr) {
 // One request per lead, titled by the service asked for; what the customer
 // wrote goes on as a pinned note (requestDetails only takes a job form).
 function websiteCreateRequest_(clientId, propertyId, lead) {
-  var title = ((lead.service || 'Website request') + ' (Website)').slice(0, 250);
+  var title = ((lead.service || 'Quote request') + ' (Website)').slice(0, 250);
   var data = jobberGql_(
     'mutation($input: RequestCreateInput!) {' +
     '  requestCreate(input: $input) { request { id } userErrors { message path } }' +
@@ -2283,6 +2287,45 @@ function websiteLogRow_(lead, status, res) {
   } catch (err) {
     Logger.log('Website lead log failed: ' + err);
   }
+}
+
+// ---- Careers form: email the application to hiring, resume attached ----
+var WEBSITE_CAREERS_EMAIL = 'farrell.long@cvillegutterpros.com';   // Adam, 2026-11-13
+
+function websiteCareer_(p) {
+  var lead = websiteParseLead_(p);
+  var f = websiteFields_(p);
+  var resume = websitePick_(f, [/resume/, /upload/, /file/]);
+  var links = String(resume || '').split(/[\s,]+/).filter(function (u) { return /^https?:\/\//.test(u); });
+  var res = { office: '', jobber: 'careers', text: '', email: '' };
+  if (!lead.name || !(lead.email || websitePhone10_(lead.phone))) {
+    websiteLogRow_(lead, 'skipped: careers form without a name or a way to reach them', res);
+    return { ok: true, skipped: 'incomplete application' };
+  }
+  var inner = '<h2 style="margin:0 0 16px;color:#1d4ed8;">New job application: ' + escapeHtml(lead.name) + '</h2>';
+  inner += '<table style="border-collapse:collapse;width:100%;">' +
+    contactRows(lead.name, lead.phone, lead.email, lead.addressTyped || lead.address) + '</table>';
+  var files = [];
+  links.forEach(function (u) {
+    inner += '<p style="margin:14px 0 0;"><a href="' + escapeHtml(u) + '">Open the resume</a></p>';
+    // Attaching is a nicety: the link above always works even when the fetch is refused.
+    try {
+      var r = UrlFetchApp.fetch(u, { muteHttpExceptions: true });
+      if (r.getResponseCode() === 200) files.push(r.getBlob());
+    } catch (err) { Logger.log('Resume fetch failed (link still in the email): ' + err); }
+  });
+  if (!links.length) inner += '<p style="margin:14px 0 0;color:#b42318;">No resume file came with this application.</p>';
+  if (lead.page) inner += '<p style="margin-top:18px;font-size:12px;color:#667085;">Sent from ' + escapeHtml(lead.page) + '</p>';
+  var opts = { to: WEBSITE_CAREERS_EMAIL, subject: 'New job application: ' + lead.name,
+    htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME };
+  if (lead.email) opts.replyTo = lead.email;
+  if (files.length) opts.attachments = files;
+  try { MailApp.sendEmail(opts); res.office = 'sent to ' + WEBSITE_CAREERS_EMAIL + (files.length ? ' (resume attached)' : ' (resume as a link)'); }
+  catch (err) { res.office = 'error: ' + String(err).slice(0, 200); }
+  lead.service = 'Job application';
+  lead.problem = links.join(' ');
+  websiteLogRow_(lead, 'careers', res);
+  return { ok: res.office.indexOf('sent') === 0, result: res };
 }
 
 // Editor test: runs the parser + spam rules on sample posts, sends nothing.
