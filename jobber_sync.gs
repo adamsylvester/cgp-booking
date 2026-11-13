@@ -270,7 +270,7 @@ function jobberEnsureClient_(lead) {
   if (!found && phone) found = jobberFindClient_(phone, 'PHONES');
 
   if (found) {
-    jobberTagClient_(found.id);
+    if (!lead.skipBookingTag) jobberTagClient_(found.id);
     return {
       clientId: found.id,
       propertyId: jobberEnsureProperty_(found, lead),
@@ -292,7 +292,7 @@ function jobberEnsureClient_(lead) {
     if (!atAddress[a].archived && jobberSameLastName_(lead.name, atAddress[a].lastName)) { same = atAddress[a]; break; }
   }
   if (same) {
-    jobberTagClient_(same.clientId);
+    if (!lead.skipBookingTag) jobberTagClient_(same.clientId);
     jobberAddressMatchEmail_(lead, atAddress, same, null);
     return { clientId: same.clientId, propertyId: same.propertyId };
   }
@@ -314,7 +314,7 @@ function jobberEnsureClient_(lead) {
           emails: email ? [{ description: 'MAIN', address: email, primary: true }] : [],
           phones: phone ? [{ description: 'MOBILE', number: phone, primary: true, smsAllowed: sms }] : [],
           properties: [{ address: jobberAddress_(lead) }],
-          sourceAttribution: { sourceText: 'Online booking (book.cvillegutterpros.com)' },
+          sourceAttribution: { sourceText: lead.sourceText || 'Online booking (book.cvillegutterpros.com)' },
           receivesReminders: true,
           receivesReviewRequests: true,
         },
@@ -336,7 +336,7 @@ function jobberEnsureClient_(lead) {
   var props = (client.clientProperties && client.clientProperties.nodes) || [];
   if (!props.length) throw new Error('Client created but no property came back.');
 
-  jobberTagClient_(client.id);
+  if (!lead.skipBookingTag) jobberTagClient_(client.id);
   if (atAddress.length) jobberAddressMatchEmail_(lead, atAddress, null, client.jobberWebUri);
   return { clientId: client.id, propertyId: props[0].id };
 }
@@ -2025,4 +2025,250 @@ function photoEmailOne_(v, done, mode, ccToken, sentKeys, tz, now) {
                       replyTo: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME });
   sentKeys[email + '|' + link + '|' + day] = 1;
   return { status: mode === 'live' ? 'sent' : 'sent (test, to office)', to: email, photos: count, link: link + '|' + day };
+}
+
+// ===========================================================================
+// WEBSITE LEAD (cvillegutterpros.com contact / quote forms)
+// ===========================================================================
+// Replaces the agency's GoHighLevel form + Zapier (2026-11-13). The Elementor
+// form's Webhook action posts here with ?action=website_lead&key=<secret>.
+// Order matters: the office email goes FIRST, so a Jobber or Quo problem can
+// never lose a lead. Then Jobber (client + request), then the customer text
+// and email, each behind its own switch in Script Properties:
+//   WEBSITE_LEAD_KEY        shared secret that must match ?key= (required)
+//   WEBSITE_LEAD_JOBBER_ON  '1' = create the Jobber client + request
+//   WEBSITE_LEAD_TEXT_ON    '1' = text the customer from Quo
+//   WEBSITE_LEAD_EMAIL_ON   '1' = email the customer a short confirmation
+//   QUO_API_KEY, QUO_FROM_NUMBER (E.164)   needed only for the text
+// Every submission, spam included, lands on the "Website Leads" tab.
+var WEBSITE_LEAD_OFFICE_EMAIL = 'office@cvillegutterpros.com';
+var WEBSITE_LEAD_SHEET = 'Website Leads';
+var WEBSITE_LEAD_SOURCE = 'Website form (cvillegutterpros.com)';
+var WEBSITE_LEAD_TEXT = 'Hi {first}, this is Charlottesville Gutter Pros. We got your request and will be in touch shortly. You can reply to this text with any questions.';
+var WEBSITE_LEAD_EMAIL_SUBJECT = 'We got your request';
+var WEBSITE_LEAD_EMAIL_BODY = 'Hi {first},\n\nThanks for reaching out to Charlottesville Gutter Pros. We got your request and someone from our office will contact you shortly.\n\nIf it is easier, call or text us at (434) 422-4700.\n\nCharlottesville Gutter Pros';
+var WEBSITE_LEAD_DEDUPE_MIN = 10;   // same phone twice inside this window = a double click, handled once
+
+function websiteProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
+
+// Elementor sends either plain "Label=value" pairs or, with Advanced Data on,
+// fields[<id>][value]. Both collapse to one lowercase key -> value map.
+function websiteFields_(p) {
+  var out = {};
+  Object.keys(p || {}).forEach(function (k) {
+    var m = /^fields\[([^\]]+)\]\[value\]$/.exec(k);
+    var key = m ? m[1] : (/^(fields|meta|form)\[/.test(k) ? '' : k);
+    if (!key) return;
+    out[String(key).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()] = String(p[k] || '').trim();
+  });
+  var meta = /^meta\[page_url\]\[value\]$/;
+  Object.keys(p || {}).forEach(function (k) { if (meta.test(k)) out['page url'] = String(p[k] || ''); });
+  return out;
+}
+
+function websitePick_(f, patterns) {
+  var keys = Object.keys(f);
+  for (var i = 0; i < patterns.length; i++) {
+    for (var j = 0; j < keys.length; j++) {
+      if (patterns[i].test(keys[j]) && f[keys[j]]) return f[keys[j]];
+    }
+  }
+  return '';
+}
+
+function websiteParseLead_(p) {
+  var f = websiteFields_(p);
+  var first = websitePick_(f, [/^first/]);
+  var last = websitePick_(f, [/^last/]);
+  var lead = {
+    name: (first || last) ? (first + ' ' + last).trim() : websitePick_(f, [/^(full )?name$/, /name/]),
+    email: websitePick_(f, [/e ?mail/]),
+    phone: websitePick_(f, [/phone/, /^num/, /mobile|cell/]),
+    address: websitePick_(f, [/address/, /street/]),
+    problem: websitePick_(f, [/problem/, /message/, /comment/, /detail/, /how can we/]),
+    heard: websitePick_(f, [/hear/]),
+    service: websitePick_(f, [/service/]),
+    page: websitePick_(f, [/page url/, /referr?er/]) || String(p.page || ''),
+    form: String(p.form_name || p['form[name]'] || p.form || ''),
+  };
+  // Jobber gets "street, city" with the ZIP on its own field; the office email
+  // and the sheet keep exactly what the customer typed.
+  var zip = /\b(\d{5})(?:-\d{4})?\s*$/.exec(lead.address);
+  lead.zip = zip ? zip[1] : '';
+  lead.addressTyped = lead.address;
+  lead.address = lead.address.replace(/[\s,]*\b\d{5}(?:-\d{4})?\s*$/, '').replace(/[\s,]+(VA|Virginia)\.?\s*$/i, '').trim();
+  lead.sourceText = WEBSITE_LEAD_SOURCE;
+  lead.skipBookingTag = true;
+  return lead;
+}
+
+function websitePhone10_(raw) {
+  var d = String(raw || '').replace(/\D/g, '');
+  if (d.length === 11 && d[0] === '1') d = d.slice(1);
+  return d.length === 10 ? d : '';
+}
+
+// Why a submission is not treated as a lead ('' = it is one). The site's old
+// quote forms drew a bot a day: no real phone, dropdown left on its
+// placeholder, links in the message.
+function websiteSpamReason_(lead) {
+  var d = websitePhone10_(lead.phone);
+  if (!lead.name) return 'no name';
+  if (!d) return 'no 10-digit phone';
+  if (/^[01]/.test(d) || /^[01]/.test(d.slice(3))) return 'not a real US number';
+  if (/\?\s*$/.test(lead.service)) return 'service left on the placeholder';
+  if (/https?:\/\/|www\.|\[url/i.test(lead.problem + ' ' + lead.name)) return 'link in the message';
+  return '';
+}
+
+function websiteLead_(p) {
+  var key = websiteProp_('WEBSITE_LEAD_KEY');
+  if (!key || String(p.key || '') !== key) return { ok: false, error: 'bad key' };
+
+  var lead = websiteParseLead_(p);
+  var spam = websiteSpamReason_(lead);
+  var digits = websitePhone10_(lead.phone);
+  var res = { office: '', jobber: '', text: '', email: '' };
+
+  if (!spam && digits) {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('wl:' + digits)) spam = 'duplicate inside ' + WEBSITE_LEAD_DEDUPE_MIN + ' min';
+    else cache.put('wl:' + digits, '1', WEBSITE_LEAD_DEDUPE_MIN * 60);
+  }
+
+  if (spam) {
+    websiteLogRow_(lead, 'skipped: ' + spam, res);
+    return { ok: true, skipped: spam };
+  }
+
+  // 1. Office email. First, and on its own, so nothing below can lose the lead.
+  try { websiteOfficeEmail_(lead); res.office = 'sent'; }
+  catch (err) { res.office = 'error: ' + String(err).slice(0, 200); }
+
+  // 2. Jobber client + request.
+  if (websiteProp_('WEBSITE_LEAD_JOBBER_ON') === '1') {
+    var lock = LockService.getScriptLock();
+    try {
+      lock.waitLock(30000);
+      var made = jobberEnsureClient_(lead);
+      res.jobber = websiteCreateRequest_(made.clientId, made.propertyId, lead);
+    } catch (err) {
+      res.jobber = 'error: ' + String(err).slice(0, 300);
+      jobberNotifyFailure_(lead, err, 'creating the client/request for a website form lead', true);
+    } finally {
+      try { lock.releaseLock(); } catch (ignore) {}
+    }
+  } else { res.jobber = 'off'; }
+
+  // 3. Text the customer from Quo.
+  var firstName = jobberSplitName_(lead.name).first || 'there';
+  if (websiteProp_('WEBSITE_LEAD_TEXT_ON') === '1') {
+    try { res.text = websiteQuoText_('+1' + digits, WEBSITE_LEAD_TEXT.replace('{first}', firstName)); }
+    catch (err) { res.text = 'error: ' + String(err).slice(0, 200); }
+  } else { res.text = 'off'; }
+
+  // 4. Short confirmation email to the customer.
+  if (websiteProp_('WEBSITE_LEAD_EMAIL_ON') === '1' && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(lead.email)) {
+    try {
+      MailApp.sendEmail({ to: lead.email, subject: WEBSITE_LEAD_EMAIL_SUBJECT,
+        body: WEBSITE_LEAD_EMAIL_BODY.replace('{first}', firstName),
+        replyTo: WEBSITE_LEAD_OFFICE_EMAIL, from: FROM_ADDRESS, name: FROM_NAME });
+      res.email = 'sent';
+    } catch (err) { res.email = 'error: ' + String(err).slice(0, 200); }
+  } else { res.email = 'off'; }
+
+  websiteLogRow_(lead, 'lead', res);
+  return { ok: true, result: res };
+}
+
+function websiteOfficeEmail_(lead) {
+  var inner = '<h2 style="margin:0 0 16px;color:#1d4ed8;">New website request: ' + escapeHtml(lead.name) + '</h2>';
+  inner += '<table style="border-collapse:collapse;width:100%;">' +
+    contactRows(lead.name, lead.phone, lead.email, lead.addressTyped || lead.address);
+  if (lead.service) inner += row('Services needed', escapeHtml(lead.service));
+  if (lead.heard) inner += row('How they heard', escapeHtml(lead.heard));
+  inner += '</table>';
+  if (lead.problem) {
+    inner += sectionHead('What problems are you having');
+    inner += '<p style="margin:0;line-height:1.5;white-space:pre-wrap;">' + escapeHtml(lead.problem) + '</p>';
+  }
+  if (lead.page) inner += '<p style="margin-top:18px;font-size:12px;color:#667085;">Sent from ' + escapeHtml(lead.page) + '</p>';
+  var opts = { to: WEBSITE_LEAD_OFFICE_EMAIL, subject: 'New Webform Submitted ' + lead.name,
+    htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME };
+  if (lead.email) opts.replyTo = lead.email;
+  MailApp.sendEmail(opts);
+}
+
+// One request per lead, titled by the service asked for; what the customer
+// wrote goes on as a pinned note (requestDetails only takes a job form).
+function websiteCreateRequest_(clientId, propertyId, lead) {
+  var title = ((lead.service || 'Website request') + ' (Website)').slice(0, 250);
+  var data = jobberGql_(
+    'mutation($input: RequestCreateInput!) {' +
+    '  requestCreate(input: $input) { request { id } userErrors { message path } }' +
+    '}',
+    { input: { clientId: clientId, propertyId: propertyId, title: title } }
+  );
+  var requestId = jobberCheckErrors_(data.requestCreate, 'requestCreate').request.id;
+  var note = ['Website form' + (lead.page ? ' (' + lead.page + ')' : '')];
+  if (lead.service) note.push('Services needed: ' + lead.service);
+  if (lead.problem) note.push('What problems are you having: ' + lead.problem);
+  if (lead.heard) note.push('How Did You Hear About CGP: ' + lead.heard);
+  try {
+    jobberGql_(
+      'mutation($requestId: EncodedId!, $input: RequestCreateNoteInput!) {' +
+      '  requestCreateNote(requestId: $requestId, input: $input) { userErrors { message } }' +
+      '}',
+      { requestId: requestId, input: { message: note.join('\n'), pinned: true } }
+    );
+  } catch (err) {
+    Logger.log('Website request note failed (request still created): ' + err);
+  }
+  return requestId;
+}
+
+// Quo takes the raw API key in the Authorization header, not Bearer.
+function websiteQuoText_(toE164, content) {
+  var key = websiteProp_('QUO_API_KEY'), from = websiteProp_('QUO_FROM_NUMBER');
+  if (!key || !from) throw new Error('QUO_API_KEY / QUO_FROM_NUMBER missing');
+  var resp = UrlFetchApp.fetch('https://api.quo.com/v1/messages', {
+    method: 'post', contentType: 'application/json', muteHttpExceptions: true,
+    headers: { Authorization: key },
+    payload: JSON.stringify({ from: from, to: [toE164], content: content })
+  });
+  var code = resp.getResponseCode();
+  if (code !== 200 && code !== 201 && code !== 202) {
+    throw new Error('Quo ' + code + ': ' + resp.getContentText().slice(0, 200));
+  }
+  var body = {};
+  try { body = JSON.parse(resp.getContentText()); } catch (ignore) {}
+  return (body.data || body).id || 'sent';
+}
+
+function websiteLogRow_(lead, status, res) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName(WEBSITE_LEAD_SHEET);
+    if (!sheet) {
+      sheet = ss.insertSheet(WEBSITE_LEAD_SHEET);
+      sheet.appendRow(['Received', 'Status', 'Name', 'Phone', 'Email', 'Address', 'Service', 'Problem',
+        'How heard', 'Page', 'Office email', 'Jobber request', 'Text', 'Customer email']);
+      sheet.setFrozenRows(1);
+    }
+    sheet.appendRow([new Date(), status, lead.name, lead.phone, lead.email, lead.addressTyped || lead.address, lead.service,
+      lead.problem, lead.heard, lead.page, res.office, res.jobber, res.text, res.email]);
+  } catch (err) {
+    Logger.log('Website lead log failed: ' + err);
+  }
+}
+
+// Editor test: runs the parser + spam rules on sample posts, sends nothing.
+function testWebsiteLeadParse() {
+  var real = websiteParseLead_({ Name: 'Test Person', Email: 'test@example.com', Phone: '(434) 555-0142',
+    Address: '123 Main St, Charlottesville 22901', 'What problems are you having': 'Gutters overflow',
+    'How did you hear about us': 'Online search', 'Services Needed': 'Gutter Cleaning' });
+  var bot = websiteParseLead_({ 'fields[name][value]': 'David Brown', 'fields[num_field][value]': '2025550101',
+    'fields[email][value]': 'x@gmail.com', 'fields[services][value]': 'Services Needed?' });
+  Logger.log(JSON.stringify(real) + ' -> "' + websiteSpamReason_(real) + '"');
+  Logger.log(JSON.stringify(bot) + ' -> "' + websiteSpamReason_(bot) + '"');
 }

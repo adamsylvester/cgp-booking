@@ -147,6 +147,15 @@ function depositFor(data) {
 
 function doPost(e) {
   try {
+    // Website forms (Elementor's Webhook action) post form-encoded fields, not
+    // JSON, and mark themselves with ?action=website_lead on the URL. Handled
+    // before the JSON parse below, which would throw on that body.
+    if (e && e.parameter && e.parameter.action === 'website_lead') {
+      return jsonOutput(typeof websiteLead_ === 'function'
+        ? websiteLead_(e.parameter)
+        : { ok: false, error: 'jobber_sync.gs missing' });
+    }
+
     var data = JSON.parse(e.postData.contents);
 
     // Calendly posts its own payload shape (no "action"), so it's recognized by
