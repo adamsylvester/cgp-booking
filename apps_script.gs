@@ -166,6 +166,15 @@ function doPost(e) {
 
     var action = data.action || 'lead';
 
+    // "Request a callback" on the booking page (replaced the GoHighLevel form
+    // 2026-11-13). Self-contained: lives in jobber_sync.gs with the website
+    // lead intake and never touches the checkout path.
+    if (action === 'callback') {
+      return jsonOutput(typeof websiteCallback_ === 'function'
+        ? websiteCallback_(data)
+        : { ok: false, error: 'jobber_sync.gs missing' });
+    }
+
     // Funnel analytics. Deliberately first and self-contained: a tracking
     // failure must never touch checkout, so it can't throw past this block.
     if (action === 'event') {

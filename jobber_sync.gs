@@ -2289,6 +2289,94 @@ function websiteLogRow_(lead, status, res) {
   }
 }
 
+// ---- Booking page "Request a callback": name + phone, no address ----
+// Posted as JSON by book.cvillegutterpros.com (no key, like the page's other
+// actions; the spam rules and the 10-minute repeat guard still apply).
+// No address is asked for, so this never goes through jobberEnsureClient_
+// (which would add an "Address not provided" property to an existing client):
+// an existing client is reused as is, a new one is created without a property.
+function websiteCallback_(d) {
+  if (String(d.website || '').trim()) return { ok: true };   // the hidden trap field: a bot
+  var lead = {
+    name: String(d.name || '').trim().slice(0, 120), email: String(d.email || '').trim().slice(0, 160),
+    phone: String(d.phone || '').trim().slice(0, 40), address: '', addressTyped: '',
+    problem: String(d.note || '').trim().slice(0, 1500), heard: '', service: 'Callback request',
+    page: 'book.cvillegutterpros.com (Request a callback)', form: 'Callback', consent: 'no',
+  };
+  var res = { office: '', jobber: '', text: 'off', email: 'off' };
+  var spam = websiteSpamReason_(lead);
+  var digits = websitePhone10_(lead.phone);
+  if (!spam) {
+    var cache = CacheService.getScriptCache();
+    if (cache.get('wl:' + digits)) spam = 'duplicate inside ' + WEBSITE_LEAD_DEDUPE_MIN + ' min';
+    else cache.put('wl:' + digits, '1', WEBSITE_LEAD_DEDUPE_MIN * 60);
+  }
+  if (spam) {
+    websiteLogRow_(lead, 'skipped: ' + spam, res);
+    // A real person who mistyped still sees "we got it"; only a repeat is told so.
+    return { ok: true, skipped: spam };
+  }
+  var jobberErr = null;
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(30000);
+    var found = null;
+    if (lead.email) found = jobberFindClient_(lead.email, 'PRIMARY_EMAIL') || jobberFindClient_(lead.email, 'EMAILS');
+    if (!found) found = jobberFindClient_(lead.phone, 'PHONES');
+    var clientId = found ? found.id : websiteCreateClientNoProperty_(lead);
+    var data = jobberGql_(
+      'mutation($input: RequestCreateInput!) {' +
+      '  requestCreate(input: $input) { request { id } userErrors { message path } }' +
+      '}',
+      { input: { clientId: clientId, title: 'Callback request (Website)' } }
+    );
+    res.jobber = jobberCheckErrors_(data.requestCreate, 'requestCreate').request.id;
+    try {
+      jobberGql_(
+        'mutation($requestId: EncodedId!, $input: RequestCreateNoteInput!) {' +
+        '  requestCreateNote(requestId: $requestId, input: $input) { userErrors { message } }' +
+        '}',
+        { requestId: res.jobber, input: { pinned: true, message:
+          'Asked for a callback on the booking page.\nCall: ' + lead.phone + (lead.problem ? '\nThey wrote: ' + lead.problem : '') } }
+      );
+    } catch (err) { Logger.log('Callback note failed (request still created): ' + err); }
+  } catch (err) {
+    jobberErr = err;
+    res.jobber = 'error: ' + String(err).slice(0, 300);
+  } finally {
+    try { lock.releaseLock(); } catch (ignore) {}
+  }
+  if (jobberErr || websiteProp_('WEBSITE_LEAD_OFFICE_EMAIL_ON') === '1') {
+    try { websiteOfficeEmail_(lead, jobberErr); res.office = 'sent'; }
+    catch (err) { res.office = 'error: ' + String(err).slice(0, 200); }
+  } else { res.office = 'off (in Jobber)'; }
+  websiteLogRow_(lead, 'callback', res);
+  return { ok: true, result: res };
+}
+
+function websiteCreateClientNoProperty_(lead) {
+  var names = jobberSplitName_(lead.name);
+  var create = function (sms) {
+    var data = jobberGql_(
+      'mutation($input: ClientCreateInput!) {' +
+      '  clientCreate(input: $input) { client { id } userErrors { message path } }' +
+      '}',
+      { input: {
+        firstName: names.first, lastName: names.last,
+        emails: lead.email ? [{ description: 'MAIN', address: lead.email, primary: true }] : [],
+        phones: [{ description: 'MOBILE', number: lead.phone, primary: true, smsAllowed: sms }],
+        sourceAttribution: { sourceText: 'Callback request (book.cvillegutterpros.com)' },
+      } }
+    );
+    return jobberCheckErrors_(data.clientCreate, 'clientCreate').client.id;
+  };
+  try { return create(true); }
+  catch (err) {
+    if (!/cannot receive text/i.test(String(err))) throw err;
+    return create(false);   // a landline: keep the client, drop the text toggle
+  }
+}
+
 // ---- Careers form: email the application to hiring, resume attached ----
 var WEBSITE_CAREERS_EMAIL = 'farrell.long@cvillegutterpros.com';   // Adam, 2026-11-13
 
