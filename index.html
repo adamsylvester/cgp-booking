@@ -846,21 +846,15 @@
     .ow-body[hidden] { display: none; }
     @media (max-width: 420px) { .ow-body { padding: 0 8px 14px; } }
 
-    /* No fixed height: form_embed.js sets the iframe to the form's real height
-       (393px today) and the wrapper follows it. The min-height is only a floor
-       so the card doesn't collapse before that script reports back — set high,
-       it just becomes dead space under the Submit button. */
-    .callback-iframe-wrap {
-      width: 100%;
-      min-height: 260px;
-    }
-
-    .callback-iframe-wrap iframe {
-      width: 100%;
-      min-height: 260px;
-      border: 0;
-      display: block;
-    }
+    /* Request a callback: our own short form (replaced the GoHighLevel embed
+       2026-11-13). Posts to the booking Apps Script, action "callback". */
+    .callback-form { width: 100%; text-align: left; }
+    .callback-form .field { margin-bottom: 14px; }
+    .callback-form .cta { width: 100%; margin-top: 4px; }
+    .cb-trap { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+    .cb-msg { margin: 12px 0 0; font-size: 14px; line-height: 1.5; color: var(--text); min-height: 1.5em; }
+    .cb-msg.bad { color: #b42318; font-weight: 700; }
+    .cb-msg.good { color: #15803d; font-weight: 700; }
 
   </style>
 </head>
@@ -1397,25 +1391,27 @@
           <span class="ow-cta">Request a callback <span class="ow-chev" aria-hidden="true">&rsaquo;</span></span>
         </button>
         <div class="ow-body" id="owCallback" hidden>
-          <div class="callback-iframe-wrap">
-            <iframe
-              data-src="https://api.leadconnectorhq.com/widget/form/x37UvG0xSxSkPto8JMce"
-              style="width:100%;height:100%;border:none;border-radius:4px"
-              id="inline-x37UvG0xSxSkPto8JMce"
-              data-layout="{'id':'INLINE'}"
-              data-trigger-type="alwaysShow"
-              data-trigger-value=""
-              data-activation-type="alwaysActivated"
-              data-activation-value=""
-              data-deactivation-type="neverDeactivate"
-              data-deactivation-value=""
-              data-form-name="Gutter Cleaning Booking Form Lead - LIVE"
-              data-height="undefined"
-              data-layout-iframe-id="inline-x37UvG0xSxSkPto8JMce"
-              data-form-id="x37UvG0xSxSkPto8JMce"
-              title="Gutter Cleaning Booking Form Lead - LIVE">
-            </iframe>
-          </div>
+          <form class="callback-form" id="cbForm" novalidate>
+            <div class="field">
+              <label for="cbName">Name</label>
+              <input id="cbName" type="text" autocomplete="name" required />
+            </div>
+            <div class="field">
+              <label for="cbPhone">Phone</label>
+              <input id="cbPhone" type="tel" autocomplete="tel" inputmode="tel" required />
+            </div>
+            <div class="field">
+              <label for="cbEmail">Email (optional)</label>
+              <input id="cbEmail" type="email" autocomplete="email" />
+            </div>
+            <div class="field">
+              <label for="cbNote">Anything we should know? (optional)</label>
+              <input id="cbNote" type="text" maxlength="500" />
+            </div>
+            <input id="cbWebsite" class="cb-trap" type="text" tabindex="-1" autocomplete="off" aria-hidden="true" />
+            <button class="cta" id="cbSend" type="submit">Request a callback</button>
+            <p class="cb-msg" id="cbMsg" role="status" aria-live="polite"></p>
+          </form>
         </div>
       </div>
 
@@ -3089,25 +3085,56 @@
         });
       });
 
-      // 6. Completions inside the embeds. Our scheduler posts 'cgp.booked';
-      //    LeadConnector's is matched loosely, so it may simply never fire —
-      //    in which case callback volume still comes from GHL itself.
+      // 6. Completions inside the embeds. Our scheduler posts 'cgp.booked'.
       window.addEventListener('message', function (ev) {
         var d = ev.data;
         if (d && typeof d === 'object' && d.type === 'cgp.booked') {
           if (d.service === 'assessment') once('assessment_booked');
-          return;
         }
-        if (String(ev.origin || '').indexOf('leadconnectorhq.com') === -1) return;
-        var s = '';
-        try { s = typeof d === 'string' ? d : JSON.stringify(d); } catch (e) { return; }
-        if (/submit|submission|form-?sent|thank/i.test(s)) once('callback_submitted');
       });
+
+      // 7. Request a callback: our own form (was a GoHighLevel embed).
+      (function () {
+        var form = document.getElementById('cbForm');
+        if (!form) return;
+        var URL_ = (typeof APPS_SCRIPT_URL !== 'undefined' && APPS_SCRIPT_URL) ||
+          'https://script.google.com/macros/s/AKfycbwqXVInrbcXK5Z4YLU-rFqa3d4ycv0GYOdSFP_D9O4opkOI1KZQqDCKspUPj6GtYacr/exec';
+        var msg = document.getElementById('cbMsg'), btn = document.getElementById('cbSend');
+        function say(text, cls) { msg.textContent = text; msg.className = 'cb-msg' + (cls ? ' ' + cls : ''); }
+        form.addEventListener('submit', function (ev) {
+          ev.preventDefault();
+          var name = document.getElementById('cbName').value.trim();
+          var phone = document.getElementById('cbPhone').value.trim();
+          var digits = phone.replace(/\D/g, '').replace(/^1(?=\d{10}$)/, '');
+          if (!name) return say('Please add your name.', 'bad');
+          if (digits.length !== 10) return say('Please enter a 10-digit phone number so we can call you.', 'bad');
+          var label = btn.textContent;
+          btn.disabled = true; btn.textContent = 'Sending…'; say('');
+          var body = { action: 'callback', name: name, phone: phone,
+            email: document.getElementById('cbEmail').value.trim(),
+            note: document.getElementById('cbNote').value.trim(),
+            website: document.getElementById('cbWebsite').value, session: window.cgpSession || '' };
+          var controller = new AbortController();
+          var timer = setTimeout(function () { controller.abort(); }, 40000);
+          fetch(URL_, { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'text/plain;charset=utf-8' }, signal: controller.signal })
+            .then(function (r) { return r.json(); })
+            .then(function (out) {
+              clearTimeout(timer);
+              if (!out || !out.ok) throw new Error('not ok');
+              once('callback_submitted');
+              form.querySelectorAll('.field, .cta').forEach(function (n) { n.style.display = 'none'; });
+              say('Thanks, ' + name.split(' ')[0] + '. We got your request and will call you at ' + phone + '.', 'good');
+            })
+            .catch(function () {
+              clearTimeout(timer);
+              btn.disabled = false; btn.textContent = label;
+              say('That did not go through. Please call or text us at 434-422-4700.', 'bad');
+            });
+        });
+      })();
     })();
   </script>
 
-  <!-- LeadConnector form embed helper: auto-resizes the iframe to fit form content. -->
-  <script src="https://link.msgsndr.com/js/form_embed.js"></script>
   <footer class="site-foot">
     <div class="site-foot-blue">
       <div class="site-foot-in">
