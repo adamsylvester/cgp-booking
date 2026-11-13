@@ -2086,8 +2086,10 @@ function websiteParseLead_(p) {
     name: (first || last) ? (first + ' ' + last).trim() : websitePick_(f, [/^(full )?name$/, /name/]),
     email: websitePick_(f, [/e ?mail/]),
     phone: websitePick_(f, [/phone/, /^num/, /mobile|cell/]),
-    address: websitePick_(f, [/address/, /street/]),
-    problem: websitePick_(f, [/problem/, /message/, /comment/, /detail/, /how can we/]),
+    address: websitePick_(f, [/^(street )?address/, /street/, /address/]),
+    problem: websitePick_(f, [/problem/, /^message/, /comment/, /detail/, /how can we/]),
+    city: websitePick_(f, [/^city/]),
+    consent: websitePick_(f, [/consent/]),
     heard: websitePick_(f, [/hear/]),
     service: websitePick_(f, [/service/]),
     page: websitePick_(f, [/page url/, /referr?er/]) || String(p.page || ''),
@@ -2095,9 +2097,15 @@ function websiteParseLead_(p) {
   };
   // Jobber gets "street, city" with the ZIP on its own field; the office email
   // and the sheet keep exactly what the customer typed.
+  // The long contact form asks for street, city and postal code separately;
+  // the short quote form has one address box. Both end up as one line here.
+  var zipBox = websitePick_(f, [/postal/, /zip/]).replace(/[^0-9-]/g, '');
+  if (lead.city && lead.address.toLowerCase().indexOf(lead.city.toLowerCase()) === -1) lead.address += ', ' + lead.city;
+  if (zipBox && lead.address.indexOf(zipBox) === -1) lead.address += ' ' + zipBox;
   var zip = /\b(\d{5})(?:-\d{4})?\s*$/.exec(lead.address);
   lead.zip = zip ? zip[1] : '';
   lead.addressTyped = lead.address;
+  lead.consent = /^(on|yes|true|1)$/i.test(lead.consent) ? 'yes' : 'no';
   lead.address = lead.address.replace(/[\s,]*\b\d{5}(?:-\d{4})?\s*$/, '').replace(/[\s,]+(VA|Virginia)\.?\s*$/i, '').trim();
   lead.sourceText = WEBSITE_LEAD_SOURCE;
   lead.skipBookingTag = true;
@@ -2228,6 +2236,7 @@ function websiteCreateRequest_(clientId, propertyId, lead) {
   if (lead.service) note.push('Services needed: ' + lead.service);
   if (lead.problem) note.push('What problems are you having: ' + lead.problem);
   if (lead.heard) note.push('How Did You Hear About CGP: ' + lead.heard);
+  note.push('Agreed to text messages on the form: ' + (lead.consent || 'no'));
   try {
     jobberGql_(
       'mutation($requestId: EncodedId!, $input: RequestCreateNoteInput!) {' +
@@ -2266,11 +2275,11 @@ function websiteLogRow_(lead, status, res) {
     if (!sheet) {
       sheet = ss.insertSheet(WEBSITE_LEAD_SHEET);
       sheet.appendRow(['Received', 'Status', 'Name', 'Phone', 'Email', 'Address', 'Service', 'Problem',
-        'How heard', 'Page', 'Office email', 'Jobber request', 'Text', 'Customer email']);
+        'How heard', 'Page', 'Office email', 'Jobber request', 'Text', 'Customer email', 'Text consent']);
       sheet.setFrozenRows(1);
     }
     sheet.appendRow([new Date(), status, lead.name, lead.phone, lead.email, lead.addressTyped || lead.address, lead.service,
-      lead.problem, lead.heard, lead.page, res.office, res.jobber, res.text, res.email]);
+      lead.problem, lead.heard, lead.page, res.office, res.jobber, res.text, res.email, lead.consent]);
   } catch (err) {
     Logger.log('Website lead log failed: ' + err);
   }
