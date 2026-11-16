@@ -20,7 +20,6 @@ function depositLabel(plan) {
   var rate = depositRateFor(plan);
   return rate >= 1 ? 'Paid in full (100%)' : 'Deposit (' + Math.round(rate * 100) + '%)';
 }
-const OUTSIDE_AREA_FEE = 50;
 // A checkout still unpaid after this many minutes is marked Abandoned and the
 // office gets a follow-up email (once). If they pay later it flips to PAID.
 const ABANDONED_AFTER_MIN = 45;
@@ -36,41 +35,84 @@ const SQUARE_VERSION = '2025-01-23';
 const AFTER_PAYMENT_URL = 'https://book.cvillegutterpros.com/thanks.html';
 
 // ===== Server-side pricing (AUTHORITATIVE) =====
-// This mirrors the PRICING config in index.html. The server recomputes every
-// quote from raw inputs and charges ITS number — the browser's number is only
-// used to detect mismatches. If you change pricing, change BOTH places.
-// Busy-season price increase: every base price (floors, per-sqft rates,
-// townhome flats) is multiplied by this. Set to 1 to end it. MUST match
-// SEASONAL_MULTIPLIER in index.html. The admin quote tool in the team app
-// reads the scaled tables from ?pricing=1, so it follows automatically.
-const SEASONAL_MULTIPLIER = 1.125;
+// The prices live in ONE place since 2026-11-16: the Supabase row
+// booking_pricing (id 1), edited from the admin app (Online booking tab,
+// "Online booking prices" card). The booking page, this server and the admin
+// quote tool (?pricing=1) all read that row, so a price change needs no code
+// change and no redeploy. The server recomputes every quote from raw inputs
+// and charges ITS number; the browser's number only detects mismatches.
+//
+// DEFAULT_PRICING is only the safety net for a first run with Supabase
+// unreachable. After the first good read, the last good copy is kept in
+// Script Properties (PRICING_LAST_GOOD) and used instead if a read fails.
+//   Regular homes: price = max(floor, modifier[stories] x square footage)
+//   Townhomes:     flat price
+const DEFAULT_PRICING = {
+  protectionMultiplier: 3,
+  outsideAreaFee: 50,
+  houses: {
+    simple:    { floor: 111, modifier: { '1': 0.0788, '2': 0.1012, '3': 0.1238 } },
+    standard:  { floor: 168, modifier: { '1': 0.1012, '2': 0.1575, '3': 0.2138 } },
+    complex:   { floor: 258, modifier: { '1': 0.1238, '2': 0.1913, '3': 0.2588 } },
+    townhome2: { flat: 219 },
+    townhome3: { flat: 366 },
+  },
+};
 
-// Whole-dollar floors/flats; per-sqft rates kept to 4 decimals so the page
-// and the server round identically.
-function scaleHouses_(houses, m) {
-  var out = {};
-  Object.keys(houses).forEach(function (k) {
-    var h = houses[k];
-    if (h.flat != null) { out[k] = { flat: Math.round(h.flat * m) }; return; }
-    var mod = {};
-    Object.keys(h.modifier).forEach(function (s) { mod[s] = Math.round(h.modifier[s] * m * 10000) / 10000; });
-    out[k] = { floor: Math.round(h.floor * m), modifier: mod };
+// A config we are willing to charge cards from: every house present, every
+// number inside a sane range. Same limits as the database check
+// (booking_pricing_ok) and the admin card.
+function pricingOk_(c) {
+  function between(v, lo, hi) { return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi; }
+  if (!c || !c.houses) return false;
+  if (!between(c.protectionMultiplier, 1, 10) || !between(c.outsideAreaFee, 0, 500)) return false;
+  return Object.keys(DEFAULT_PRICING.houses).every(function (k) {
+    var h = c.houses[k];
+    if (!h) return false;
+    if (DEFAULT_PRICING.houses[k].flat != null) return between(h.flat, 25, 5000);
+    return between(h.floor, 25, 5000) && h.modifier &&
+      ['1', '2', '3'].every(function (s) { return between(h.modifier[s], 0.01, 2); });
   });
-  return out;
 }
 
-const PRICING = {
-  protectionMultiplier: 3,
-  seasonalMultiplier: SEASONAL_MULTIPLIER,
-  // BASE prices, before the seasonal multiplier.
-  houses: scaleHouses_({
-    simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
-    standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
-    complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.23 } },
-    townhome2: { flat: 195 },
-    townhome3: { flat: 325 },
-  }, SEASONAL_MULTIPLIER),
-};
+// The live prices. Read once per run (a checkout is one run), straight from
+// Supabase with no cache, so a change in the admin app is charged on the very
+// next checkout.
+var _pricing = null;
+function livePricing_() {
+  if (_pricing) return _pricing;
+  var props = PropertiesService.getScriptProperties();
+  try {
+    var base = String(props.getProperty('SUPABASE_URL') || '').replace(/\/$/, '');
+    var key = props.getProperty('SUPABASE_SERVICE_KEY');
+    if (!base || !key) throw new Error('SUPABASE_URL / SUPABASE_SERVICE_KEY not set');
+    var res = UrlFetchApp.fetch(base + '/rest/v1/booking_pricing?id=eq.1&select=config', {
+      headers: { 'Authorization': 'Bearer ' + key, 'apikey': key },
+      muteHttpExceptions: true,
+    });
+    if (res.getResponseCode() !== 200) throw new Error('HTTP ' + res.getResponseCode());
+    var rows = JSON.parse(res.getContentText());
+    var cfg = rows && rows[0] && rows[0].config;
+    if (!pricingOk_(cfg)) throw new Error('row missing or failed the sanity check');
+    var text = JSON.stringify(cfg);
+    if (props.getProperty('PRICING_LAST_GOOD') !== text) props.setProperty('PRICING_LAST_GOOD', text);
+    _pricing = cfg;
+  } catch (err) {
+    console.error('livePricing_: ' + err + ' (using the last good copy)');
+    var last = null;
+    try { last = JSON.parse(props.getProperty('PRICING_LAST_GOOD') || 'null'); } catch (e2) {}
+    _pricing = pricingOk_(last) ? last : DEFAULT_PRICING;
+  }
+  return _pricing;
+}
+
+// The trip fee for one lead or checkout. A lead read back from the sheet
+// carries the fee it was charged ("Yes (+$50)"), so an old lead keeps its own
+// number after the fee changes; a fresh checkout uses the live fee.
+function tripFee_(o) {
+  var own = o ? Number(o.fee) : NaN;
+  return own > 0 ? own : livePricing_().outsideAreaFee;
+}
 
 // Charlottesville + Albemarle ZIPs (no trip fee). Mirrors index.html.
 const IN_AREA_ZIPS = {
@@ -114,6 +156,7 @@ function houseLabel(code) {
 
 // Returns {base, total, deposit, fee} or null if the inputs don't add up.
 function computeServerPrice(data) {
+  var PRICING = livePricing_();
   var cfg = PRICING.houses[data.houseType];
   if (!cfg) return null;
 
@@ -131,7 +174,7 @@ function computeServerPrice(data) {
   if (data.plan === 'protection') subtotal = Math.round(base * PRICING.protectionMultiplier);
 
   var zip = String(data.zip || '').replace(/\D/g, '');
-  var fee = IN_AREA_ZIPS[zip] ? 0 : OUTSIDE_AREA_FEE;
+  var fee = IN_AREA_ZIPS[zip] ? 0 : PRICING.outsideAreaFee;
 
   var total = subtotal + fee;
   return { base: base, total: total, fee: fee, deposit: Math.round(total * depositRateFor(data.plan)) };
@@ -225,6 +268,7 @@ function doPost(e) {
     if (action === 'checkout') {
       // Server recomputes the price from raw inputs and charges ITS number.
       var priced = computeServerPrice(data);
+      if (priced) data.fee = priced.fee;
       var priceCheck;
       if (!priced) {
         priceCheck = '⚠️ could not verify (bad inputs) — charged client price';
@@ -299,16 +343,18 @@ function doGet(e) {
 
   // Read-only pricing config for the admin quote calculator in the team app.
   // No PII — the same tables the page and the checkout verifier already use.
-  // Serving them from here keeps one source of truth: change PRICING above
-  // and the admin tool follows on its next load.
+  // Same live row the checkout charges from (booking_pricing), so the admin
+  // tool follows a price change on its next load.
   if (p.pricing === '1' || p.action === 'pricing') {
     return jsonOutput({
       ok: true,
-      pricing: PRICING,
+      pricing: { protectionMultiplier: livePricing_().protectionMultiplier,
+                 seasonalMultiplier: 1,   // the old busy-season bump is baked into the prices now
+                 houses: livePricing_().houses },
       inAreaZips: Object.keys(IN_AREA_ZIPS),
       depositRate: DEPOSIT_RATE,
       fullPayPlans: Object.keys(FULL_PAY_PLANS),
-      outsideAreaFee: OUTSIDE_AREA_FEE,
+      outsideAreaFee: livePricing_().outsideAreaFee,
       houseLabels: HOUSE_LABELS,
       planLabels: { basic: 'Basic Cleaning',
                     protection: 'Gutter Protection Plan' },
@@ -448,7 +494,7 @@ function logLead(data, status, orderId, priceCheck) {
     data.sqft || '',
     data.stories || '',
     data.planName || data.plan || '',
-    data.outsideArea ? 'Yes (+$' + OUTSIDE_AREA_FEE + ')' : 'No',
+    data.outsideArea ? 'Yes (+$' + tripFee_(data) + ')' : 'No',
     data.notes || '',
     data.basePrice || '',
     data.finalPrice || '',
@@ -574,6 +620,7 @@ function squarePayInline(data) {
   data.deposit = priced.deposit;
   data.basePrice = priced.base;
   data.outsideArea = priced.fee > 0;
+  data.fee = priced.fee;
 
   var env;
   try { env = squareEnv_(data); } catch (err) { return { ok: false, error: String(err) }; }
@@ -801,6 +848,7 @@ function rowToLead(vals) {
     stories: vals[COL.STORIES - 1],
     plan: vals[COL.PLAN - 1],
     outside: String(vals[COL.OUTSIDE - 1]).indexOf('Yes') === 0,
+    fee: Number((String(vals[COL.OUTSIDE - 1]).match(/\+\$(\d+)/) || [])[1]) || 0,   // the fee this lead was charged
     zip: vals[COL.ZIP - 1],
     notes: vals[COL.NOTES - 1],
     base: vals[COL.BASE - 1],
@@ -851,7 +899,7 @@ function quoteSummaryRows(data) {
   if (data.stories) html += row('Stories', escapeHtml(String(data.stories)));
   html += row('Plan', escapeHtml(data.planName || data.plan || ''));
   if (data.zip) html += row('ZIP code', escapeHtml(String(data.zip)));
-  if (data.outsideArea) html += row('Trip fee (outside area)', '+$' + OUTSIDE_AREA_FEE);
+  if (data.outsideArea) html += row('Trip fee (outside area)', '+$' + tripFee_(data));
   html += rowBold('Total price', '$' + total);
   html += row(depositLabel(data.plan), '$' + deposit);
   html += rowBold('Balance on completion', '$' + balance);
@@ -864,7 +912,7 @@ function fullBreakdownRows(o) {
   var base = Number(o.base || 0);
   var total = Number(o.total || 0);
   var deposit = Number(o.deposit || 0);
-  var fee = o.outside ? OUTSIDE_AREA_FEE : 0;
+  var fee = o.outside ? tripFee_(o) : 0;
   var planUpgrade = total - fee - base;
   var balance = Math.max(0, total - deposit);
 
@@ -934,7 +982,7 @@ function sendCheckoutStartedEmail(data, priceCheck) {
   inner += '<table style="border-collapse:collapse;width:100%;">' + contactRows(data.name, data.phone, data.email, data.address) + '</table>';
   inner += fullBreakdownRows({
     house: houseLabel(data.houseType), sqft: data.sqft, stories: data.stories,
-    zip: data.zip, outside: !!data.outsideArea, plan: data.planName || data.plan,
+    zip: data.zip, outside: !!data.outsideArea, fee: data.fee, plan: data.planName || data.plan,
     base: data.basePrice, total: data.finalPrice, deposit: deposit,
   });
   if (priceCheck) inner += '<p style="margin-top:10px;font-size:13px;color:' + (priceCheck.indexOf('✓') === 0 ? '#15803d' : '#b42318') + ';font-weight:700;">Price check: ' + escapeHtml(priceCheck) + '</p>';

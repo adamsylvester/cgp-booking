@@ -1522,30 +1522,15 @@
       '24590', // Scottsville
     ]);
 
-    // Busy-season price increase. Every base price (floors, per-sqft rates,
-    // townhome flats) is multiplied by this at load. Set to 1 to end it.
-    // MUST match SEASONAL_MULTIPLIER in apps_script.gs — the server recomputes
-    // every quote and charges ITS number.
-    const SEASONAL_MULTIPLIER = 1.125;
-
-    // Scale a house table by a multiplier: whole-dollar floors/flats,
-    // per-sqft rates kept to 4 decimals so both sides round identically.
-    function scaleHouses(houses, m) {
-      const out = {};
-      Object.keys(houses).forEach((k) => {
-        const h = houses[k];
-        if (h.flat != null) { out[k] = { flat: Math.round(h.flat * m) }; return; }
-        const mod = {};
-        Object.keys(h.modifier).forEach((s) => { mod[s] = Math.round(h.modifier[s] * m * 10000) / 10000; });
-        out[k] = { floor: Math.round(h.floor * m), modifier: mod };
-      });
-      return out;
-    }
-
+    // PRICES LIVE IN SUPABASE (booking_pricing, id 1) since 2026-11-16. Adam
+    // edits them in the admin app (Online booking tab, "Online booking
+    // prices" card); this page and the checkout server both read that row, so
+    // a price change needs no code change. The numbers below are only the
+    // fallback if that read fails. The server recomputes every quote and
+    // charges ITS number either way.
     const PRICING = {
       // Promo badge toggle (the red "$25 SAVINGS ONLINE" chip). Off for now.
       promoEnabled: false,
-      seasonalMultiplier: SEASONAL_MULTIPLIER,
       // Deposit charged today = this fraction of the total, rounded to a whole dollar.
       depositRate: 0.25,
       // Plans paid 100% up front (no balance on completion). Must match
@@ -1555,17 +1540,53 @@
       protectionMultiplier: 3,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
       outsideAreaFee: 50,
-      // Per-house pricing (BASE, before the seasonal multiplier).
+      // Per-house pricing.
       //   Regular homes: price = max(floor, modifier[stories] × square footage)
       //   Townhomes:     flat price (square footage + stories ignored)
-      houses: scaleHouses({
-        simple:    { floor: 99,  modifier: { '1': 0.07, '2': 0.09, '3': 0.11 } },
-        standard:  { floor: 149, modifier: { '1': 0.09, '2': 0.14, '3': 0.19 } },
-        complex:   { floor: 229, modifier: { '1': 0.11, '2': 0.17, '3': 0.23 } },
-        townhome2: { flat: 195 },
-        townhome3: { flat: 325 },
-      }, SEASONAL_MULTIPLIER),
+      houses: {
+        simple:    { floor: 111, modifier: { '1': 0.0788, '2': 0.1012, '3': 0.1238 } },
+        standard:  { floor: 168, modifier: { '1': 0.1012, '2': 0.1575, '3': 0.2138 } },
+        complex:   { floor: 258, modifier: { '1': 0.1238, '2': 0.1913, '3': 0.2588 } },
+        townhome2: { flat: 219 },
+        townhome3: { flat: 366 },
+      },
     };
+
+    // Only take a price list that has every house and sane numbers (same
+    // limits as the server and the database).
+    function pricingOk(c) {
+      const between = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
+      if (!c || !c.houses) return false;
+      if (!between(c.protectionMultiplier, 1, 10) || !between(c.outsideAreaFee, 0, 500)) return false;
+      return Object.keys(PRICING.houses).every((k) => {
+        const h = c.houses[k];
+        if (!h) return false;
+        if (PRICING.houses[k].flat != null) return between(h.flat, 25, 5000);
+        return between(h.floor, 25, 5000) && h.modifier && ['1', '2', '3'].every((n) => between(h.modifier[n], 0.01, 2));
+      });
+    }
+
+    // Load the live prices. Resolves either way; the checkout button waits
+    // for it (up to 4 seconds) so nobody pays from a stale number.
+    const pricingReady = Promise.race([
+      fetch('https://wmmhvguajkeiyhmfmilu.supabase.co/rest/v1/booking_pricing?id=eq.1&select=config', {
+        headers: { apikey: 'sb_publishable_qTRQ_ECvykQgCBHWReXC7w_nt1HUv8Z' }, cache: 'no-store',
+      }).then((r) => (r.ok ? r.json() : Promise.reject(new Error('pricing ' + r.status))))
+        .then((rows) => {
+          const cfg = rows && rows[0] && rows[0].config;
+          if (!pricingOk(cfg)) throw new Error('pricing row failed the check');
+          PRICING.houses = cfg.houses;
+          PRICING.protectionMultiplier = cfg.protectionMultiplier;
+          PRICING.outsideAreaFee = cfg.outsideAreaFee;
+          const feeEl = document.getElementById('outsideValue');
+          if (feeEl) feeEl.textContent = '+$' + cfg.outsideAreaFee;
+          // Re-price anything already on screen with the live numbers.
+          // (Runs after the rest of this script, so those functions exist.)
+          try { renderZipNote(); if (selectedHouse) calculatePrice(); } catch (e) { console.warn(e); }
+        })
+        .catch((err) => { console.warn('Live prices did not load, using the built-in list.', err); }),
+      new Promise((resolve) => setTimeout(resolve, 4000)),
+    ]);
 
     const elements = {
       sqftInput: document.getElementById('sqft'),
@@ -2344,6 +2365,7 @@
 
     async function handleSubmit() {
       clearFormError();
+      await pricingReady;
       const firstBad = validateAndMark();
       if (firstBad) {
         firstBad.focus();
@@ -2882,15 +2904,16 @@
 
     console.assert(roundWhole(220.4) === 220, 'roundWhole should round down under .5');
     console.assert(roundWhole(220.5) === 221, 'roundWhole should round up at .5');
-    const M = SEASONAL_MULTIPLIER;
-    console.assert(getBasePrice('simple', 2000, '1') === Math.round(0.07 * M * 10000) / 10000 * 2000, 'simple 1-story = .07×M×2000');
-    console.assert(getBasePrice('simple', 500, '1') === Math.round(99 * M), 'small home hits the floor');
-    console.assert(getBasePrice('standard', 2000, '2') === Math.round(0.14 * M * 10000) / 10000 * 2000, 'standard 2-story = .14×M×2000');
-    console.assert(getBasePrice('complex', 2000, '3') === Math.round(0.23 * M * 10000) / 10000 * 2000, 'complex 3-story = .23×M×2000');
+    // Checked against the built-in list, before the live prices can land.
+    const H = PRICING.houses;
+    console.assert(getBasePrice('simple', 2000, '1') === roundWhole(H.simple.modifier['1'] * 2000), 'simple 1-story = rate × 2000');
+    console.assert(getBasePrice('simple', 500, '1') === H.simple.floor, 'small home hits the floor');
+    console.assert(getBasePrice('standard', 2000, '2') === roundWhole(H.standard.modifier['2'] * 2000), 'standard 2-story = rate × 2000');
+    console.assert(getBasePrice('complex', 2000, '3') === roundWhole(H.complex.modifier['3'] * 2000), 'complex 3-story = rate × 2000');
     console.assert(getBasePrice('complex', 2000, '3') > getBasePrice('standard', 2000, '3'), 'complex must never price below standard');
-    console.assert(getBasePrice('townhome2') === Math.round(195 * M), '2-story townhome flat');
-    console.assert(getBasePrice('townhome3') === Math.round(325 * M), '3-story townhome flat');
-    console.assert(planTotal(200, 'protection') === 600, 'protection plan = 3x base');
+    console.assert(getBasePrice('townhome2') === H.townhome2.flat, '2-story townhome flat');
+    console.assert(getBasePrice('townhome3') === H.townhome3.flat, '3-story townhome flat');
+    console.assert(planTotal(200, 'protection') === roundWhole(200 * PRICING.protectionMultiplier), 'protection plan = multiple of base');
     console.assert(depositRateFor('protection') === 1, 'protection plan is paid in full');
     console.assert(depositRateFor('basic') === 0.25, 'basic plan keeps the 25% deposit');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');

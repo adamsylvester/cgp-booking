@@ -828,7 +828,7 @@ function jobberJobTitle_(lead) {
 function jobberLineItems_(lead) {
   var base = Number(lead.base || 0);
   var total = Number(lead.total || 0);
-  var fee = lead.outside ? OUTSIDE_AREA_FEE : 0;
+  var fee = lead.outside ? tripFee_(lead) : 0;
   var code = jobberPlanCode_(lead.plan);
 
   var items = [];
@@ -915,7 +915,7 @@ function jobberDetailsNote_(lead) {
   lines.push('Booked online at book.cvillegutterpros.com.');
   lines.push('Home: ' + (lead.house || '—') + (jobberSizeNote_(lead) ? ' (' + jobberSizeNote_(lead) + ')' : ''));
   lines.push('Plan: ' + (lead.plan || '—'));
-  if (lead.outside) lines.push('Outside service area — $' + OUTSIDE_AREA_FEE + ' travel fee included.');
+  if (lead.outside) lines.push('Outside service area — $' + tripFee_(lead) + ' travel fee included.');
   var notes = String(lead.notes || '').trim();
   if (notes) lines.push('Customer notes: ' + notes);
   return lines.join('\n');
@@ -1729,7 +1729,7 @@ function onlineSendCustomerEmail_(hold, kind, lead) {
       inner += sectionHead('Your quote');
       inner += '<table style="border-collapse:collapse;width:100%;">' +
         quoteSummaryRows({ houseType: lead.house, sqft: lead.sqft, stories: lead.stories, planName: lead.plan, plan: lead.plan,
-                           finalPrice: lead.total, deposit: lead.deposit, outsideArea: lead.outside }) + '</table>';
+                           finalPrice: lead.total, deposit: lead.deposit, outsideArea: lead.outside, fee: lead.fee }) + '</table>';
       inner += '<p style="margin:10px 0 0;color:#475467;font-size:13px;">' + (paidAll ? 'Paid in full — nothing due after the job.' : 'Your $' + escapeHtml(String(lead.deposit)) + ' deposit is in; the rest is due when the job is done.') + '</p>';
     }
     inner += '<p style="margin:18px 0 6px;">' + btn(onlineGoogleCalLink_(hold, title), 'Add to Google Calendar', true) + btn(manage, 'Reschedule or cancel', false) + '</p>';
