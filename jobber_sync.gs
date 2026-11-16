@@ -804,6 +804,7 @@ function jobberNormalizeStreet_(s) {
 function jobberPlanCode_(planLabel) {
   var s = String(planLabel || '').toLowerCase();
   if (s.indexOf('protection') !== -1) return 'protection';
+  if (s.indexOf('recurring') !== -1) return 'recurring';
   if (s.indexOf('seal') !== -1 || s.indexOf('touch') !== -1 || s.indexOf('seasonal') !== -1) return 'simple';
   return 'basic';
 }
@@ -846,6 +847,14 @@ function jobberLineItems_(lead) {
       quantity: -GPP_FREE_CLEANINGS,
       unitPrice: base,
       description: 'Free cleaning credit applied at enrollment.',
+    }));
+  } else if (code === 'recurring' && base > 0) {
+    // One cleaning at the 10%-off price; the office sets the 6-month repeat.
+    items.push(jobberServiceLine_(JOBBER_SERVICES.cleaning, {
+      quantity: 1,
+      unitPrice: total - fee,
+      description: [jobberSizeNote_(lead), 'Recurring every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) +
+        '% off each cleaning (regular $' + base + ').'].filter(String).join(' · '),
     }));
   } else if (base > 0) {
     items.push(jobberServiceLine_(JOBBER_SERVICES.cleaning, {
@@ -915,6 +924,10 @@ function jobberDetailsNote_(lead) {
   lines.push('Booked online at book.cvillegutterpros.com.');
   lines.push('Home: ' + (lead.house || '—') + (jobberSizeNote_(lead) ? ' (' + jobberSizeNote_(lead) + ')' : ''));
   lines.push('Plan: ' + (lead.plan || '—'));
+  if (jobberPlanCode_(lead.plan) === 'recurring') {
+    lines.push('🔁 RECURRING: the customer chose a cleaning every 6 months at ' + Math.round(RECURRING_DISCOUNT * 100) +
+      '% off each one. This job is booked as a single visit. Set it to repeat every 6 months.');
+  }
   if (lead.outside) lines.push('Outside service area — $' + tripFee_(lead) + ' travel fee included.');
   var notes = String(lead.notes || '').trim();
   if (notes) lines.push('Customer notes: ' + notes);
@@ -936,6 +949,9 @@ function jobberDepositNote_(lead, receiptUrl) {
     '',
     'Apply the $' + deposit + ' as a payment on the invoice by hand — it is in Square, not in Jobber.',
   ];
+  if (jobberPlanCode_(lead.plan) === 'recurring') {
+    lines.push('', '🔁 RECURRING every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) + '% off each cleaning. Set this job to repeat.');
+  }
   if (receiptUrl) lines.push('Square receipt: ' + receiptUrl);
   return lines.join('\n');
 }

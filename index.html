@@ -927,7 +927,7 @@
       .form-card.is-locked .contact-panel,
       .form-card.is-locked .cta { opacity:.4; pointer-events:none; }
       .plan-heading { margin:18px 0 10px; font-size:13px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:var(--primary); }
-      .plan-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+      .plan-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
       .plan-opt { flex-direction:column; align-items:flex-start; }
       .plan-opt .plan-price, .plan-opt .plan-price-wrap { align-self:flex-end; margin-top:auto; }
       .plan-price-wrap { flex:0 0 auto; display:flex; flex-direction:column; align-items:flex-end; }
@@ -948,6 +948,7 @@
       .plan-badge.plan-badge-quiet { background:#eef4ff; color:var(--primary); border:1px solid #c7d4f7; font-weight:800; padding:3px 10px; }
       .plan-per { display:block; font-size:11px; font-weight:600; color:var(--text-subtle); margin-top:2px; text-align:right; }
       .plan-per:empty { display:none; }
+      .plan-per s { text-decoration-thickness:1px; }
       .page-logo { flex:0 0 auto; width:188px; height:auto; }
       /* ===== Single-column layout: slim trust strip + full-width form ===== */
       .brand-strip { display:flex; align-items:center; justify-content:center; gap:28px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-xl); box-shadow:none; padding:16px 28px; margin-bottom:18px; flex-wrap:wrap; }
@@ -1256,6 +1257,17 @@
               </span>
               <span class="plan-price" data-plan-price="protection">$0</span>
             </label>
+
+            <label class="plan-opt" data-plan="recurring">
+              <span class="plan-badge plan-badge-quiet">Save 10%</span>
+              <input type="radio" name="plan" value="recurring" />
+              <span class="plan-radio" aria-hidden="true"></span>
+              <span class="plan-body">
+                <span class="plan-name">Make it recurring?</span>
+                <span class="plan-sub">We come back every 6 months to clean. 10% off this cleaning and every one after. 25% deposit today.</span>
+              </span>
+              <span class="plan-price-wrap"><span class="plan-price" data-plan-price="recurring">$0</span><span class="plan-per" id="planPerRecurring"></span></span>
+            </label>
           </div>
 
           <div class="price-wrap needs-price">
@@ -1538,6 +1550,9 @@
       fullPayPlans: { protection: true },
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
       protectionMultiplier: 3,
+      // "Make it recurring?" = a cleaning every 6 months, this much off each
+      // one. Must match RECURRING_DISCOUNT in apps_script.gs.
+      recurringDiscount: 0.10,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
       outsideAreaFee: 50,
       // Per-house pricing.
@@ -1630,13 +1645,14 @@
 
     // Step 1 selection: 'simple' | 'standard' | 'complex' | null.
     let selectedHouse = null;
-    // Plan selection: 'basic' | 'protection'. ('simple' was the retired add-on tier.)
+    // Plan selection: 'basic' | 'protection' | 'recurring'. ('simple' was the retired add-on tier.)
     let selectedPlan = 'basic';
     window.selectedPlan = selectedPlan;
 
     const PLAN_LABELS = {
       basic: 'Basic Cleaning',
       protection: 'Gutter Protection Plan',
+      recurring: 'Recurring Cleaning (every 6 months)',
     };
 
     function roundWhole(number) {
@@ -1646,6 +1662,7 @@
     // Total for a given plan, derived from the base cleaning price.
     function planTotal(base, plan) {
       if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
+      if (plan === 'recurring') return roundWhole(base * (1 - PRICING.recurringDiscount));
       return base; // basic
     }
 
@@ -1743,6 +1760,7 @@
       elements.paymentBreakdown.style.display = 'none';
       elements.bookBtn.textContent = 'Next';
       elements.planPerFeatured.textContent = '';
+      document.getElementById('planPerRecurring').textContent = '';
       currentQuote = { basePrice: 0, plan: selectedPlan, finalPrice: 0 };
       updateBookBtnState();
       updatePayBar();
@@ -1782,6 +1800,8 @@
       // "only $X today" nudge on the featured plan card.
       const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * depositRateFor('basic'));
       elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
+      // Recurring card: the regular price crossed out under the 10%-off one.
+      document.getElementById('planPerRecurring').innerHTML = 'regular <s>$' + (base + fee) + '</s>';
 
       elements.payBarAmt.textContent = '$' + deposit;
       elements.payBarBtn.textContent = 'Pick your date →';
@@ -2226,6 +2246,7 @@
       const base = Number(payload.basePrice || 0);
       const fee = payload.outsideArea ? PRICING.outsideAreaFee : 0;
       const upgrade = Math.max(0, total - fee - base);
+      const discount = Math.max(0, base + fee - total);
 
       const houseBits = [SNAPSHOT_HOUSE_LABELS[payload.houseType] || payload.houseType];
       if (payload.sqft) houseBits.push(Number(payload.sqft).toLocaleString() + ' sq ft');
@@ -2245,6 +2266,7 @@
         { label: 'Base cleaning', value: '$' + base },
       ];
       if (upgrade > 0) rows.push({ label: 'Plan upgrade', value: '+$' + upgrade });
+      if (discount > 0) rows.push({ label: 'Recurring discount (10%)', value: '-$' + discount });
       if (fee > 0) rows.push({ label: 'Trip fee', value: '+$' + fee });
       rows.push({ label: 'Total', value: '$' + total, bold: true });
       rows.push({ label: deposit >= total ? 'Paid in full (100%)' : 'Deposit paid (25%)', value: '$' + deposit });
@@ -2915,6 +2937,8 @@
     console.assert(getBasePrice('townhome3') === H.townhome3.flat, '3-story townhome flat');
     console.assert(planTotal(200, 'protection') === roundWhole(200 * PRICING.protectionMultiplier), 'protection plan = multiple of base');
     console.assert(depositRateFor('protection') === 1, 'protection plan is paid in full');
+    console.assert(planTotal(200, 'recurring') === 180, 'recurring = 10% off the base');
+    console.assert(depositRateFor('recurring') === 0.25, 'recurring keeps the 25% deposit');
     console.assert(depositRateFor('basic') === 0.25, 'basic plan keeps the 25% deposit');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');
     console.assert(isHouseFlat('simple') === false, 'simple home is not flat-priced');

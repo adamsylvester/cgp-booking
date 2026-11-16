@@ -11,6 +11,13 @@ const DEPOSIT_RATE = 0.25;
 // ...except these plans, which are paid 100% up front (2026-10-20: the
 // Gutter Protection Plan is prepaid in full, so no balance on completion).
 const FULL_PAY_PLANS = { protection: true };
+// "Make it recurring?" (2026-11-16): a cleaning every 6 months, this much off
+// each one. Must match PRICING.recurringDiscount in index.html.
+const RECURRING_DISCOUNT = 0.10;
+// True for the plan key ('recurring') and for the label the sheet stores.
+function isRecurringPlan_(plan) {
+  return String(plan || '').toLowerCase().indexOf('recurring') !== -1;
+}
 
 function depositRateFor(plan) {
   return FULL_PAY_PLANS[String(plan || '')] ? 1 : DEPOSIT_RATE;
@@ -172,6 +179,7 @@ function computeServerPrice(data) {
 
   var subtotal = base;
   if (data.plan === 'protection') subtotal = Math.round(base * PRICING.protectionMultiplier);
+  if (data.plan === 'recurring') subtotal = Math.round(base * (1 - RECURRING_DISCOUNT));
 
   var zip = String(data.zip || '').replace(/\D/g, '');
   var fee = IN_AREA_ZIPS[zip] ? 0 : PRICING.outsideAreaFee;
@@ -349,6 +357,7 @@ function doGet(e) {
     return jsonOutput({
       ok: true,
       pricing: { protectionMultiplier: livePricing_().protectionMultiplier,
+                 recurringDiscount: RECURRING_DISCOUNT,
                  seasonalMultiplier: 1,   // the old busy-season bump is baked into the prices now
                  houses: livePricing_().houses },
       inAreaZips: Object.keys(IN_AREA_ZIPS),
@@ -357,7 +366,8 @@ function doGet(e) {
       outsideAreaFee: livePricing_().outsideAreaFee,
       houseLabels: HOUSE_LABELS,
       planLabels: { basic: 'Basic Cleaning',
-                    protection: 'Gutter Protection Plan' },
+                    protection: 'Gutter Protection Plan',
+                    recurring: 'Recurring Cleaning (every 6 months)' },
     });
   }
 
@@ -898,6 +908,9 @@ function quoteSummaryRows(data) {
   if (data.sqft) html += row('Square footage', Number(data.sqft).toLocaleString());
   if (data.stories) html += row('Stories', escapeHtml(String(data.stories)));
   html += row('Plan', escapeHtml(data.planName || data.plan || ''));
+  if (isRecurringPlan_(data.plan) || isRecurringPlan_(data.planName)) {
+    html += row('Recurring', 'We come back every 6 months. ' + Math.round(RECURRING_DISCOUNT * 100) + '% off this cleaning and every one after.');
+  }
   if (data.zip) html += row('ZIP code', escapeHtml(String(data.zip)));
   if (data.outsideArea) html += row('Trip fee (outside area)', '+$' + tripFee_(data));
   html += rowBold('Total price', '$' + total);
@@ -924,11 +937,15 @@ function fullBreakdownRows(o) {
   html += row('ZIP code', escapeHtml(String(o.zip || '—')));
   html += row('Service area', o.outside ? 'Outside Cville/Albemarle (trip fee applies)' : 'In service area (no trip fee)');
   html += row('Plan chosen', escapeHtml(String(o.plan || '')));
+  if (isRecurringPlan_(o.plan)) {
+    html += rowBold('🔁 Recurring', 'YES. Every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) + '% off each cleaning. Set the job to repeat in Jobber.');
+  }
   html += '</table>';
 
   html += sectionHead('Price math') + '<table style="border-collapse:collapse;width:100%;">';
   html += row('Base cleaning', '$' + base);
   if (planUpgrade > 0) html += row('Plan upgrade', '+$' + planUpgrade);
+  if (planUpgrade < 0) html += row('Recurring discount (' + Math.round(RECURRING_DISCOUNT * 100) + '%)', '-$' + (-planUpgrade));
   html += row('Trip fee', fee ? '+$' + fee : '$0');
   html += rowBold('Total price', '$' + total);
   html += row(deposit >= total && total > 0 ? 'Paid in full (100%)' : 'Deposit (25%)', '$' + deposit);
