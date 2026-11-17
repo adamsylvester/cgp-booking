@@ -12,7 +12,7 @@
 // Two stages, in the order the money moves:
 //
 //   1. pushBookingToJobber_(lead, row)   fires the moment the deposit lands.
-//      Creates: Client (+ Property) -> Request -> Quote (deposit recorded as a
+//      Creates: Client (+ Property) -> Quote (deposit recorded as a
 //      note, since Jobber's API cannot post a payment).
 //
 //   2. Calendly webhook   fires when they pick their slot. Creates the Job with
@@ -206,7 +206,7 @@ function jobberCheckErrors_(payload, label) {
 }
 
 // ===========================================================================
-// STAGE 1 — paid deposit becomes Client + Request + Quote
+// STAGE 1 — paid deposit becomes Client + Quote (no Request since 2026-11-17)
 // ===========================================================================
 
 // Called from checkPendingPayments the instant a row flips to PAID.
@@ -237,10 +237,10 @@ function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
     var clientId = parts[0];
     var propertyId = parts[1] || ids.propertyId;
 
-    if (!ids.requestId) {
-      ids.requestId = jobberCreateRequest_(clientId, propertyId, lead);
-      sheet.getRange(sheetRow, JCOL.REQUEST).setValue(ids.requestId);
-    }
+    // No Request for a paid online cleaning (Adam, 2026-11-17: "we shouldn't").
+    // The customer already bought it, so it goes straight to Quote + Job.
+    // ids.requestId is only ever filled on rows from before this change.
+    // Assessments still get a Request: in Jobber an assessment lives on one.
 
     if (!ids.quoteId) {
       ids.quoteId = jobberCreateQuote_(clientId, propertyId, ids.requestId, lead, receiptUrl);
@@ -518,40 +518,6 @@ function jobberEnsureProperty_(client, lead) {
   return made[0].id;
 }
 
-// The Request is what keeps funnel math honest — one request per lead, so
-// conversion stays per-request rather than per-quote.
-function jobberCreateRequest_(clientId, propertyId, lead) {
-  var data = jobberGql_(
-    'mutation($input: RequestCreateInput!) {' +
-    '  requestCreate(input: $input) { request { id } userErrors { message path } }' +
-    '}',
-    {
-      input: {
-        clientId: clientId,
-        propertyId: propertyId,
-        title: jobberJobTitle_(lead),
-      },
-    }
-  );
-
-  var requestId = jobberCheckErrors_(data.requestCreate, 'requestCreate').request.id;
-
-  // requestDetails only accepts a job form, so what the customer told us goes
-  // on as a note instead. A failure here must not lose the request itself.
-  try {
-    jobberGql_(
-      'mutation($requestId: EncodedId!, $input: RequestCreateNoteInput!) {' +
-      '  requestCreateNote(requestId: $requestId, input: $input) { userErrors { message } }' +
-      '}',
-      { requestId: requestId, input: { message: jobberDetailsNote_(lead), pinned: true } }
-    );
-  } catch (err) {
-    Logger.log('Request note failed (request still created): ' + err);
-  }
-
-  return requestId;
-}
-
 function jobberCreateQuote_(clientId, propertyId, requestId, lead, receiptUrl) {
   var deposit = Number(lead.deposit || 0);
 
@@ -563,7 +529,7 @@ function jobberCreateQuote_(clientId, propertyId, requestId, lead, receiptUrl) {
       attributes: {
         clientId: clientId,
         propertyId: propertyId,
-        requestId: requestId,
+        requestId: requestId || null,
         title: jobberJobTitle_(lead),
         lineItems: jobberLineItems_(lead),
         // Records the deposit AMOUNT that was owed. Jobber's API has no way to

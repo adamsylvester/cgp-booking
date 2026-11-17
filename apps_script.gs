@@ -746,8 +746,9 @@ function processPaidRow_(sheetRow) {
   }
 }
 
-// action 'after_paid': the page says "the card for this hold just went
-// through". Finds that hold's PAID row and processes it now.
+// action 'after_paid': the page says "the payment for this hold just went
+// through" (card box, or back from Square's checkout page). Finds that hold's
+// row and processes it now.
 function squareAfterPaidNow_(data) {
   var holdId = String(data.hold || '');
   if (!/^[0-9a-f-]{36}$/i.test(holdId)) return { ok: false, error: 'bad_hold' };
@@ -757,7 +758,19 @@ function squareAfterPaidNow_(data) {
   var firstRow = Math.max(2, lastRow - 49);
   var holds = sheet.getRange(firstRow, JCOL.HOLD, lastRow - firstRow + 1, 1).getValues();
   for (var i = holds.length - 1; i >= 0; i--) {
-    if (String(holds[i][0] || '') === holdId) return { ok: true, result: processPaidRow_(firstRow + i) };
+    if (String(holds[i][0] || '') !== holdId) continue;
+    var sheetRow = firstRow + i;
+    // Paid on Square's own checkout page: the row is not PAID yet, so ask
+    // Square about this one order now. That marks it PAID and does the Jobber
+    // work in one go (claimed, so the minute checker cannot repeat it).
+    var status = String(sheet.getRange(sheetRow, COL.STATUS).getValue());
+    if (status === STATUS.STARTED || status === STATUS.ABANDONED) {
+      try { squareCheckPending_(sheetRow); } catch (e) { return { ok: false, error: String(e).slice(0, 200) }; }
+      SpreadsheetApp.flush();
+      status = String(sheet.getRange(sheetRow, COL.STATUS).getValue());
+      if (status !== STATUS.PAID) return { ok: true, result: 'not_paid' };
+    }
+    return { ok: true, result: processPaidRow_(sheetRow) };
   }
   return { ok: false, error: 'not_found' };
 }
@@ -849,6 +862,14 @@ function checkPendingPayments() {
   // Card-on-page payments are already PAID; give them their Jobber records.
   try { squareSweepPaidRows_(); } catch (e) { /* never block payments */ }
 
+  squareCheckPending_(0);
+}
+
+// Asks Square whether pending rows have been paid. onlyRow = 0 checks them
+// all (the minute checker); a sheet row number checks just that one, right
+// now (the thank-you page's after_paid call, 2026-11-17), and never marks
+// anything Abandoned.
+function squareCheckPending_(onlyRow) {
   var token = PropertiesService.getScriptProperties().getProperty('SQUARE_ACCESS_TOKEN');
   if (!token) return;
 
@@ -865,6 +886,7 @@ function checkPendingPayments() {
     var status = String(rowVals[COL.STATUS - 1]);
     var orderId = String(rowVals[COL.ORDER_ID - 1]);
     if (!orderId) return;
+    if (onlyRow && firstRow + i !== onlyRow) return;
     if (status !== STATUS.STARTED && status !== STATUS.ABANDONED) return;
     var ts = new Date(rowVals[COL.TIMESTAMP - 1]);
     if (isNaN(ts) || (now - ts) > PENDING_MAX_AGE_DAYS * 86400000) return;
@@ -915,7 +937,7 @@ function checkPendingPayments() {
       } finally {
         paidRowRelease_(p.sheetRow);
       }
-    } else if (p.status === STATUS.STARTED && (now - p.ts) > ABANDONED_AFTER_MIN * 60000) {
+    } else if (!onlyRow && p.status === STATUS.STARTED && (now - p.ts) > ABANDONED_AFTER_MIN * 60000) {
       sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.ABANDONED);
       sendAbandonedEmail(rowToLead(p.vals));
     }

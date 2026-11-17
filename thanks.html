@@ -131,6 +131,17 @@
     const hasHold = /^[0-9a-f-]{36}$/i.test(holdToken);
     if (!hasHold) sendBuyerConfirmation(lead);   // with a hold, the scheduler's confirmation (with invite) replaces this
 
+    // Start Jobber + the confirmation email now instead of waiting for the
+    // every-minute checker (2026-11-17). Matters most after Square's own
+    // checkout page, where nothing else tells the script the money is in.
+    // Harmless when the card box already sent it: the script does it once.
+    if (hasHold) {
+      try {
+        navigator.sendBeacon(APPS_SCRIPT_URL,
+          new Blob([JSON.stringify({ action: 'after_paid', hold: holdToken })], { type: 'text/plain;charset=utf-8' }));
+      } catch (_) {}
+    }
+
     // Funnel analytics: Square only sends people here after a successful
     // payment, so this is the client-side end of the funnel. The authoritative
     // paid count is still the leads sheet (Square is polled directly) — this
