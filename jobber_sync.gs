@@ -2064,7 +2064,7 @@ var WEBSITE_LEAD_SHEET = 'Website Leads';
 var WEBSITE_LEAD_SOURCE = 'Website form (cvillegutterpros.com)';
 var WEBSITE_LEAD_TEXT = 'Hi {first}, this is Charlottesville Gutter Pros. We got your request and will be in touch shortly. You can reply to this text with any questions.';
 var WEBSITE_LEAD_EMAIL_SUBJECT = 'We got your request';
-var WEBSITE_LEAD_EMAIL_BODY = 'Hi {first},\n\nThanks for reaching out to Charlottesville Gutter Pros. We got your request and someone from our office will contact you shortly.\n\nIf it is easier, call or text us at (434) 422-4700.\n\nCharlottesville Gutter Pros';
+var WEBSITE_LEAD_EMAIL_BODY = 'Hi {first},\n\nThanks for reaching out to Charlottesville Gutter Pros. We got your request and someone from our office will contact you shortly.\n\nIf it is easier, call or text us at 434-422-4700.\n\nCharlottesville Gutter Pros';
 var WEBSITE_LEAD_DEDUPE_MIN = 10;   // same phone twice inside this window = a double click, handled once
 
 function websiteProp_(k) { return PropertiesService.getScriptProperties().getProperty(k) || ''; }
