@@ -254,6 +254,8 @@ function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
     sheet.getRange(sheetRow, JCOL.SYNC).setValue('⚠️ ' + String(err).slice(0, 400));
     jobberNotifyFailure_(lead, err, 'creating the client/request/quote');
   } finally {
+    // Another run only sees these IDs once they are flushed.
+    try { SpreadsheetApp.flush(); } catch (e) { /* still release */ }
     lock.releaseLock();
   }
 }
@@ -665,6 +667,7 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
     sheet.getRange(sheetRow, JCOL.SYNC).setValue('⚠️ schedule: ' + String(err).slice(0, 400));
     throw err;
   } finally {
+    try { SpreadsheetApp.flush(); } catch (e) { /* still release */ }
     lock.releaseLock();
   }
 }

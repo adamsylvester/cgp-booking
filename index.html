@@ -2710,6 +2710,12 @@
       if (out && out.ok && out.paid) {
         try { if (window.cgpTrack) window.cgpTrack('deposit_paid_card', { price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
         btn.textContent = 'Paid. One moment…';
+        // Start Jobber + the confirmation email now, in the background, so
+        // nobody waits for the every-minute checker. sendBeacon survives the
+        // page change below; the checker is still the safety net.
+        try {
+          if (payload.hold) navigator.sendBeacon(APPS_SCRIPT_URL, new Blob([JSON.stringify({ action: 'after_paid', hold: payload.hold, env: SQUARE.env })], { type: 'text/plain;charset=utf-8' }));
+        } catch (_) {}
         window.location.href = 'thanks.html';
         return;
       }

@@ -273,6 +273,14 @@ function doPost(e) {
       return jsonOutput(squarePayInline(data));
     }
 
+    // The page calls this in the background the moment a card charge succeeds
+    // (2026-11-17), so Jobber + the confirmation email start right away
+    // instead of waiting up to a minute for the checker. Carries only the
+    // hold id; the checker stays as the safety net.
+    if (action === 'after_paid') {
+      return jsonOutput(squareAfterPaidNow_(data));
+    }
+
     if (action === 'checkout') {
       // Server recomputes the price from raw inputs and charges ITS number.
       var priced = computeServerPrice(data);
@@ -681,17 +689,81 @@ function squarePayInline(data) {
     if (data.hold && typeof onlineRememberHold_ === 'function') {
       try { onlineRememberHold_(data.hold); } catch (e) { /* the sweep will still schedule from the hold */ }
     }
+    SpreadsheetApp.flush();   // the after_paid call arrives within a second and must see this row
   } finally {
     lock.releaseLock();
   }
   try { sendPaidEmail(rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]), receiptUrl); } catch (e) { /* never block */ }
-  // Jobber + confirmation: squareSweepPaidRows_ (every minute) does it, so this
-  // answer reaches the customer in seconds rather than after Jobber's API.
+  // Jobber + confirmation: the page fires action 'after_paid' right after this
+  // answer (squareAfterPaidNow_), and squareSweepPaidRows_ (every minute) is
+  // the safety net. So this answer reaches the customer in seconds.
   return { ok: true, paid: true, paymentId: payment.id, receipt: receiptUrl, sandbox: env.sandbox };
 }
 
-// PAID rows that have no Jobber client yet (card paid on the page, or an
-// earlier Jobber failure): create the records and schedule the held time.
+// ONE RUN PER PAID ROW. Two things used to let a paid booking be processed
+// twice (Barbara Press, 2026-11-16: one payment, two requests, two quotes,
+// two jobs, two emails): the minute checker can overlap itself when Jobber is
+// slow, and sheet writes are not visible to another run until they are
+// flushed. So a run first CLAIMS the row (a 6-minute marker, taken under the
+// script lock so two runs cannot both get it), then re-reads the row live.
+function paidRowClaim_(sheetRow) {
+  var cache = CacheService.getScriptCache();
+  var key = 'paidrow_' + sheetRow;
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) return false;
+  try {
+    if (cache.get(key)) return false;
+    cache.put(key, '1', 360);   // longer than any run can live
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function paidRowRelease_(sheetRow) {
+  try { SpreadsheetApp.flush(); } catch (e) { /* still release */ }
+  CacheService.getScriptCache().remove('paidrow_' + sheetRow);
+}
+
+// A PAID row with no Jobber client yet: create the records and schedule the
+// held time. Safe to call from anywhere, any number of times.
+function processPaidRow_(sheetRow) {
+  if (!jobberSyncEnabled_()) return 'sync_off';
+  if (!paidRowClaim_(sheetRow)) return 'busy';
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    var rowVals = sheet.getRange(sheetRow, 1, 1, JOBBER_LAST_COL).getValues()[0];   // live, not a stale copy
+    if (String(rowVals[COL.STATUS - 1]) !== STATUS.PAID) return 'not_paid';
+    if (String(rowVals[JCOL.CLIENT - 1] || '')) return 'already_done';
+    var receiptUrl = String(rowVals[COL.PAYMENT_LINK - 1] || '');
+    pushBookingToJobber_(rowToLead(rowVals), sheetRow, receiptUrl);
+    if (typeof onlineAfterPaid_ === 'function') {
+      try { onlineAfterPaid_(sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
+    }
+    return 'done';
+  } finally {
+    paidRowRelease_(sheetRow);
+  }
+}
+
+// action 'after_paid': the page says "the card for this hold just went
+// through". Finds that hold's PAID row and processes it now.
+function squareAfterPaidNow_(data) {
+  var holdId = String(data.hold || '');
+  if (!/^[0-9a-f-]{36}$/i.test(holdId)) return { ok: false, error: 'bad_hold' };
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'not_found' };
+  var firstRow = Math.max(2, lastRow - 49);
+  var holds = sheet.getRange(firstRow, JCOL.HOLD, lastRow - firstRow + 1, 1).getValues();
+  for (var i = holds.length - 1; i >= 0; i--) {
+    if (String(holds[i][0] || '') === holdId) return { ok: true, result: processPaidRow_(firstRow + i) };
+  }
+  return { ok: false, error: 'not_found' };
+}
+
+// The safety net (every minute): PAID rows that still have no Jobber client,
+// because the page's after_paid call never arrived or Jobber failed earlier.
 function squareSweepPaidRows_() {
   if (!jobberSyncEnabled_()) return;
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
@@ -705,12 +777,7 @@ function squareSweepPaidRows_() {
     if (String(rowVals[JCOL.CLIENT - 1] || '')) return;
     var paidAt = new Date(rowVals[COL.PAID_AT - 1]);
     if (isNaN(paidAt) || (now - paidAt) > 2 * 86400000) return;
-    var sheetRow = firstRow + i;
-    var receiptUrl = String(rowVals[COL.PAYMENT_LINK - 1] || '');
-    pushBookingToJobber_(rowToLead(rowVals), sheetRow, receiptUrl);
-    if (typeof onlineAfterPaid_ === 'function') {
-      try { onlineAfterPaid_(sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
-    }
+    processPaidRow_(firstRow + i);
   });
 }
 
@@ -825,19 +892,28 @@ function checkPendingPayments() {
       var receiptUrl = paymentId
         ? 'https://squareup.com/dashboard/sales/transactions/' + paymentId
         : '';
-      sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.PAID);
-      sheet.getRange(p.sheetRow, COL.PAID_AT).setValue(new Date());
-      if (receiptUrl) sheet.getRange(p.sheetRow, COL.PAYMENT_LINK).setValue(receiptUrl);
-      sendPaidEmail(rowToLead(p.vals), receiptUrl);
-      // Real money in -> real records in Jobber. Failures land in the sheet's
-      // "Jobber sync" column and email the office; they never block payment.
-      if (jobberSyncEnabled_()) {
-        pushBookingToJobber_(rowToLead(p.vals), p.sheetRow, receiptUrl);
-        // Pick-then-pay: they chose their time before paying — put the job
-        // on the calendar now and send the confirmation with the invite.
-        if (typeof onlineAfterPaid_ === 'function') {
-          try { onlineAfterPaid_(p.sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
+      // One run per row (see paidRowClaim_): an overlapping checker run read
+      // this row as unpaid too, so claim it and look at the live status.
+      if (!paidRowClaim_(p.sheetRow)) return;
+      try {
+        if (String(sheet.getRange(p.sheetRow, COL.STATUS).getValue()) === STATUS.PAID) return;
+        sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.PAID);
+        sheet.getRange(p.sheetRow, COL.PAID_AT).setValue(new Date());
+        if (receiptUrl) sheet.getRange(p.sheetRow, COL.PAYMENT_LINK).setValue(receiptUrl);
+        SpreadsheetApp.flush();
+        sendPaidEmail(rowToLead(p.vals), receiptUrl);
+        // Real money in -> real records in Jobber. Failures land in the sheet's
+        // "Jobber sync" column and email the office; they never block payment.
+        if (jobberSyncEnabled_()) {
+          pushBookingToJobber_(rowToLead(p.vals), p.sheetRow, receiptUrl);
+          // Pick-then-pay: they chose their time before paying — put the job
+          // on the calendar now and send the confirmation with the invite.
+          if (typeof onlineAfterPaid_ === 'function') {
+            try { onlineAfterPaid_(p.sheetRow, receiptUrl); } catch (e) { /* emailed from inside */ }
+          }
         }
+      } finally {
+        paidRowRelease_(p.sheetRow);
       }
     } else if (p.status === STATUS.STARTED && (now - p.ts) > ABANDONED_AFTER_MIN * 60000) {
       sheet.getRange(p.sheetRow, COL.STATUS).setValue(STATUS.ABANDONED);
