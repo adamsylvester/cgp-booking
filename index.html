@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Book Online | Charlottesville Gutter Pros</title>
+  <link rel="canonical" href="https://book.cvillegutterpros.com/">
   <meta name="description" content="Get an instant price for gutter cleaning, pay a 25% deposit, and book your date. No callbacks, no waiting." />
 
   <!-- Open Graph (Facebook, LinkedIn, iMessage, etc.) -->
@@ -1102,7 +1103,7 @@
     <div class="hero-quote">
       <h1 class="hero-title">Your gutter cleaning price in <em>10 seconds</em></h1>
       <p class="hero-sub">Instant price · pick your date · 25% deposit today</p>
-      <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> 4.9 on Google · 800+ reviews</a></p>
+      <p class="hero-rating"><a href="https://search.google.com/local/reviews?placeid=ChIJlxFsLbWHs4kRblJgNsKoPcI" target="_blank" rel="noopener"><span class="stars">★★★★★</span> <span data-g-rating>4.9</span> on Google<span data-g-count></span></a></p>
       <!-- Real crew selfies from recent jobs (CompanyCam #selfie feed, Oct 2026). -->
       <div class="crew-strip" aria-label="Our crew at recent jobs">
         <img src="crew-1.webp" alt="Ryan with a happy customer at the front door" loading="lazy" width="400" height="400" />
@@ -1296,7 +1297,7 @@
               </div>
             </div>
             <div class="price-trust">
-              <div class="price-rating"><span class="stars">★★★★★</span> 4.9 · 800+ Google Reviews</div>
+              <div class="price-rating"><span class="stars">★★★★★</span> <span data-g-rating>4.9</span> on Google<span data-g-count></span></div>
               <div class="price-incl">
                 <span>✓ Full gutter &amp; downspout cleaning</span>
                 <span>✓ Downspout flow check</span>
@@ -3218,5 +3219,15 @@
     </div>
     <div class="site-foot-dark">Copyright &copy; 2026 Charlottesville Gutter Pros <a class="staff-link" href="#" id="staffLink">Staff</a></div>
   </footer>
+  <script>
+    // The Google rating and review count come from the same place the main
+    // website reads them (team.cvillegutterpros.com/api/reviews, a daily pull
+    // of the live Google numbers), so no count is typed into this page.
+    fetch('https://team.cvillegutterpros.com/api/reviews').then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || !j.rating) return;
+      document.querySelectorAll('[data-g-rating]').forEach(function (el) { el.textContent = Number(j.rating).toFixed(1); });
+      if (j.label) document.querySelectorAll('[data-g-count]').forEach(function (el) { el.textContent = ', ' + j.label + ' reviews'; });
+    }).catch(function () {});
+  </script>
 </body>
 </html>
