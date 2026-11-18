@@ -950,7 +950,7 @@ function jobberDepositNote_(lead, receiptUrl) {
     'Quoted total: $' + total,
     'BALANCE TO COLLECT ON COMPLETION: $' + balance + (paidInFull ? ' (nothing — fully prepaid)' : ''),
     '',
-    'Apply the $' + deposit + ' as a payment on the invoice by hand — it is in Square, not in Jobber.',
+    'Record the $' + deposit + ' in Jobber as a deposit on the client (client page > Billing > Record deposit) so it comes off the invoice. The money is in Square, not in Jobber.',
   ];
   if (jobberPlanCode_(lead.plan) === 'recurring') {
     lines.push('', '🔁 RECURRING every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) + '% off each cleaning. Set this job to repeat.');
@@ -1772,7 +1772,9 @@ function onlineJobberLink_(encodedId, kind) {
   } catch (e) { return ''; }
 }
 
-function onlineNotifyOffice_(hold, kind, ids, prev) {
+// depositToRecord = dollars the office still has to record in Jobber by hand
+// (a paid cleaning with no quote, 2026-11-18: the deposit goes on the client).
+function onlineNotifyOffice_(hold, kind, ids, prev, depositToRecord) {
   var title = ONLINE_TITLES[hold.service] || 'Appointment';
   var colors = { booked: '#15803d', rescheduled: '#1d4ed8', cancelled: '#f59e0b' };
   var words = { booked: '📅 New online booking', rescheduled: '🔁 Online booking moved', cancelled: '❌ Online booking cancelled' };
@@ -1788,7 +1790,14 @@ function onlineNotifyOffice_(hold, kind, ids, prev) {
   var reqLink = ids && ids.jobber_request_id ? onlineJobberLink_(ids.jobber_request_id, 'requests') : '';
   if (jobLink) inner += row('Jobber job', '<a href="' + jobLink + '">' + jobLink + '</a>');
   if (reqLink) inner += row('Jobber request', '<a href="' + reqLink + '">' + reqLink + '</a>');
+  var clientLink = Number(depositToRecord) > 0 && ids && ids.jobber_client_id ? onlineJobberLink_(ids.jobber_client_id, 'clients') : '';
+  if (clientLink) inner += row('Jobber client', '<a href="' + clientLink + '">' + clientLink + '</a>');
   inner += '</table>';
+  if (clientLink) {
+    inner += '<p style="margin:16px 0 0;padding:12px 14px;background:#fff7e6;border-radius:8px;line-height:1.5;"><strong>Record the $' + Number(depositToRecord) +
+      ' deposit in Jobber.</strong> There is no quote for this booking. Open the <a href="' + clientLink + '">client</a>, go to Billing and choose <strong>Record deposit</strong>. ' +
+      'The money is already in Square.</p>';
+  }
   if (kind === 'cancelled') {
     inner += '<p style="margin:16px 0 0;line-height:1.5;">Their Jobber ' + (hold.jobber_job_id ? 'job' : 'request') +
       ' was <strong>not</strong> changed' + (hold.jobber_job_id ? ' — the deposit is still attached to it' : '') + '. Move or cancel it by hand once they rebook.</p>';
@@ -1848,7 +1857,9 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
     onlineHoldUpdate_(holdId, patch);
     hold.status = 'booked';
     onlineSendCustomerEmail_(hold, 'booked', lead);
-    onlineNotifyOffice_(hold, 'booked', ids, null);
+    // No quote on this row = nowhere the deposit was recorded yet.
+    var hasQuote = !!String(sheet.getRange(sheetRow, JCOL.QUOTE).getValue() || '');
+    onlineNotifyOffice_(hold, 'booked', ids, null, hasQuote ? 0 : Number(lead.deposit || 0));
     onlineClientNote_(hold, 'booked', ids, null);
   } catch (err) {
     onlineHoldUpdate_(holdId, { error: String(err).slice(0, 400) });
