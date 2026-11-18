@@ -615,7 +615,8 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
       requestId: requestId || null,
       quoteId: quoteId || null,
       title: jobberJobTitle_(lead),
-      instructions: jobberDetailsNote_(lead),
+      // The crew reads this on the visit, so it also says the deposit is handled.
+      instructions: jobberDetailsNote_(lead) + (Number(lead.deposit || 0) > 0 ? '\n' + ONLINE_DEPOSIT_APPLIED : ''),
       lineItems: jobberLineItems_(lead).map(function (li) {
         return {
           productOrServiceId: li.productOrServiceId || null,
@@ -939,6 +940,11 @@ function jobberDetailsNote_(lead) {
 
 // Jobber's API cannot record a payment, so the deposit lives as a note that
 // whoever invoices this job cannot miss.
+// Grok Bot (Chief) records each Square deposit on the client's Jobber account
+// from the copied PAID email, so nobody enters it by hand (Adam, 2026-11-18).
+// His wording, used on the pinned note, the visit instructions and the office email.
+const ONLINE_DEPOSIT_APPLIED = "The deposit has been applied to the client's Jobber account and should be applied in the invoicing process.";
+
 function jobberDepositNote_(lead, receiptUrl) {
   var deposit = Number(lead.deposit || 0);
   var total = Number(lead.total || 0);
@@ -950,7 +956,7 @@ function jobberDepositNote_(lead, receiptUrl) {
     'Quoted total: $' + total,
     'BALANCE TO COLLECT ON COMPLETION: $' + balance + (paidInFull ? ' (nothing — fully prepaid)' : ''),
     '',
-    'Record the $' + deposit + ' in Jobber as a deposit on the client (client page > Billing > Record deposit) so it comes off the invoice. The money is in Square, not in Jobber.',
+    ONLINE_DEPOSIT_APPLIED,
   ];
   if (jobberPlanCode_(lead.plan) === 'recurring') {
     lines.push('', '🔁 RECURRING every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) + '% off each cleaning. Set this job to repeat.');
@@ -1779,8 +1785,8 @@ function onlineJobberLink_(encodedId, kind) {
   } catch (e) { return ''; }
 }
 
-// depositToRecord = dollars the office still has to record in Jobber by hand
-// (a paid cleaning with no quote, 2026-11-18: the deposit goes on the client).
+// depositToRecord = the deposit paid online; the email says it is already on
+// the client's Jobber account (Chief records it) and links the client.
 function onlineNotifyOffice_(hold, kind, ids, prev, depositToRecord) {
   var title = ONLINE_TITLES[hold.service] || 'Appointment';
   var colors = { booked: '#15803d', rescheduled: '#1d4ed8', cancelled: '#f59e0b' };
@@ -1801,9 +1807,7 @@ function onlineNotifyOffice_(hold, kind, ids, prev, depositToRecord) {
   if (clientLink) inner += row('Jobber client', '<a href="' + clientLink + '">' + clientLink + '</a>');
   inner += '</table>';
   if (clientLink) {
-    inner += '<p style="margin:16px 0 0;padding:12px 14px;background:#fff7e6;border-radius:8px;line-height:1.5;"><strong>Record the $' + Number(depositToRecord) +
-      ' deposit in Jobber.</strong> There is no quote for this booking. Open the <a href="' + clientLink + '">client</a>, go to Billing and choose <strong>Record deposit</strong>. ' +
-      'The money is already in Square.</p>';
+    inner += '<p style="margin:16px 0 0;padding:12px 14px;background:#f0fdf4;border-radius:8px;line-height:1.5;">$' + Number(depositToRecord) + ' deposit: ' + ONLINE_DEPOSIT_APPLIED + '</p>';
   }
   if (kind === 'cancelled') {
     inner += '<p style="margin:16px 0 0;line-height:1.5;">Their Jobber ' + (hold.jobber_job_id ? 'job' : 'request') +
@@ -1867,9 +1871,7 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
     onlineHoldUpdate_(holdId, patch);
     hold.status = 'booked';
     onlineSendCustomerEmail_(hold, 'booked', lead);
-    // No quote on this row = nowhere the deposit was recorded yet.
-    var hasQuote = !!String(sheet.getRange(sheetRow, JCOL.QUOTE).getValue() || '');
-    onlineNotifyOffice_(hold, 'booked', ids, null, hasQuote ? 0 : Number(lead.deposit || 0));
+    onlineNotifyOffice_(hold, 'booked', ids, null, Number(lead.deposit || 0));
     onlineClientNote_(hold, 'booked', ids, null);
   } catch (err) {
     onlineHoldUpdate_(holdId, { error: String(err).slice(0, 400) });
