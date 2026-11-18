@@ -1132,6 +1132,10 @@ function sendPaidEmail(lead, receiptUrl) {
   inner += sectionHead('Money status');
   inner += '<table style="border-collapse:collapse;width:100%;">';
   inner += rowBold(paidInFull ? 'Paid in full today' : 'Deposit paid today', '$' + lead.deposit);
+  // Spelled out for the deposit inbox that records this payment in Jobber.
+  inner += row('Paid on', Utilities.formatDate(new Date(), 'America/New_York', 'EEE, MMM d, yyyy h:mm a') + ' Eastern');
+  var squareId = String(receiptUrl || '').split('?')[0].split('/').pop();
+  if (squareId) inner += row('Square payment ID', escapeHtml(squareId));
   inner += rowBold('Balance to collect on completion', '$' + balance);
   inner += '</table>';
   if (receiptUrl) {
@@ -1142,14 +1146,19 @@ function sendPaidEmail(lead, receiptUrl) {
            'If they skipped the date, a quote holds their price until you set a time with them.</p>';
   inner += metaFooter(lead);
 
-  MailApp.sendEmail({
+  var mail = {
     to: NOTIFICATION_EMAIL,
     subject: '✅ PAID: ' + lead.name + ' — $' + lead.deposit + (paidInFull ? ' PAID IN FULL' : ' deposit in ($' + lead.total + ' total)'),
     htmlBody: emailShell(inner),
     replyTo: lead.email || undefined,
     from: FROM_ADDRESS,
     name: FROM_NAME
-  });
+  };
+  // Every real payment is copied to the deposit inbox (Script Property
+  // ONLINE_DEPOSIT_CC, 2026-11-18). One email per payment; tests never copy.
+  var depositCc = (typeof onlineDepositCc_ === 'function' && !/^\s*ZZZ/i.test(String(lead.name || ''))) ? onlineDepositCc_() : '';
+  if (depositCc) mail.cc = depositCc;
+  MailApp.sendEmail(mail);
 }
 
 // --- "Abandoned" (instant once the 45-minute window passes) ---
