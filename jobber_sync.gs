@@ -1764,6 +1764,14 @@ function onlineSendCustomerEmail_(hold, kind, lead) {
   MailApp.sendEmail(options);
 }
 
+// Address copied on every 'New online booking' office email for a paid
+// cleaning. Kept in Script Properties (ONLINE_DEPOSIT_CC), not here: this repo
+// is public and the address is a private inbox. Empty = nobody is copied.
+function onlineDepositCc_() {
+  try { return String(PropertiesService.getScriptProperties().getProperty('ONLINE_DEPOSIT_CC') || '').trim(); }
+  catch (e) { return ''; }
+}
+
 function onlineJobberLink_(encodedId, kind) {
   try {
     var raw = Utilities.newBlob(Utilities.base64Decode(encodedId)).getDataAsString();   // gid://Jobber/Job/123
@@ -1804,8 +1812,13 @@ function onlineNotifyOffice_(hold, kind, ids, prev, depositToRecord) {
   }
   inner += '<p style="margin-top:16px;font-size:12px;color:#98a2b3;">Change or cancel link (same one the customer has): ' + ONLINE_MANAGE_URL + hold.id + '</p>';
   try {
-    MailApp.sendEmail({ to: NOTIFICATION_EMAIL, subject: words[kind] + ': ' + (hold.name || hold.email) + ' · ' + Utilities.formatDate(new Date(hold.start_at), SCHED.timeZone, 'EEE MMM d h:mm a'),
-                        htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME });
+    var mail = { to: NOTIFICATION_EMAIL, subject: words[kind] + ': ' + (hold.name || hold.email) + ' · ' + Utilities.formatDate(new Date(hold.start_at), SCHED.timeZone, 'EEE MMM d h:mm a'),
+                 htmlBody: emailShell(inner), from: FROM_ADDRESS, name: FROM_NAME };
+    // A new paid cleaning is also copied to Adam's deposit inbox (2026-11-18).
+    // Tests (ZZZ names) are never copied.
+    var depositCc = (kind === 'booked' && hold.service === 'cleaning' && !/^\s*ZZZ/i.test(String(hold.name || ''))) ? onlineDepositCc_() : '';
+    if (depositCc) mail.cc = depositCc;
+    MailApp.sendEmail(mail);
   } catch (e) { /* never let the notification break the booking */ }
 }
 
