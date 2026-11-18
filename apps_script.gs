@@ -1138,8 +1138,8 @@ function sendPaidEmail(lead, receiptUrl) {
     inner += '<p style="margin:16px 0 0;"><a href="' + receiptUrl + '" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;text-decoration:none;border-radius:10px;font-weight:700;">View payment in Square</a></p>';
   }
   inner += '<p style="margin-top:16px;font-size:13px;color:#475467;">They picked their date before paying — the 📅 booking email with the time follows in a moment (or, if they skipped the date, when they pick one). ' +
-           'They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — ' +
-           'the API can\'t set that status, so it stays “Awaiting response” until someone clicks it.</p>';
+           'Nothing to approve in Jobber: a booking with a time goes straight in as a job. ' +
+           'If they skipped the date, a quote holds their price until you set a time with them.</p>';
   inner += metaFooter(lead);
 
   MailApp.sendEmail({

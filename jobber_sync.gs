@@ -12,11 +12,14 @@
 // Two stages, in the order the money moves:
 //
 //   1. pushBookingToJobber_(lead, row)   fires the moment the deposit lands.
-//      Creates: Client (+ Property) -> Quote (deposit recorded as a
-//      note, since Jobber's API cannot post a payment).
+//      Creates: Client (+ Property). NO Quote when they already picked a time
+//      (Adam, 2026-11-18): the Job in step 2 is the only record. A Quote is
+//      made only when they paid with no time on the calendar, to hold the
+//      price in Jobber until the office sets one.
 //
-//   2. Calendly webhook   fires when they pick their slot. Creates the Job with
-//      the visit scheduled for exactly that time.
+//   2. scheduleBookingInJobber_   creates the Job with the visit at the time
+//      they picked (deposit recorded as a pinned note, since Jobber's API
+//      cannot post a payment).
 //
 // SETUP — Script Properties (Project Settings > Script properties):
 //   JOBBER_TOKEN_STORE_URL     same /exec URL the dashboard uses
@@ -206,12 +209,14 @@ function jobberCheckErrors_(payload, label) {
 }
 
 // ===========================================================================
-// STAGE 1 — paid deposit becomes Client + Quote (no Request since 2026-11-17)
+// STAGE 1 — paid deposit becomes a Client (no Request since 2026-11-17, no
+//           Quote since 2026-11-18 unless they paid without picking a time)
 // ===========================================================================
 
 // Called from checkPendingPayments the instant a row flips to PAID.
 // Safe to re-run: every step checks the sheet for an ID it already wrote.
-function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
+// jobIsNext = the caller creates the Job right after this, so skip the quote.
+function pushBookingToJobber_(lead, sheetRow, receiptUrl, jobIsNext) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
 
   // One run at a time — the payment checker fires every minute and we never
@@ -238,21 +243,28 @@ function pushBookingToJobber_(lead, sheetRow, receiptUrl) {
     var propertyId = parts[1] || ids.propertyId;
 
     // No Request for a paid online cleaning (Adam, 2026-11-17: "we shouldn't").
-    // The customer already bought it, so it goes straight to Quote + Job.
     // ids.requestId is only ever filled on rows from before this change.
     // Assessments still get a Request: in Jobber an assessment lives on one.
-
-    if (!ids.quoteId) {
-      ids.quoteId = jobberCreateQuote_(clientId, propertyId, ids.requestId, lead, receiptUrl);
-      sheet.getRange(sheetRow, JCOL.QUOTE).setValue(ids.quoteId);
+    //
+    // No Quote either when they picked a time before paying (Adam, 2026-11-18:
+    // "skip the Quote and just create a Job"): the Job follows in a moment
+    // and nobody has to approve anything. Only a booking paid with NO time
+    // picked gets a Quote, so the price sits in Jobber until a date is set.
+    var hasHold = !!String(sheet.getRange(sheetRow, JCOL.HOLD).getValue() || '');
+    if (hasHold || jobIsNext) {
+      sheet.getRange(sheetRow, JCOL.SYNC).setValue('✅ Client in Jobber — job next');
+    } else {
+      if (!ids.quoteId) {
+        ids.quoteId = jobberCreateQuote_(clientId, propertyId, ids.requestId, lead, receiptUrl);
+        sheet.getRange(sheetRow, JCOL.QUOTE).setValue(ids.quoteId);
+      }
+      sheet.getRange(sheetRow, JCOL.SYNC).setValue('✅ In Jobber — awaiting date');
     }
-
-    sheet.getRange(sheetRow, JCOL.SYNC).setValue('✅ In Jobber — awaiting date');
   } catch (err) {
     // Never let a Jobber problem break the payment pipeline. The row keeps its
     // PAID status and the error is visible in the sheet.
     sheet.getRange(sheetRow, JCOL.SYNC).setValue('⚠️ ' + String(err).slice(0, 400));
-    jobberNotifyFailure_(lead, err, 'creating the client/request/quote');
+    jobberNotifyFailure_(lead, err, 'creating the client');
   } finally {
     // Another run only sees these IDs once they are flushed.
     try { SpreadsheetApp.flush(); } catch (e) { /* still release */ }
@@ -543,6 +555,26 @@ function jobberCreateQuote_(clientId, propertyId, requestId, lead, receiptUrl) {
   return jobberCheckErrors_(data.quoteCreate, 'quoteCreate').quote.id;
 }
 
+// A paid booking that ended up with no time on the calendar (their picked
+// time was lost while they paid) still needs its price in Jobber. Makes the
+// Quote the row skipped in stage 1. Never throws: the office is emailed either
+// way. Returns true when a quote is there.
+function jobberHoldingQuote_(sheetRow, lead, receiptUrl) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+    if (String(sheet.getRange(sheetRow, JCOL.QUOTE).getValue() || '')) return true;
+    var clientCell = String(sheet.getRange(sheetRow, JCOL.CLIENT).getValue() || '').split('|');
+    if (!clientCell[0]) return false;
+    var quoteId = jobberCreateQuote_(clientCell[0], clientCell[1], '', lead, receiptUrl);
+    sheet.getRange(sheetRow, JCOL.QUOTE).setValue(quoteId);
+    SpreadsheetApp.flush();
+    return true;
+  } catch (err) {
+    Logger.log('Holding quote failed: ' + err);
+    return false;
+  }
+}
+
 // ===========================================================================
 // STAGE 2 — the customer picks a date, so the Job goes on the calendar
 // ===========================================================================
@@ -641,6 +673,9 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
 // ===========================================================================
 // DAILY SWEEP — paid bookings whose quote is still "Awaiting response"
 // ===========================================================================
+// Since 2026-11-18 only bookings paid WITHOUT a time on the calendar get a
+// quote at all, so this now mostly means "paid, still no date".
+//
 // A paid booking's quote SHOULD read Approved. Jobber's GraphQL API cannot set
 // that: there is no approve/accept/transition mutation, `quoteEdit` has no
 // status field, and `transitionQuoteTo` accepts only AWAITING_RESPONSE at
@@ -701,10 +736,9 @@ function jobberDailyStuckSweep_() {
 
   var inner = statusBanner('#f59e0b', '⏰ ' + stuck.length + ' paid quote' +
     (stuck.length > 1 ? 's are' : ' is') + ' still sitting in “Awaiting response”.') +
-    '<p style="margin:0 0 12px;line-height:1.5;">Each customer below already paid their deposit, so their ' +
-    'quote should read <strong>Approved</strong>. Jobber\'s API cannot set that status — it has to be a ' +
-    'click. Open each quote and mark it <strong>Approved</strong> (or send them the Client Hub link and let ' +
-    'them approve it themselves).</p>';
+    '<p style="margin:0 0 12px;line-height:1.5;">Each customer below already paid their deposit. ' +
+    'If they have no visit yet, call them to set a time, then open the quote and <strong>convert it to a job</strong>. ' +
+    'If the job is already on the calendar, just mark the quote <strong>Approved</strong>.</p>';
 
   stuck.forEach(function (s) {
     var link = jobberQuoteWebLink_(s.quoteId);
@@ -712,7 +746,7 @@ function jobberDailyStuckSweep_() {
       contactRows(s.lead.name, s.lead.phone, s.lead.email, s.lead.address) +
       row('Paid on', Utilities.formatDate(s.paidAt, SCHED.timeZone, 'EEE, MMM d h:mm a')) +
       row('Deposit / total', '$' + s.lead.deposit + ' / $' + s.lead.total) +
-      row('Quote', link ? '<a href="' + link + '">Approve in Jobber</a>' : s.quoteId) +
+      row('Quote', link ? '<a href="' + link + '">Open in Jobber</a>' : s.quoteId) +
       (s.clientHubUri ? row('Client Hub', '<a href="' + s.clientHubUri + '">Customer approval link</a>') : '') +
       '</table>';
   });
@@ -720,7 +754,7 @@ function jobberDailyStuckSweep_() {
   MailApp.sendEmail({
     to: NOTIFICATION_EMAIL,
     subject: '⏰ Paid online booking' + (stuck.length > 1 ? 's' : '') +
-             ' — quote still “Awaiting response”, needs approving',
+             ' — quote still open in Jobber',
     htmlBody: emailShell(inner),
     from: FROM_ADDRESS,
     name: FROM_NAME,
@@ -994,7 +1028,7 @@ function calendlyScheduleePaidBooking_(row, ev, email) {
 
   try {
     // The deposit usually lands first, but if the customer beat the payment
-    // checker here, create the client/request/quote now.
+    // checker here, create the client (and holding quote) now.
     if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) {
       pushBookingToJobber_(lead, row, receiptUrl);
     }
@@ -1243,7 +1277,8 @@ function jobberFindRow_(timestamp, email) {
 // END-TO-END TEST — run this ONCE before a real customer hits the flow.
 //
 // Fakes a paid booking and walks it through every step for real: creates a
-// Client, Property, Request and Quote in Jobber, then fires a synthetic
+// Client, Property and Quote in Jobber (the test row has no held time, so it
+// takes the paid-without-a-time path), then fires a synthetic
 // Calendly webhook to create the scheduled Job. No money moves and no email
 // goes to a customer.
 //
@@ -1279,7 +1314,7 @@ function testEndToEnd() {
   var row = sheet.getLastRow();
   Logger.log('1/3  Test row added at sheet row ' + row);
 
-  // 2. Deposit-paid path: Client -> Property -> Request -> Quote.
+  // 2. Deposit-paid path with no held time: Client -> Property -> Quote.
   pushBookingToJobber_(rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]), row, '');
   var sync = String(sheet.getRange(row, JCOL.SYNC).getValue() || '');
   if (sync.indexOf('⚠️') === 0) throw new Error('Stage 1 failed — ' + sync);
@@ -1520,7 +1555,8 @@ function onlineScheduleCleaning_(hold) {
   }
   var receiptUrl = String(sheet.getRange(row, COL.PAYMENT_LINK).getValue() || '');
   var lead = rowToLead(sheet.getRange(row, 1, 1, LAST_COL).getValues()[0]);
-  if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) pushBookingToJobber_(lead, row, receiptUrl);
+  // They are picking a time right now, so the job is next: no quote needed.
+  if (!String(sheet.getRange(row, JCOL.CLIENT).getValue() || '')) pushBookingToJobber_(lead, row, receiptUrl, true);
   var jobId = scheduleBookingInJobber_(row, hold.start_at, hold.end_at, receiptUrl);
   var visitId = '';
   try { visitId = onlineFirstVisitId_(jobId); } catch (e) { /* the id only matters for a later reschedule */ }
@@ -1756,8 +1792,6 @@ function onlineNotifyOffice_(hold, kind, ids, prev) {
   if (kind === 'cancelled') {
     inner += '<p style="margin:16px 0 0;line-height:1.5;">Their Jobber ' + (hold.jobber_job_id ? 'job' : 'request') +
       ' was <strong>not</strong> changed' + (hold.jobber_job_id ? ' — the deposit is still attached to it' : '') + '. Move or cancel it by hand once they rebook.</p>';
-  } else if (kind === 'booked' && hold.service === 'cleaning') {
-    inner += '<p style="margin:16px 0 0;font-size:13px;color:#475467;line-height:1.5;">They\'ve paid, so open their quote in Jobber and mark it <strong>Approved</strong> — the API can\'t set that status.</p>';
   }
   inner += '<p style="margin-top:16px;font-size:12px;color:#98a2b3;">Change or cancel link (same one the customer has): ' + ONLINE_MANAGE_URL + hold.id + '</p>';
   try {
@@ -1788,7 +1822,11 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
   if (String(sheet.getRange(sheetRow, JCOL.JOB).getValue() || '')) return;   // already on the calendar
   var lead = rowToLead(sheet.getRange(sheetRow, 1, 1, LAST_COL).getValues()[0]);
   var hold = onlineHold_(holdId);
-  if (!hold || !hold.id) { jobberNotifyFailure_(lead, new Error('hold ' + holdId + ' not found'), 'finding the time they picked'); return; }
+  if (!hold || !hold.id) {
+    jobberHoldingQuote_(sheetRow, lead, receiptUrl);
+    jobberNotifyFailure_(lead, new Error('hold ' + holdId + ' not found'), 'finding the time they picked');
+    return;
+  }
   try {
     var confirmed = onlineRpc_('booking_hold_confirm', { p_id: holdId });
     if (!confirmed || !confirmed.id) {
@@ -1796,7 +1834,7 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
       // so the office picks a new time with them; the customer is told.
       onlineHoldUpdate_(holdId, { status: 'cancelled', error: 'slot lost before the deposit landed' });
       sheet.getRange(sheetRow, JCOL.SYNC).setValue('⚠️ paid, but their picked time was taken — call to reschedule');
-      onlineSlotLostEmails_(hold, lead);
+      onlineSlotLostEmails_(hold, lead, jobberHoldingQuote_(sheetRow, lead, receiptUrl));
       return;
     }
     hold = confirmed;
@@ -1818,14 +1856,16 @@ function onlineAfterPaid_(sheetRow, receiptUrl) {
   }
 }
 
-function onlineSlotLostEmails_(hold, lead) {
+function onlineSlotLostEmails_(hold, lead, hasQuote) {
   var when = onlineWhen_(hold);
   try {
     MailApp.sendEmail({ to: NOTIFICATION_EMAIL, from: FROM_ADDRESS, name: FROM_NAME,
       subject: '⚠️ Paid, but their time slot was lost: ' + (hold.name || hold.email),
       htmlBody: emailShell(statusBanner('#f59e0b', '⚠️ Deposit received, but the time they picked (' + escapeHtml(when) + ') was taken while they paid.') +
         '<table style="border-collapse:collapse;width:100%;">' + contactRows(hold.name, hold.phone, hold.email, hold.address) + '</table>' +
-        '<p style="margin:16px 0 0;line-height:1.5;">Their quote/request is in Jobber with no visit yet. Call them to set a new time, then schedule it by hand.</p>') });
+        '<p style="margin:16px 0 0;line-height:1.5;">' + (hasQuote
+          ? 'A quote with their price is in Jobber, with no visit yet. Call them to set a new time, then convert that quote to a job.'
+          : 'Only their client record is in Jobber. Call them to set a new time, then create the job by hand (the paid email has the price).') + '</p>') });
   } catch (e) { /* never block */ }
   if (!hold.email) return;
   try {
