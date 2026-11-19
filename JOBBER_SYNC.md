@@ -5,7 +5,7 @@
 > script's `online_schedule` / `online_reschedule` / `online_cancel` actions
 > put it in Jobber and send the customer a confirmation with a calendar
 > invite. The Calendly webhook code below is kept only as history; nothing
-> links to Calendly any more. Jobber markers are now `📅 ONLINE — ` and the
+> links to Calendly any more. Jobber markers are now `📅 ONLINE - ` and the
 > client tag `📅 Online Booking`. Full notes: tech-portal/db/migration_online_booking.sql.
 >
 > **Same day, later — pick the time, THEN pay.** The cleaning flow is now

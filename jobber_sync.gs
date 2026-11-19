@@ -38,7 +38,7 @@ const JOBBER_API_VERSION = '2025-01-20';
 // or the client page — that a record came through the booking site
 // rather than being entered by the team. The prefix leads every title; the tag
 // shows as a chip on the client and is filterable in client lists.
-const JOBBER_TITLE_PREFIX = '📅 ONLINE — ';
+const JOBBER_TITLE_PREFIX = '📅 ONLINE - ';
 const JOBBER_CLIENT_TAG = '📅 Online Booking';
 
 // ===== Scheduling config =====
@@ -614,9 +614,9 @@ function scheduleBookingInJobber_(sheetRow, startISO, endISO, receiptUrl) {
       propertyId: propertyId,
       requestId: requestId || null,
       quoteId: quoteId || null,
-      title: jobberJobTitle_(lead),
+      title: jobberJobTitle_(lead, start),
       // The crew reads this on the visit, so it also says the deposit is handled.
-      instructions: jobberDetailsNote_(lead) + (Number(lead.deposit || 0) > 0 ? '\n' + ONLINE_DEPOSIT_APPLIED : ''),
+      instructions: jobberDetailsNote_(lead) + (Number(lead.deposit || 0) > 0 ? '\n' + ONLINE_DEPOSIT_APPLIED : '') + '\n' + ONLINE_CLOSE_NOTE,
       lineItems: jobberLineItems_(lead).map(function (li) {
         return {
           productOrServiceId: li.productOrServiceId || null,
@@ -823,8 +823,38 @@ function jobberAddonService_(planLabel) {
   return { product: JOBBER_SERVICES.gutterSeal, description: 'Reseal leaking seams and end caps, as chosen online.' };
 }
 
-function jobberJobTitle_(lead) {
-  return JOBBER_TITLE_PREFIX + 'Gutter Cleaning — ' + (lead.plan || 'Basic');
+// A scheduled job reads "📅 ONLINE - Gutter Cleaning - Thu Nov 20, 10:30 AM"
+// (Adam, 2026-11-19). With no time yet (the holding quote) the plan name
+// stands in for the date.
+function jobberJobTitle_(lead, start) {
+  var base = JOBBER_TITLE_PREFIX + 'Gutter Cleaning - ';
+  if (start) return base + Utilities.formatDate(start, SCHED.timeZone, 'EEE MMM d, h:mm a');
+  return base + ((lead && lead.plan) || 'Basic');
+}
+
+// The date lives in the title, so a customer reschedule has to rewrite it.
+// Only touches titles this script wrote, keeps anything else in the visit
+// title (the materials check mark), and never blocks the reschedule itself.
+function onlineRetitleJob_(jobId, start) {
+  try {
+    if (!jobId) return;
+    var d = jobberGql_('query($id: EncodedId!) { job(id: $id) { title visits(first: 3) { nodes { title } } } }', { id: jobId });
+    var old = String((d.job || {}).title || '');
+    if (old.indexOf(JOBBER_TITLE_PREFIX + 'Gutter Cleaning - ') !== 0) return;
+    var title = jobberJobTitle_(null, start);
+    if (title === old) return;
+    var input = { title: title };
+    var nodes = (((d.job || {}).visits || {}).nodes) || [];
+    var vt = nodes.length ? String(nodes[0].title || '') : '';
+    if (vt && vt.indexOf(old) !== -1) input.visitTitles = vt.replace(old, title);
+    var r = jobberGql_(
+      'mutation($id: EncodedId!, $input: JobEditInput!) {' +
+      '  jobEdit(jobId: $id, input: $input) { job { id } userErrors { message path } }' +
+      '}', { id: jobId, input: input });
+    jobberCheckErrors_(r.jobEdit, 'jobEdit');
+  } catch (e) {
+    console.error('onlineRetitleJob_: ' + e);
+  }
 }
 
 // Rebuilds the quote as real line items so Jobber shows the same math the
@@ -943,6 +973,8 @@ function jobberDetailsNote_(lead) {
 // Grok Bot (Chief) records each Square deposit on the client's Jobber account
 // from the copied PAID email, so nobody enters it by hand (Adam, 2026-11-18).
 // His wording, used on the pinned note, the visit instructions and the office email.
+// Told to the crew on every online job's visit (Adam, 2026-11-19).
+const ONLINE_CLOSE_NOTE = 'After you mark the visit complete, choose "Close Job & Invoice Later".';
 const ONLINE_DEPOSIT_APPLIED = "The deposit has been applied to the client's Jobber account and should be applied in the invoicing process.";
 
 function jobberDepositNote_(lead, receiptUrl) {
@@ -1611,6 +1643,7 @@ function onlineReschedule_(hold, prev) {
       '  visitEditSchedule(id: $id, input: $input) { visit { id } userErrors { message path } }' +
       '}', { id: ids.jobber_visit_id, input: { startAt: at(start), endAt: at(end) } });
     jobberCheckErrors_(d1.visitEditSchedule, 'visitEditSchedule');
+    onlineRetitleJob_(ids.jobber_job_id, start);
   } else if (ids.jobber_assessment_id) {
     var d2 = jobberGql_(
       'mutation($id: EncodedId!, $input: AssessmentEditInput!) {' +
