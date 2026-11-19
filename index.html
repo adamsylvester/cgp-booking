@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Book Online | Charlottesville Gutter Pros</title>
   <link rel="canonical" href="https://book.cvillegutterpros.com/">
+  <link rel="icon" href="https://cvillegutterpros.com/wp-content/uploads/2026/11/cgp-logo-400.webp">
   <meta name="description" content="Get an instant price for gutter cleaning, pay a 25% deposit, and book your date. No callbacks, no waiting." />
 
   <!-- Open Graph (Facebook, LinkedIn, iMessage, etc.) -->
@@ -858,6 +859,29 @@
     .cb-msg.good { color: #15803d; font-weight: 700; }
 
   </style>
+  <!-- Analytics: Google Analytics, Google Ads and Meta, the same IDs as cvillegutterpros.com.
+       Skipped in office mode (?office=1 or the Staff switch) so staff bookings never count. -->
+  <script>
+    (function () {
+      var office = false;
+      try {
+        var q = new URLSearchParams(location.search);
+        office = q.get('office') === '1' || (q.get('office') !== '0' && localStorage.getItem('cgp_office') === '1');
+      } catch (_) {}
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function () { dataLayer.push(arguments); };
+      window.cgpAdsOff = office;
+      if (office) return;
+      var g = document.createElement('script'); g.async = true;
+      g.src = 'https://www.googletagmanager.com/gtag/js?id=G-X1R72B7DS5';
+      document.head.appendChild(g);
+      gtag('js', new Date());
+      gtag('config', 'G-X1R72B7DS5', { linker: { domains: ['cvillegutterpros.com', 'book.cvillegutterpros.com'] } });
+      gtag('config', 'AW-4995750393');
+      !function (f, b, e, v, n, t, s) { if (f.fbq) return; n = f.fbq = function () { n.callMethod ? n.callMethod.apply(n, arguments) : n.queue.push(arguments); }; if (!f._fbq) f._fbq = n; n.push = n; n.loaded = !0; n.version = '2.0'; n.queue = []; t = b.createElement(e); t.async = !0; t.src = v; s = b.getElementsByTagName(e)[0]; s.parentNode.insertBefore(t, s); }(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '258665449459727'); fbq('track', 'PageView');
+    })();
+  </script>
 </head>
 <body>
   <!-- Office mode (2026-10-22): Will / Vicki / Farrell booking on a customer's
@@ -2745,7 +2769,7 @@
         console.warn('pay request failed:', err);
       }
       if (out && out.ok && out.paid) {
-        try { if (window.cgpTrack) window.cgpTrack('deposit_paid_card', { price: payload.finalPrice, plan: payload.plan }); } catch (_) {}
+        try { if (window.cgpTrack) window.cgpTrack('deposit_paid_card', { price: payload.finalPrice, plan: payload.plan, deposit: payload.deposit, booking_id: payIdempotency }); } catch (_) {}
         btn.textContent = 'Paid. One moment…';
         // Start Jobber + the confirmation email now, in the background, so
         // nobody waits for the every-minute checker. sendBeacon survives the
@@ -3129,6 +3153,31 @@
           if (!navigator.sendBeacon(ENDPOINT, blob)) {
             fetch(ENDPOINT, { method: 'POST', body: JSON.stringify(payload),
               headers: { 'Content-Type': 'text/plain;charset=utf-8' }, keepalive: true }).catch(function () {});
+          }
+        } catch (e) { /* analytics must never surface to the customer */ }
+        ads(event, extra);
+      }
+      // 3. Google Analytics / Ads and Meta: three funnel steps only, never in office mode.
+      //    purchase fires only from deposit_paid_card, which runs after Square confirms.
+      var adsFired = {};
+      function ads(event, extra) {
+        try {
+          if (window.cgpAdsOff || window.cgpOffice || adsFired[event]) return;
+          var price = extra && extra.price !== undefined && extra.price !== '' ? Number(extra.price) : undefined;
+          if (event === 'price_shown') {
+            adsFired[event] = 1;
+            gtag('event', 'begin_checkout', { currency: 'USD', value: price });
+            if (window.fbq) fbq('track', 'InitiateCheckout', { currency: 'USD', value: price });
+          } else if (event === 'pay_step_shown') {
+            adsFired[event] = 1;
+            gtag('event', 'add_payment_info', { currency: 'USD' });
+            if (window.fbq) fbq('track', 'AddPaymentInfo');
+          } else if (event === 'deposit_paid_card') {
+            adsFired[event] = 1;
+            var dep = extra && extra.deposit !== undefined ? Number(extra.deposit) : price;
+            var tid = (extra && extra.booking_id) || session;
+            gtag('event', 'purchase', { currency: 'USD', value: dep, transaction_id: tid, items: [{ item_name: 'Gutter cleaning deposit', item_variant: extra && extra.plan ? String(extra.plan) : undefined, price: dep, quantity: 1 }] });
+            if (window.fbq) fbq('track', 'Purchase', { currency: 'USD', value: dep });
           }
         } catch (e) { /* analytics must never surface to the customer */ }
       }
