@@ -1673,9 +1673,11 @@
     function planTotal(base, plan) {
       const m = PRICING.singleMarkup;
       const legacy = !(typeof m === 'number' && isFinite(m));
-      if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
+      const oneTime = legacy ? base : roundWhole(base * (1 + m));
+      // "4 cleanings for the price of 3": a multiple of the one-time price.
+      if (plan === 'protection') return roundWhole(oneTime * PRICING.protectionMultiplier);
       if (plan === 'recurring') return legacy ? roundWhole(base * (1 - PRICING.recurringDiscount)) : base;
-      return legacy ? base : roundWhole(base * (1 + m)); // basic (one-time)
+      return oneTime; // basic
     }
 
     // Percent a recurring customer saves against the one-time price: from the
@@ -1838,9 +1840,8 @@
       elements.payBarAmt.textContent = '$' + deposit;
       elements.payBarBtn.textContent = 'Pick your date →';
 
-      // "Base cleaning" on the receipt = the one-time price, except the Gutter
-      // Protection Plan, which is a multiple of the list price (same as the server).
-      currentQuote = { basePrice: selectedPlan === 'protection' ? base : regular, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
+      // "Base cleaning" on the receipt = the one-time price (same as the server).
+      currentQuote = { basePrice: regular, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
       updatePayBar();
       syncDatePicker();   // time first: the picker opens the moment there's a price
@@ -2983,7 +2984,7 @@
       console.assert(planTotal(200, 'basic') === 200 && planTotal(200, 'recurring') === 180, 'old rule: recurring = 10% off the list price');
       PRICING.singleMarkup = 0.15;
       console.assert(planTotal(200, 'basic') === 230 && planTotal(200, 'recurring') === 200, 'one-time = list price + 15%, recurring = list price');
-      console.assert(planTotal(200, 'protection') === roundWhole(200 * PRICING.protectionMultiplier), 'protection plan stays a multiple of the list price');
+      console.assert(planTotal(200, 'protection') === roundWhole(230 * PRICING.protectionMultiplier), 'protection plan = multiple of the one-time price');
       console.assert(recurringPct(200) === 13 && recurringPct(0) === 13, 'recurring saves 13% against a 15% markup');
       PRICING.singleMarkup = live;
     })();

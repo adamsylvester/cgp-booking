@@ -22,10 +22,12 @@ const RECURRING_DISCOUNT = 0.10;
 function planPrices_(listPrice, PRICING) {
   var m = PRICING.singleMarkup;
   var legacy = !(typeof m === 'number' && isFinite(m));
+  var basic = legacy ? listPrice : Math.round(listPrice * (1 + m));
   return {
-    basic: legacy ? listPrice : Math.round(listPrice * (1 + m)),
+    basic: basic,
     recurring: legacy ? Math.round(listPrice * (1 - RECURRING_DISCOUNT)) : listPrice,
-    protection: Math.round(listPrice * PRICING.protectionMultiplier),
+    // "4 cleanings for the price of 3": a multiple of the one-time price.
+    protection: Math.round(basic * PRICING.protectionMultiplier),
   };
 }
 
@@ -189,8 +191,7 @@ function houseLabel(code) {
 
 // Returns {base, total, deposit, fee} or null if the inputs don't add up.
 // `base` is what the emails and Jobber lines call the base cleaning: the
-// one-time price, except on the Gutter Protection Plan, which is a multiple
-// of the list price.
+// one-time price.
 function computeServerPrice(data) {
   var PRICING = livePricing_();
   var cfg = PRICING.houses[data.houseType];
@@ -207,7 +208,7 @@ function computeServerPrice(data) {
   }
 
   var prices = planPrices_(listPrice, PRICING);
-  var base = data.plan === 'protection' ? listPrice : prices.basic;
+  var base = prices.basic;
   var subtotal = prices.basic;
   if (data.plan === 'protection') subtotal = prices.protection;
   if (data.plan === 'recurring') subtotal = prices.recurring;
