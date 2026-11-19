@@ -2328,7 +2328,7 @@ function websiteCreateRequest_(clientId, propertyId, lead) {
     { input: { clientId: clientId, propertyId: propertyId, title: title } }
   );
   var requestId = jobberCheckErrors_(data.requestCreate, 'requestCreate').request.id;
-  var note = ['Website form' + (lead.page ? ' (' + lead.page + ')' : '')];
+  var note = ['Website form' + (lead.form ? ': ' + lead.form : '') + (lead.page ? ' (' + lead.page + ')' : '')];
   if (lead.service) note.push('Services needed: ' + lead.service);
   if (lead.problem) note.push('What problems are you having: ' + lead.problem);
   if (lead.heard) note.push('How Did You Hear About CGP: ' + lead.heard);
