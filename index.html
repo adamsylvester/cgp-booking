@@ -1260,12 +1260,12 @@
             </label>
 
             <label class="plan-opt" data-plan="recurring">
-              <span class="plan-badge plan-badge-quiet">Save 10%</span>
+              <span class="plan-badge plan-badge-quiet" id="recurringBadge">Save 10%</span>
               <input type="radio" name="plan" value="recurring" />
               <span class="plan-radio" aria-hidden="true"></span>
               <span class="plan-body">
                 <span class="plan-name">Make it recurring?</span>
-                <span class="plan-sub">We come back every 6 months to clean. 10% off this cleaning and every one after. 25% deposit today.</span>
+                <span class="plan-sub">We come back every 6 months to clean. <span id="recurringOff">10% off this cleaning and every one after. </span>25% deposit today.</span>
               </span>
               <span class="plan-price-wrap"><span class="plan-price" data-plan-price="recurring">$0</span><span class="plan-per" id="planPerRecurring"></span></span>
             </label>
@@ -1551,8 +1551,13 @@
       fullPayPlans: { protection: true },
       // Gutter Protection Plan = this multiple of base (3× = 4 cleanings / 2 yrs).
       protectionMultiplier: 3,
-      // "Make it recurring?" = a cleaning every 6 months, this much off each
-      // one. Must match RECURRING_DISCOUNT in apps_script.gs.
+      // One-time vs recurring (2026-11-19). singleMarkup comes from the live
+      // price list (Adam sets it on the admin prices card): the list price IS
+      // the recurring price and a one-time cleaning costs that much more
+      // (0.15 = 15% more). null = a price list without it, which uses the old
+      // rule: one-time = list price, recurring = recurringDiscount off.
+      // Same rule as planPrices_ in apps_script.gs.
+      singleMarkup: null,
       recurringDiscount: 0.10,
       // Surcharge when the home is outside Charlottesville City / Albemarle County.
       outsideAreaFee: 50,
@@ -1574,6 +1579,7 @@
       const between = (v, lo, hi) => typeof v === 'number' && isFinite(v) && v >= lo && v <= hi;
       if (!c || !c.houses) return false;
       if (!between(c.protectionMultiplier, 1, 10) || !between(c.outsideAreaFee, 0, 500)) return false;
+      if (c.singleMarkup != null && !between(c.singleMarkup, 0, 1)) return false;
       return Object.keys(PRICING.houses).every((k) => {
         const h = c.houses[k];
         if (!h) return false;
@@ -1594,11 +1600,12 @@
           PRICING.houses = cfg.houses;
           PRICING.protectionMultiplier = cfg.protectionMultiplier;
           PRICING.outsideAreaFee = cfg.outsideAreaFee;
+          PRICING.singleMarkup = typeof cfg.singleMarkup === 'number' ? cfg.singleMarkup : null;
           const feeEl = document.getElementById('outsideValue');
           if (feeEl) feeEl.textContent = '+$' + cfg.outsideAreaFee;
           // Re-price anything already on screen with the live numbers.
           // (Runs after the rest of this script, so those functions exist.)
-          try { renderZipNote(); if (selectedHouse) calculatePrice(); } catch (e) { console.warn(e); }
+          try { renderZipNote(); renderRecurringCopy(0); if (selectedHouse) calculatePrice(); } catch (e) { console.warn(e); }
         })
         .catch((err) => { console.warn('Live prices did not load, using the built-in list.', err); }),
       new Promise((resolve) => setTimeout(resolve, 4000)),
@@ -1660,11 +1667,31 @@
       return Math.round(number);
     }
 
-    // Total for a given plan, derived from the base cleaning price.
+    // Total for a given plan. `base` is the list price for the house (what
+    // getBasePrice returns), which is the recurring price once singleMarkup
+    // is set; a one-time cleaning is that much more.
     function planTotal(base, plan) {
+      const m = PRICING.singleMarkup;
+      const legacy = !(typeof m === 'number' && isFinite(m));
       if (plan === 'protection') return roundWhole(base * PRICING.protectionMultiplier);
-      if (plan === 'recurring') return roundWhole(base * (1 - PRICING.recurringDiscount));
-      return base; // basic
+      if (plan === 'recurring') return legacy ? roundWhole(base * (1 - PRICING.recurringDiscount)) : base;
+      return legacy ? base : roundWhole(base * (1 + m)); // basic (one-time)
+    }
+
+    // Percent a recurring customer saves against the one-time price: from the
+    // two prices on screen when there is a house, else from the rate itself.
+    function recurringPct(base) {
+      if (base > 0) return Math.round((1 - planTotal(base, 'recurring') / planTotal(base, 'basic')) * 100);
+      return Math.round((1 - planTotal(10000, 'recurring') / planTotal(10000, 'basic')) * 100);
+    }
+
+    // The "Save X%" chip and the sentence on the recurring card.
+    function renderRecurringCopy(base) {
+      const pct = recurringPct(base);
+      const badge = document.getElementById('recurringBadge');
+      const off = document.getElementById('recurringOff');
+      if (badge) { badge.textContent = 'Save ' + pct + '%'; badge.style.display = pct > 0 ? '' : 'none'; }
+      if (off) off.textContent = pct > 0 ? pct + '% off this cleaning and every one after. ' : '';
     }
 
     // 25% deposit for most plans; 100% for plans in PRICING.fullPayPlans.
@@ -1762,6 +1789,7 @@
       elements.bookBtn.textContent = 'Next';
       elements.planPerFeatured.textContent = '';
       document.getElementById('planPerRecurring').textContent = '';
+      renderRecurringCopy(0);
       currentQuote = { basePrice: 0, plan: selectedPlan, finalPrice: 0 };
       updateBookBtnState();
       updatePayBar();
@@ -1801,13 +1829,18 @@
       // "only $X today" nudge on the featured plan card.
       const featuredDeposit = Math.round((planTotal(base, 'basic') + fee) * depositRateFor('basic'));
       elements.planPerFeatured.textContent = 'only $' + featuredDeposit + ' deposit today';
-      // Recurring card: the regular price crossed out under the 10%-off one.
-      document.getElementById('planPerRecurring').innerHTML = 'regular <s>$' + (base + fee) + '</s>';
+      // Recurring card: the one-time price crossed out under the recurring one.
+      const regular = planTotal(base, 'basic');
+      document.getElementById('planPerRecurring').innerHTML =
+        regular > planTotal(base, 'recurring') ? 'regular <s>$' + (regular + fee) + '</s>' : '';
+      renderRecurringCopy(base);
 
       elements.payBarAmt.textContent = '$' + deposit;
       elements.payBarBtn.textContent = 'Pick your date →';
 
-      currentQuote = { basePrice: base, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
+      // "Base cleaning" on the receipt = the one-time price, except the Gutter
+      // Protection Plan, which is a multiple of the list price (same as the server).
+      currentQuote = { basePrice: selectedPlan === 'protection' ? base : regular, plan: selectedPlan, outsideArea: outside, finalPrice: total, deposit: deposit };
       updateBookBtnState();
       updatePayBar();
       syncDatePicker();   // time first: the picker opens the moment there's a price
@@ -2267,7 +2300,7 @@
         { label: 'Base cleaning', value: '$' + base },
       ];
       if (upgrade > 0) rows.push({ label: 'Plan upgrade', value: '+$' + upgrade });
-      if (discount > 0) rows.push({ label: 'Recurring discount (10%)', value: '-$' + discount });
+      if (discount > 0) rows.push({ label: 'Recurring discount (' + Math.round(discount / base * 100) + '%)', value: '-$' + discount });
       if (fee > 0) rows.push({ label: 'Trip fee', value: '+$' + fee });
       rows.push({ label: 'Total', value: '$' + total, bold: true });
       rows.push({ label: deposit >= total ? 'Paid in full (100%)' : 'Deposit paid (25%)', value: '$' + deposit });
@@ -2944,7 +2977,16 @@
     console.assert(getBasePrice('townhome3') === H.townhome3.flat, '3-story townhome flat');
     console.assert(planTotal(200, 'protection') === roundWhole(200 * PRICING.protectionMultiplier), 'protection plan = multiple of base');
     console.assert(depositRateFor('protection') === 1, 'protection plan is paid in full');
-    console.assert(planTotal(200, 'recurring') === 180, 'recurring = 10% off the base');
+    (function () {
+      const live = PRICING.singleMarkup;
+      PRICING.singleMarkup = null;
+      console.assert(planTotal(200, 'basic') === 200 && planTotal(200, 'recurring') === 180, 'old rule: recurring = 10% off the list price');
+      PRICING.singleMarkup = 0.15;
+      console.assert(planTotal(200, 'basic') === 230 && planTotal(200, 'recurring') === 200, 'one-time = list price + 15%, recurring = list price');
+      console.assert(planTotal(200, 'protection') === roundWhole(200 * PRICING.protectionMultiplier), 'protection plan stays a multiple of the list price');
+      console.assert(recurringPct(200) === 13 && recurringPct(0) === 13, 'recurring saves 13% against a 15% markup');
+      PRICING.singleMarkup = live;
+    })();
     console.assert(depositRateFor('recurring') === 0.25, 'recurring keeps the 25% deposit');
     console.assert(depositRateFor('basic') === 0.25, 'basic plan keeps the 25% deposit');
     console.assert(isHouseFlat('townhome2') === true, 'townhome is flat-priced');

@@ -879,11 +879,11 @@ function jobberLineItems_(lead) {
       description: 'Free cleaning credit applied at enrollment.',
     }));
   } else if (code === 'recurring' && base > 0) {
-    // One cleaning at the 10%-off price; the office sets the 6-month repeat.
+    // One cleaning at the recurring price; the office sets the 6-month repeat.
     items.push(jobberServiceLine_(JOBBER_SERVICES.cleaning, {
       quantity: 1,
       unitPrice: total - fee,
-      description: [jobberSizeNote_(lead), 'Recurring every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) +
+      description: [jobberSizeNote_(lead), 'Recurring every 6 months, ' + recurringPct_(base, total - fee) +
         '% off each cleaning (regular $' + base + ').'].filter(String).join(' · '),
     }));
   } else if (base > 0) {
@@ -949,13 +949,19 @@ function jobberSizeNote_(lead) {
   return bits.join(' · ');
 }
 
+// Percent a recurring lead saves, from its own stored prices.
+function jobberRecurringPct_(lead) {
+  var fee = lead.outside ? tripFee_(lead) : 0;
+  return recurringPct_(lead.base, Number(lead.total || 0) - fee);
+}
+
 function jobberDetailsNote_(lead) {
   var lines = [];
   lines.push('Booked online at book.cvillegutterpros.com.');
   lines.push('Home: ' + (lead.house || '—') + (jobberSizeNote_(lead) ? ' (' + jobberSizeNote_(lead) + ')' : ''));
   lines.push('Plan: ' + (lead.plan || '—'));
   if (jobberPlanCode_(lead.plan) === 'recurring') {
-    lines.push('🔁 RECURRING: the customer chose a cleaning every 6 months at ' + Math.round(RECURRING_DISCOUNT * 100) +
+    lines.push('🔁 RECURRING: the customer chose a cleaning every 6 months at ' + jobberRecurringPct_(lead) +
       '% off each one. This job is booked as a single visit. Set it to repeat every 6 months.');
   }
   if (lead.outside) lines.push('Outside service area — $' + tripFee_(lead) + ' travel fee included.');
@@ -987,7 +993,7 @@ function jobberDepositNote_(lead, receiptUrl) {
     ONLINE_DEPOSIT_APPLIED,
   ];
   if (jobberPlanCode_(lead.plan) === 'recurring') {
-    lines.push('', '🔁 RECURRING every 6 months, ' + Math.round(RECURRING_DISCOUNT * 100) + '% off each cleaning. Set this job to repeat.');
+    lines.push('', '🔁 RECURRING every 6 months, ' + jobberRecurringPct_(lead) + '% off each cleaning. Set this job to repeat.');
   }
   if (receiptUrl) lines.push('Square receipt: ' + receiptUrl);
   return lines.join('\n');
