@@ -833,24 +833,20 @@ function jobberJobTitle_(lead, start) {
 }
 
 // The date lives in the title, so a customer reschedule has to rewrite it.
-// Only touches titles this script wrote, keeps anything else in the visit
-// title (the materials check mark), and never blocks the reschedule itself.
+// Only touches titles this script wrote and never blocks the reschedule itself.
 function onlineRetitleJob_(jobId, start) {
   try {
     if (!jobId) return;
-    var d = jobberGql_('query($id: EncodedId!) { job(id: $id) { title visits(first: 3) { nodes { title } } } }', { id: jobId });
+    var d = jobberGql_('query($id: EncodedId!) { job(id: $id) { title } }', { id: jobId });
     var old = String((d.job || {}).title || '');
     if (old.indexOf(JOBBER_TITLE_PREFIX + 'Gutter Cleaning - ') !== 0) return;
     var title = jobberJobTitle_(null, start);
     if (title === old) return;
-    var input = { title: title };
-    var nodes = (((d.job || {}).visits || {}).nodes) || [];
-    var vt = nodes.length ? String(nodes[0].title || '') : '';
-    if (vt && vt.indexOf(old) !== -1) input.visitTitles = vt.replace(old, title);
+    // Title only: Jobber renames the visits itself and rejects visitTitles alongside a title change.
     var r = jobberGql_(
       'mutation($id: EncodedId!, $input: JobEditInput!) {' +
       '  jobEdit(jobId: $id, input: $input) { job { id } userErrors { message path } }' +
-      '}', { id: jobId, input: input });
+      '}', { id: jobId, input: { title: title } });
     jobberCheckErrors_(r.jobEdit, 'jobEdit');
   } catch (e) {
     console.error('onlineRetitleJob_: ' + e);
