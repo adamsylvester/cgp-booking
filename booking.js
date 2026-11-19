@@ -70,6 +70,8 @@
     try { var raw = localStorage.getItem('cgp_lastLead'); if (raw) return JSON.parse(raw); } catch (_) {}
     return null;
   }
+  // The funnel visit this tab belongs to (same id the booking page logs under).
+  function sid() { try { return sessionStorage.getItem('cgp_sid') || localStorage.getItem('cgp_sid') || ''; } catch (_) { return ''; } }
   function track(event, extra) {
     try {
       var office = false; try { office = /[?&]office=1/.test(location.search) || localStorage.getItem('cgp_office') === '1'; } catch (_) {}
@@ -445,7 +447,7 @@
         zip: S.zip || (String(v('address')).match(/\b\d{5}\b/) || [''])[0],
         notes: v('notes'), website: v('website'),
         lead_timestamp: S.service === 'cleaning' ? (l.timestamp || '') : '',
-        source: S.office ? 'office' : (S.embed ? 'booking-page-embed' : 'booking-page'), minutes: S.minutes,
+        source: S.office ? 'office' : (S.embed ? 'booking-page-embed' : 'booking-page'), minutes: S.minutes, session: sid(),
       };
       set({ step: 'busy', busyMsg: 'Booking your time…' });
       api(body).then(function (r) {
@@ -468,7 +470,7 @@
         // Time first, details next (2026-11-04): the hold starts with no contact;
         // the booking page's details step puts the name on it (op hold_contact).
         op: 'hold', service: S.service, start: S.picked.start.toISOString(),
-        address: l.address || '', zip: S.zip || l.zip || '', source: S.office ? 'office' : 'pick-then-pay', minutes: S.minutes,
+        address: l.address || '', zip: S.zip || l.zip || '', source: S.office ? 'office' : 'pick-then-pay', minutes: S.minutes, session: sid(),
       }).then(function (r) {
         if (!r.ok) { S.err = friendly(r.error, r._status); return loadSlots().then(function () { set({ step: 'calendar' }); }); }
         try { localStorage.setItem('cgp_hold', r.token); } catch (_) {}

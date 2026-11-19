@@ -32,7 +32,9 @@
         embed: embed,
         // mode=hold: pick-then-pay — hold the time, tell the booking page, no form
         mode: q.get('mode') === 'hold' ? 'hold' : undefined,
-        office: q.get('office') === '1',   // staff booking for a customer: not counted in stats
+        // staff booking for a customer: not counted in stats. The Staff switch
+        // sticks on the device, so the assessment calendar honours it too.
+        office: q.get('office') === '1' || (q.get('office') !== '0' && (function () { try { return localStorage.getItem('cgp_office') === '1'; } catch (_) { return false; } })()),
         minutes: q.get('minutes'),         // arrival-window length, from the house size on the booking page
         zip: q.get('zip'),                 // the property ZIP from the booking page (time first, details later)
       });

@@ -1523,6 +1523,15 @@
         else localStorage.setItem('cgp_office', on ? '1' : '0');
       } catch (_) { on = !!on; }
       window.cgpOffice = !!on;
+      // Take office=1 out of the address bar once the device remembers it, so a
+      // link a staff member copies to a customer never puts THEM in staff mode.
+      try {
+        if (q.has('office') && history.replaceState) {
+          q.delete('office');
+          var rest = q.toString();
+          history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+        }
+      } catch (_) {}
       function paint() {
         var bar = document.getElementById('officeBar');
         if (bar) bar.hidden = !window.cgpOffice;
