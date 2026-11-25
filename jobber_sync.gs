@@ -708,6 +708,7 @@ function jobberDailyStuckSweep_() {
   vals.forEach(function (v, i) {
     if (String(v[COL.STATUS - 1]) !== STATUS.PAID) return;
     if (!String(v[JCOL.QUOTE - 1] || '')) return; // no quote = create failed; that already emailed
+    if (/^\s*ZZZ/i.test(String(v[COL.NAME - 1] || ''))) return; // my own tests never reach the office
     var paidAt = new Date(v[COL.PAID_AT - 1] || v[COL.TIMESTAMP - 1]);
     if (isNaN(paidAt) || (now - paidAt) < 20 * 3600000) return; // give the office a day
     candidates.push({ sheetRow: firstRow + i, lead: rowToLead(v), quoteId: String(v[JCOL.QUOTE - 1]), paidAt: paidAt });
@@ -722,7 +723,15 @@ function jobberDailyStuckSweep_() {
         'query($id: EncodedId!) { quote(id: $id) { quoteStatus clientHubUri } }',
         { id: s.quoteId }
       );
-      var status = String(((data.quote || {}).quoteStatus) || '');
+      // Jobber answers null for a quote somebody deleted (2026-11-25: Barbara
+      // Press's duplicate quote and two test quotes were deleted, and the
+      // office got this email every morning about quotes that no longer
+      // existed). Gone = handled.
+      if (!data.quote) {
+        sheet.getRange(s.sheetRow, JCOL.SYNC).setValue('✅ Quote deleted in Jobber');
+        return false;
+      }
+      var status = String(data.quote.quoteStatus || '');
       if (status && status !== 'awaiting_response' && status !== 'draft') {
         sheet.getRange(s.sheetRow, JCOL.SYNC).setValue('✅ Quote ' + status.replace(/_/g, ' '));
         return false;
